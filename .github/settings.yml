@@ -6,4 +6,9 @@ repository:
   name: kamerplanter-ha
   description: Kamerplanter Custom Integration for Home Assistant
   homepage: https://nolte.github.io/kamerplanter-ha
-  topics: home-assistant, hacs, custom-integration, kamerplanter, plant-management
+  topics:
+    - home-assistant
+    - hacs
+    - custom-integration
+    - kamerplanter
+    - plant-management
