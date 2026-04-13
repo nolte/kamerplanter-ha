@@ -1,0 +1,141 @@
+site_name: Kamerplanter HA Integration
+site_url: https://nolte.github.io/kamerplanter-ha
+site_description: Documentation for the Kamerplanter Home Assistant Custom Integration.
+site_author: Kamerplanter Development Team
+
+repo_url: https://github.com/nolte/kamerplanter-ha
+repo_name: nolte/kamerplanter-ha
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2026 Kamerplanter
+
+docs_dir: docs
+
+theme:
+  name: material
+  language: de
+
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-7
+        name: Zum Dunkelmodus wechseln
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-4
+        name: Zum Hellmodus wechseln
+
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+  logo: assets/images/banner-ha-integration.png
+  favicon: assets/images/banner-ha-integration.png
+
+  features:
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - header.autohide
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+plugins:
+  - search:
+      lang:
+        - de
+        - en
+      separator: '[\s\-,:!=\[\]()\"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: de
+          name: Deutsch
+          default: true
+          build: true
+        - locale: en
+          name: English
+          build: true
+          nav_translations:
+            Startseite: Home
+            Installation: Installation
+            Einrichtung: Setup
+            Entities: Entities
+            Automationen: Automations
+            Lovelace Cards: Lovelace Cards
+            Services: Services
+            Fehlerbehebung: Troubleshooting
+            Entwicklung: Development
+            Lokales Setup: Local Setup
+            Architektur: Architecture
+            Changelog: Changelog
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nolte/kamerplanter-ha
+
+nav:
+  - Startseite: de/index.md
+  - Installation: de/guides/installation.md
+  - Einrichtung: de/guides/setup.md
+  - Entities: de/guides/entities.md
+  - Automationen: de/guides/automations.md
+  - Lovelace Cards: de/guides/lovelace-cards.md
+  - Services: de/guides/services.md
+  - Fehlerbehebung: de/guides/troubleshooting.md
+  - Entwicklung:
+      - Lokales Setup: de/development/local-setup.md
+      - Architektur: de/development/architecture.md
+  - Changelog: de/changelog/index.md

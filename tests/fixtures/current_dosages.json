@@ -1,0 +1,17 @@
+{
+  "current_week": 3,
+  "channels": [
+    {
+      "channel_id": "drench-60l",
+      "label": "60L Giesskanne",
+      "application_method": "drench",
+      "dosages": [
+        {
+          "fertilizer_key": "fert-001",
+          "product_name": "CalMag",
+          "ml_per_liter": 0.5
+        }
+      ]
+    }
+  ]
+}

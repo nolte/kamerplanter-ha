@@ -1,0 +1,204 @@
+refresh_data:
+  name: Refresh Data
+  description: Immediately re-poll all coordinators to fetch latest data from Kamerplanter.
+  fields:
+    entry_id:
+      name: Config Entry ID
+      description: Target a specific Kamerplanter instance. Leave empty for all instances.
+      required: false
+      example: "abc123"
+      selector:
+        text:
+
+clear_cache:
+  name: Clear Cache
+  description: Clear local coordinator cache and reload all data from Kamerplanter.
+  fields:
+    entry_id:
+      name: Config Entry ID
+      description: Target a specific Kamerplanter instance. Leave empty for all instances.
+      required: false
+      example: "abc123"
+      selector:
+        text:
+
+fill_tank:
+  name: Fill Tank
+  description: >-
+    Start the tank fill process in Kamerplanter. Creates a fill event
+    with the current dosages from the assigned nutrient plan.
+    Accepts an HA entity ID (any tank entity) or a direct tank key.
+  fields:
+    entity_id:
+      name: Tank Entity
+      description: Any entity of the tank (e.g. sensor.kp_xxx_info or sensor.kp_xxx_fill_level).
+      required: false
+      example: "sensor.kp_90639_info"
+      selector:
+        entity:
+          integration: kamerplanter
+    tank_key:
+      name: Tank Key (Legacy)
+      description: Direct ArangoDB key of the tank. Only use when no entity ID is available.
+      required: false
+      example: "90639"
+      selector:
+        text:
+    fill_type:
+      name: Fill Type
+      description: Type of fill operation.
+      required: false
+      default: "full_change"
+      selector:
+        select:
+          options:
+            - label: "Full Change"
+              value: "full_change"
+            - label: "Top Up"
+              value: "top_up"
+            - label: "Adjustment"
+              value: "adjustment"
+    volume_liters:
+      name: Volume (Liters)
+      description: Filled volume. Leave empty for tank nominal volume.
+      required: false
+      selector:
+        number:
+          min: 0.1
+          max: 1000
+          step: 0.1
+          unit_of_measurement: "L"
+    measured_ec_ms:
+      name: Measured EC (mS/cm)
+      description: EC value after mixing (optional).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.01
+          unit_of_measurement: "mS/cm"
+    measured_ph:
+      name: Measured pH
+      description: pH value after mixing (optional).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 14
+          step: 0.1
+    notes:
+      name: Notes
+      description: Optional remarks for the fill event.
+      required: false
+      selector:
+        text:
+          multiline: true
+
+confirm_care:
+  name: Confirm Care
+  description: >-
+    Confirm a care reminder as completed. Called from actionable notifications
+    of the Companion App.
+  fields:
+    notification_key:
+      name: Notification Key
+      description: Key of the notification to confirm.
+      required: true
+      example: "notif_20260321_abc123"
+      selector:
+        text:
+    action:
+      name: Action
+      default: "confirmed"
+      selector:
+        select:
+          options:
+            - label: "Confirmed"
+              value: "confirmed"
+            - label: "Skipped"
+              value: "skipped"
+
+water_channel:
+  name: Water Channel
+  description: >-
+    Perform a watering event for a delivery channel of a plant instance.
+    Creates a watering log entry with the current dosages from the assigned
+    nutrient plan. Accepts a channel entity ID or direct plant_key + channel_id.
+  fields:
+    entity_id:
+      name: Channel Entity
+      description: >-
+        A channel entity of the plant (e.g. sensor.kp_12345_drip_a_mix).
+        The plant_key and channel_id are resolved automatically.
+      required: false
+      example: "sensor.kp_12345_drip_a_mix"
+      selector:
+        entity:
+          integration: kamerplanter
+    plant_key:
+      name: Plant Key
+      description: Direct ArangoDB key of the plant instance. Only use when no entity ID is available.
+      required: false
+      example: "12345"
+      selector:
+        text:
+    channel_id:
+      name: Channel ID
+      description: ID of the delivery channel (e.g. "drip_a" or "foliar"). Only use together with plant_key.
+      required: false
+      example: "drip_a"
+      selector:
+        text:
+    volume_liters:
+      name: Volume (Liters)
+      description: Watered volume. Leave empty for channel volume from nutrient plan.
+      required: false
+      selector:
+        number:
+          min: 0.01
+          max: 1000
+          step: 0.01
+          unit_of_measurement: "L"
+    application_method:
+      name: Application Method
+      description: How is the water applied?
+      required: false
+      default: "drench"
+      selector:
+        select:
+          options:
+            - label: "Drench"
+              value: "drench"
+            - label: "Foliar Spray"
+              value: "foliar"
+            - label: "Fertigation"
+              value: "fertigation"
+            - label: "Capillary"
+              value: "capillary"
+    measured_ec_ms:
+      name: Measured EC (mS/cm)
+      description: EC value of the nutrient solution (optional).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.01
+          unit_of_measurement: "mS/cm"
+    measured_ph:
+      name: Measured pH
+      description: pH value of the nutrient solution (optional).
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 14
+          step: 0.1
+    notes:
+      name: Notes
+      description: Optional remarks.
+      required: false
+      selector:
+        text:
+          multiline: true

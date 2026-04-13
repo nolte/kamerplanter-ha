@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Ruff lint
+        run: ruff check custom_components/
+
+      - name: Ruff format check
+        run: ruff format --check custom_components/
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate manifest.json
+        run: |
+          python -c "
+          import json, sys
+          m = json.load(open('custom_components/kamerplanter/manifest.json'))
+          required = ['domain', 'name', 'version', 'documentation', 'codeowners', 'config_flow']
+          missing = [k for k in required if k not in m]
+          if missing:
+              print(f'Missing keys: {missing}', file=sys.stderr)
+              sys.exit(1)
+          print('manifest.json is valid')
+          "
+
+      - name: Validate hacs.json
+        run: |
+          python -c "
+          import json
+          h = json.load(open('hacs.json'))
+          print(f'HACS config: {h}')
+          assert 'name' in h, 'Missing name in hacs.json'
+          print('hacs.json is valid')
+          "
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-homeassistant-custom-component aiohttp
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration

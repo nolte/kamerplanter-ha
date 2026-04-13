@@ -1,0 +1,29 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: ['--markdown-linebreak-ext=md']
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+      - id: check-json
+      - id: check-merge-conflict
+
+  # ── HA Integration (Python) ──────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: ruff-lint
+        name: ruff check
+        entry: ruff check --fix
+        language: python
+        additional_dependencies: ['ruff>=0.15.0']
+        files: \.py$
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: ruff format
+        language: python
+        additional_dependencies: ['ruff>=0.15.0']
+        files: \.py$
+        types: [python]

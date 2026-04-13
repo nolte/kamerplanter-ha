@@ -1,0 +1,11 @@
+[
+  {
+    "key": "task-001",
+    "name": "Tomate giessen",
+    "title": "Tomate giessen",
+    "category": "watering",
+    "priority": "high",
+    "status": "pending",
+    "due_date": "2026-04-03T08:00:00Z"
+  }
+]

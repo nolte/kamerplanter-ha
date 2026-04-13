@@ -1,0 +1,9 @@
+# These settings are synced to GitHub by https://probot.github.io/apps/settings/
+
+_extends: gh-plumbing:.github/commons-settings.yml
+
+repository:
+  name: kamerplanter-ha
+  description: Kamerplanter Custom Integration for Home Assistant
+  homepage: https://nolte.github.io/kamerplanter-ha
+  topics: home-assistant, hacs, custom-integration, kamerplanter, plant-management

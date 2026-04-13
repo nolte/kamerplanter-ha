@@ -1,0 +1,116 @@
+{
+  "config": {
+    "flow_title": "Kamerplanter ({url})",
+    "step": {
+      "user": {
+        "title": "Mit Kamerplanter verbinden",
+        "description": "Gib die URL und den API-Key deiner Kamerplanter-Instanz ein. Im Light-Modus ist der API-Key optional.",
+        "data": {
+          "url": "URL",
+          "api_key": "API-Key (kp_...)"
+        }
+      },
+      "tenant": {
+        "title": "Mandant auswaehlen",
+        "description": "Waehle den Mandanten, den du in Home Assistant verwalten moechtest.",
+        "data": {
+          "tenant_slug": "Mandant"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Kamerplanter erneut authentifizieren",
+        "description": "Dein API-Key ist ungueltig oder abgelaufen. Bitte gib einen neuen ein.",
+        "data": {
+          "api_key": "API-Key (kp_...)"
+        }
+      },
+      "reconfigure": {
+        "title": "Kamerplanter neu konfigurieren",
+        "description": "Aendere die Kamerplanter Server-URL.",
+        "data": {
+          "url": "URL"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kamerplanter nicht erreichbar",
+      "invalid_auth": "Ungueltiger oder fehlender API-Key",
+      "no_tenants": "Keine Mandanten fuer dieses Konto gefunden"
+    },
+    "abort": {
+      "already_configured": "Diese Kamerplanter-Instanz ist bereits konfiguriert",
+      "reauth_successful": "Erneute Authentifizierung erfolgreich"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Kamerplanter Optionen",
+        "description": "Polling-Intervalle konfigurieren (in Sekunden).",
+        "data": {
+          "poll_interval_plants": "Pflanzen-Abfrageintervall (Sekunden)",
+          "poll_interval_locations": "Standort-Abfrageintervall (Sekunden)",
+          "poll_interval_alerts": "Alarm-Abfrageintervall (Sekunden)",
+          "poll_interval_tasks": "Aufgaben-Abfrageintervall (Sekunden)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "phase": {
+        "name": "Wachstumsphase",
+        "state": {
+          "germination": "Keimung",
+          "seedling": "Saemling",
+          "vegetative": "Vegetativ",
+          "flowering": "Bluete",
+          "ripening": "Reife",
+          "harvest": "Ernte",
+          "dormancy": "Ruhephase",
+          "flushing": "Spuelung",
+          "drying": "Trocknung",
+          "curing": "Curing",
+          "juvenile": "Juvenil",
+          "climbing": "Kletterphase",
+          "mature": "Reifephase",
+          "senescence": "Seneszenz",
+          "leaf_phase": "Blattphase",
+          "short_day_induction": "Kurztageinleitung"
+        }
+      },
+      "days_in_phase": { "name": "Tage in Phase" },
+      "nutrient_plan": { "name": "Naehrstoffplan" },
+      "active_channels": { "name": "Aktive Kanaele" },
+      "phase_timeline": { "name": "Phasen-Zeitstrahl" },
+      "next_phase": { "name": "Naechste Phase" },
+      "channel_mix": { "name": "Kanal-Mix" },
+      "run_status": { "name": "Status" },
+      "plant_count": { "name": "Pflanzenanzahl" },
+      "location_type": { "name": "Standorttyp" },
+      "active_runs": { "name": "Aktive Durchlaeufe" },
+      "active_plants": { "name": "Aktive Pflanzen" },
+      "tank_info": { "name": "Tank-Info" },
+      "tank_volume": { "name": "Volumen" },
+      "tasks_due_today": { "name": "Aufgaben heute faellig" },
+      "tasks_overdue": { "name": "Ueberfaellige Aufgaben" },
+      "days_until_watering": { "name": "Tage bis Giessen" },
+      "next_watering": { "name": "Naechste Bewasserung" }
+    },
+    "binary_sensor": {
+      "needs_attention": { "name": "Aufmerksamkeit erforderlich" },
+      "sensor_offline": { "name": "Sensor offline" },
+      "care_overdue": { "name": "Pflege ueberfaellig" }
+    },
+    "button": {
+      "refresh_all": { "name": "Alle Daten aktualisieren" }
+    },
+    "calendar": {
+      "phases": { "name": "Wachstumsphasen" },
+      "tasks": { "name": "Aufgaben" }
+    },
+    "todo": {
+      "tasks": { "name": "Aufgaben" }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "key": "tank-001",
+    "name": "60L Tank",
+    "volume_liters": 60,
+    "tank_type": "reservoir",
+    "material": "plastic",
+    "location_key": "loc-001"
+  }
+]

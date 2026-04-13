@@ -1,0 +1,38 @@
+{
+  extends: [
+    'github>nolte/gh-plumbing//renovate-configs/common#v1.1.12',
+  ],
+  mode: 'full',
+  separateMajorMinor: true,
+  separateMinorPatch: false,
+  packageRules: [
+    {
+      groupName: 'github-actions',
+      matchManagers: [
+        'github-actions',
+      ],
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+        'digest',
+      ],
+      automerge: true,
+    },
+    {
+      groupName: 'github-actions major',
+      matchManagers: [
+        'github-actions',
+      ],
+      matchUpdateTypes: [
+        'major',
+      ],
+    },
+    {
+      groupName: 'pre-commit hooks',
+      matchManagers: [
+        'pre-commit',
+      ],
+      automerge: true,
+    },
+  ],
+}

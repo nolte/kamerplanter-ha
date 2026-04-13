@@ -1,0 +1,11 @@
+[
+  {
+    "key": "plant-001",
+    "plant_name": "Tomate #1",
+    "instance_id": "PLANT-001",
+    "current_phase": "vegetative",
+    "current_phase_started_at": "2026-03-01T00:00:00Z",
+    "removed_on": null,
+    "slot_key": "slot-001"
+  }
+]

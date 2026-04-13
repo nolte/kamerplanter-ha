@@ -1,0 +1,56 @@
+{
+  "entity": {
+    "sensor": {
+      "phase": {
+        "default": "mdi:sprout",
+        "state": {
+          "germination": "mdi:seed-outline",
+          "seedling": "mdi:sprout",
+          "vegetative": "mdi:leaf",
+          "flowering": "mdi:flower",
+          "ripening": "mdi:fruit-grapes",
+          "harvest": "mdi:content-cut",
+          "dormancy": "mdi:snowflake",
+          "flushing": "mdi:water",
+          "drying": "mdi:weather-windy",
+          "curing": "mdi:jar-outline"
+        }
+      },
+      "days_in_phase": { "default": "mdi:calendar-clock" },
+      "vpd_target": { "default": "mdi:gauge" },
+      "ec_target": { "default": "mdi:flash" },
+      "nutrient_plan": { "default": "mdi:clipboard-text" },
+      "active_channels": { "default": "mdi:pipe" },
+      "phase_timeline": { "default": "mdi:timeline-clock-outline" },
+      "next_phase": { "default": "mdi:skip-next" },
+      "channel_mix": { "default": "mdi:bottle-tonic" },
+      "run_status": { "default": "mdi:play-circle-outline" },
+      "plant_count": { "default": "mdi:flower-outline" },
+      "location_type": { "default": "mdi:map-marker" },
+      "active_runs": { "default": "mdi:playlist-play" },
+      "active_plants": { "default": "mdi:flower" },
+      "tank_info": { "default": "mdi:barrel" },
+      "tank_volume": { "default": "mdi:cup-water" },
+      "fill_level": { "default": "mdi:waves-arrow-up" },
+      "tasks_due_today": { "default": "mdi:clipboard-check-outline" },
+      "tasks_overdue": { "default": "mdi:clipboard-alert-outline" },
+      "days_until_watering": { "default": "mdi:watering-can-outline" },
+      "next_watering": { "default": "mdi:watering-can" }
+    },
+    "binary_sensor": {
+      "needs_attention": { "default": "mdi:alert-circle" },
+      "sensor_offline": { "default": "mdi:access-point-network-off" },
+      "care_overdue": { "default": "mdi:watering-can-outline" }
+    },
+    "button": {
+      "refresh_all": { "default": "mdi:refresh" }
+    }
+  },
+  "services": {
+    "refresh_data": { "service": "mdi:refresh" },
+    "clear_cache": { "service": "mdi:cached" },
+    "fill_tank": { "service": "mdi:water-plus" },
+    "water_channel": { "service": "mdi:watering-can" },
+    "confirm_care": { "service": "mdi:check-circle" }
+  }
+}
