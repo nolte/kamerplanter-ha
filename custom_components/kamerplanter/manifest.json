@@ -9,5 +9,6 @@
   "integration_type": "hub",
   "loggers": ["custom_components.kamerplanter"],
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "preload_platforms": false
 }

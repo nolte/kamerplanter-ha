@@ -1,8 +1,20 @@
 """Shared fixtures for Kamerplanter HA integration tests."""
 from __future__ import annotations
 
-import json
+pytest_plugins = "pytest_homeassistant_custom_component"
+
+# Ensure the HA loader can discover our custom_components/kamerplanter package.
+# pytest-homeassistant-custom-component sets custom_components.__path__ to its
+# own testing_config directory; we prepend the repo's custom_components/ so the
+# loader finds our integration.
+import custom_components  # noqa: E402
 from pathlib import Path
+
+_REPO_CC = str(Path(__file__).resolve().parent.parent / "custom_components")
+if _REPO_CC not in custom_components.__path__:
+    custom_components.__path__.insert(0, _REPO_CC)
+
+import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -19,6 +31,14 @@ CONF_TENANT_SLUG = "tenant_slug"
 def load_fixture(name: str) -> Any:
     """Load a JSON fixture file."""
     return json.loads((FIXTURES_DIR / name).read_text())
+
+
+@pytest.fixture(autouse=True)
+async def _clear_custom_components_cache(hass):
+    """Clear cached custom components so the HA loader rediscovers ours."""
+    from homeassistant.loader import DATA_CUSTOM_COMPONENTS
+
+    hass.data.pop(DATA_CUSTOM_COMPONENTS, None)
 
 
 @pytest.fixture
