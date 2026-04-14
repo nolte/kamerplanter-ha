@@ -8,18 +8,22 @@ flowchart TB
         CF["Config Flow"] --> API["API Client\napi.py"]
         API --> C1["Plant Coordinator"]
         API --> C2["Location Coordinator"]
-        API --> C3["Alert Coordinator"]
-        API --> C4["Task Coordinator"]
+        API --> C3["Run Coordinator"]
+        API --> C4["Alert Coordinator"]
+        API --> C5["Task Coordinator"]
         C1 --> S["Sensors\nsensor.py"]
         C1 --> BS["Binary Sensors\nbinary_sensor.py"]
         C2 --> S
-        C3 --> BS
-        C4 --> CAL["Calendar\ncalendar.py"]
-        C4 --> TODO["Todo\ntodo.py"]
+        C3 --> S
+        C4 --> BS
+        C5 --> CAL["Calendar\ncalendar.py"]
+        C5 --> TODO["Todo\ntodo.py"]
         S --> CARDS["Lovelace Cards\nwww/*.js"]
     end
     API -->|REST API| KP["Kamerplanter Backend"]
 ```
+
+---
 
 ## Components
 
@@ -31,24 +35,28 @@ flowchart TB
 
 ### Coordinators (`coordinator.py`)
 
-Four `DataUpdateCoordinator` instances with independent polling intervals:
+Five `DataUpdateCoordinator` instances with independent polling intervals:
 
 | Coordinator | Data | Default Interval |
 |-------------|------|-----------------|
-| Plant | Plants, runs, phases, dosages | 300s |
-| Location | Locations, tanks | 300s |
-| Alert | Overdue tasks, sensor status | 60s |
-| Task | Pending tasks | 300s |
+| **Plant** | Plants, phases, dosages, VPD/EC targets | 300s |
+| **Location** | Locations, tanks, fill levels | 300s |
+| **Run** | Planting runs, run status, plant counts | 300s |
+| **Alert** | Overdue tasks, sensor status | 60s |
+| **Task** | Pending tasks | 300s |
+
+!!! info "Why 5 coordinators?"
+    Separating concerns allows time-critical alerts (60s) to be polled more frequently than master data (300s). Each coordinator has its own error counter and recovery mechanism.
 
 ### Entity Platforms
 
-| File | Platform | Entities |
-|------|----------|----------|
-| `sensor.py` | `sensor` | Plants, runs, locations, tanks, server |
-| `binary_sensor.py` | `binary_sensor` | Attention, care, sensor status |
-| `calendar.py` | `calendar` | Phases, tasks |
-| `todo.py` | `todo` | Task list |
-| `button.py` | `button` | Refresh all |
+| File | Platform | Entities | Coordinator(s) |
+|------|----------|----------|----------------|
+| `sensor.py` | `sensor` | Plants, runs, locations, tanks, server | Plant, Location, Run |
+| `binary_sensor.py` | `binary_sensor` | Attention, care, sensor status | Alert |
+| `calendar.py` | `calendar` | Phases, tasks | Plant, Task |
+| `todo.py` | `todo` | Task list | Task |
+| `button.py` | `button` | Refresh all | — |
 
 ### Custom Lovelace Cards (`www/`)
 
@@ -60,9 +68,11 @@ Four `DataUpdateCoordinator` instances with independent polling intervals:
 - `kamerplanter-care-card.js`
 - `kamerplanter-houseplant-card.js`
 
+---
+
 ## Style Guide
 
-All code changes must follow the style guide: `spec/style-guides/HA-INTEGRATION.md`
+All code changes must follow the style guide: [`spec/style-guides/HA-INTEGRATION.md`](https://github.com/nolte/kamerplanter-ha/blob/main/spec/style-guides/HA-INTEGRATION.md)
 
 Key patterns:
 

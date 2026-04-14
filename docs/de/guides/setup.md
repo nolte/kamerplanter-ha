@@ -16,21 +16,21 @@ flowchart LR
 | **Kamerplanter → HA** | HA Long-Lived Access Token | Kamerplanter liest Sensordaten, steuert Aktoren | Home Assistant: **Profil** > **Long-Lived Access Tokens** |
 
 !!! warning "Beide Tokens erforderlich"
-    Ohne den **Kamerplanter API-Key** kann die HA-Integration keine Daten abfragen. Ohne den **HA Access Token** kann Kamerplanter keine Sensordaten aus Home Assistant lesen und keine Aktoren steuern. Fuer einen reinen Lese-Betrieb (nur HA-Dashboard) reicht der Kamerplanter API-Key allein.
+    Ohne den **Kamerplanter API-Key** kann die HA-Integration keine Daten abfragen. Ohne den **HA Access Token** kann Kamerplanter keine Sensordaten aus Home Assistant lesen und keine Aktoren steuern. Fuer reinen Lese-Betrieb (nur HA-Dashboard) reicht der Kamerplanter API-Key allein.
 
 ### Tokens einrichten
 
-**1. Kamerplanter API-Key erstellen** (fuer HA → Kamerplanter):
+=== "Kamerplanter API-Key (HA → Kamerplanter)"
 
-1. In Kamerplanter: **Einstellungen** > **API-Keys** > **Neuer Key**
-2. Den generierten Key (`kp_...`) kopieren
-3. In Home Assistant: Bei der Kamerplanter-Integration im Config Flow eingeben
+    1. In Kamerplanter: **Einstellungen** > **API-Keys** > **Neuer Key**
+    2. Den generierten Key (`kp_...`) kopieren
+    3. In Home Assistant: Bei der Kamerplanter-Integration im Config Flow eingeben
 
-**2. HA Access Token erstellen** (fuer Kamerplanter → HA):
+=== "HA Access Token (Kamerplanter → HA)"
 
-1. In Home Assistant: **Profil** (unten links) > **Long-Lived Access Tokens** > **Token erstellen**
-2. Den Token kopieren
-3. In Kamerplanter: **Einstellungen** > **Home Assistant** > URL und Token eintragen
+    1. In Home Assistant: **Profil** (unten links) > **Long-Lived Access Tokens** > **Token erstellen**
+    2. Den Token kopieren
+    3. In Kamerplanter: **Einstellungen** > **Home Assistant** > URL und Token eintragen
 
 ---
 
@@ -42,10 +42,13 @@ Nach der Installation fuehrt ein 4-Schritte-Assistent durch die Konfiguration:
 
 Gib die URL deiner Kamerplanter-Instanz ein:
 
-- Lokal: `http://raspberry:8000` oder `http://192.168.1.50:8000`
-- Extern: `https://kamerplanter.example.com`
+| Beispiel | URL |
+|----------|-----|
+| Lokal | `http://raspberry:8000` oder `http://192.168.1.50:8000` |
+| Extern | `https://kamerplanter.example.com` |
 
-Die Integration prueft die Erreichbarkeit automatisch via `/api/health`.
+!!! info "Automatischer Health-Check"
+    Die Integration prueft die Erreichbarkeit automatisch via `/api/health`.
 
 ### Schritt 2: Authentifizierung
 
@@ -65,13 +68,34 @@ Waehle aus, welche Pflanzen, Standorte und Tanks als HA-Entities angelegt werden
 
 ---
 
+## Reauth & Reconfigure
+
+Die Integration unterstuetzt zwei Korrektur-Flows, erreichbar ueber **Einstellungen** > **Integrationen** > **Kamerplanter**:
+
+=== "Reauthentifizierung"
+
+    Wenn dein API-Key abgelaufen oder widerrufen wurde, zeigt HA die Integration als fehlerhaft an. Klicke auf **Erneut authentifizieren** und gib einen neuen API-Key ein.
+
+    !!! tip "Wann wird Reauth ausgeloest?"
+        HA erkennt automatisch, wenn die API mit `401 Unauthorized` antwortet, und zeigt den Reauth-Flow an.
+
+=== "Reconfigure"
+
+    Aendere die Server-URL, z.B. nach einem Umzug des Backends auf eine neue Adresse. Klicke auf **Konfigurieren** > **Server-URL aendern**.
+
+---
+
 ## Polling-Intervalle
 
 Konfigurierbar unter **Einstellungen** > **Integrationen** > **Kamerplanter** > **Konfigurieren**:
 
-| Datentyp | Standard | Minimum | Beschreibung |
-|----------|----------|---------|-------------|
-| Pflanzen | 300s | 120s | Pflanzen, Phasen, Dosierungen |
-| Standorte | 300s | 120s | Standorte, Tanks, Runs |
-| Alarme | 60s | 30s | Ueberfaellige Aufgaben, Sensor offline |
-| Aufgaben | 300s | 120s | Anstehende Aufgaben |
+| Coordinator | Standard | Minimum | Daten |
+|-------------|----------|---------|-------|
+| **Plant** | 300s | 120s | Pflanzen, Phasen, Dosierungen, VPD/EC-Sollwerte |
+| **Location** | 300s | 120s | Standorte, Tanks, Fuellstaende |
+| **Run** | 300s | 120s | Pflanzdurchlaeufe, Run-Status, Pflanzenanzahl |
+| **Alert** | 60s | 30s | Ueberfaellige Aufgaben, Sensor offline |
+| **Task** | 300s | 120s | Anstehende Aufgaben |
+
+!!! tip "Alerts schneller pollen"
+    Der Alert-Coordinator hat bewusst ein kuerzeres Standard-Intervall (60s), damit zeitkritische Benachrichtigungen schneller ankommen.

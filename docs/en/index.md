@@ -20,19 +20,22 @@ flowchart LR
 
 ## Features
 
-- **Plant monitoring** — growth phases, days in phase, next phase predictions, nutrient plan assignments
-- **Nutrient dosages** — per-channel mixing ratios (ml/L) as sensor attributes, ready for dashboard cards
-- **Tank management** — fill events, solution age, EC/pH tracking via HA services
-- **Location overview** — active runs and plant counts per tent, room, or bed
-- **Task tracking** — todo list entity, overdue counts, calendar events for phases and tasks
-- **Care reminders** — binary sensors for overdue care, events for actionable notifications
-- **5 custom Lovelace cards** — plant, mix, tank, care, houseplant card (auto-registered)
-- **Services** — fill tank, water channel, confirm care, refresh data, clear cache
+- :seedling: **Plant monitoring** — growth phases, days in phase, VPD/EC targets, next phase, nutrient plan
+- :test_tube: **Nutrient dosages** — per-channel mixing ratios (ml/L) as sensor attributes, dashboard-ready
+- :potable_water: **Tank management** — fill level, solution age, EC/pH via HA services
+- :house: **Location overview** — active runs and plant counts per tent, room, or bed
+- :ballot_box_with_check: **Task tracking** — todo list entity, overdue counts, calendar events
+- :bell: **Care reminders** — binary sensors for overdue care, events for actionable notifications
+- :art: **5 custom Lovelace cards** — plant, mix, tank, care, houseplant card (auto-registered)
+- :gear: **5 services** — fill tank, water channel, confirm care, refresh data, clear cache
+
+!!! info "5 independent coordinators"
+    The integration uses **5 separate DataUpdateCoordinators** (Plant, Location, Run, Alert, Task) with individually configurable polling intervals. Time-critical alerts arrive faster than master data.
 
 ## Next Steps
 
 - [Installation](guides/installation.md) — Install via HACS or manually
-- [Setup](guides/setup.md) — Config flow and token exchange
+- [Setup](guides/setup.md) — Config flow, token exchange, reauth & reconfigure
 - [Entities](guides/entities.md) — All available sensors and entities
 - [Automations](guides/automations.md) — Example automations and Jinja2 templates
 - [Lovelace Cards](guides/lovelace-cards.md) — Configure custom cards

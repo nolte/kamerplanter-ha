@@ -2,9 +2,11 @@
 
 ## Voraussetzungen
 
-- Python 3.12+
-- Lokaler Kubernetes-Cluster (Kind) mit Skaffold
-- Home Assistant als StatefulSet `homeassistant-0` im Namespace `default`
+| Anforderung | Details |
+|-------------|---------|
+| **Python** | 3.12+ |
+| **Kubernetes** | Lokaler Kind-Cluster mit Skaffold |
+| **Home Assistant** | StatefulSet `homeassistant-0` im Namespace `default` |
 
 ## Development-Workflow
 
@@ -46,9 +48,14 @@ kubectl logs homeassistant-0 -n default --since=90s | \
 | `/deploy-ha` | Deployt die Integration und prueft die Logs |
 | `/verify-ha` | Prueft den aktuellen Status ohne Redeployment |
 
+---
+
 ## Tests ausfuehren
 
 ```bash
 pip install pytest pytest-asyncio pytest-homeassistant-custom-component aiohttp
 pytest tests/ -v --tb=short
 ```
+
+!!! tip "Schnellere Iteration"
+    Fuer einzelne Test-Dateien: `pytest tests/test_config_flow.py -v`

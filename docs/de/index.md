@@ -20,19 +20,22 @@ flowchart LR
 
 ## Features
 
-- **Pflanzen-Monitoring** — Wachstumsphasen, Tage in Phase, naechste Phase, Naehrplanprofil
-- **Naehrstoff-Dosierungen** — pro Kanal als Sensor-Attribute (ml/L), Dashboard-ready
-- **Tank-Management** — Fuellstand, Loesungsalter, EC/pH via HA-Services
-- **Standort-Uebersicht** — aktive Runs und Pflanzenanzahl pro Zelt/Raum/Beet
-- **Aufgaben-Tracking** — Todo-Entity, ueberfaellige Aufgaben, Kalender-Events
-- **Pflege-Erinnerungen** — Binary Sensors fuer ueberfaellige Pflege, Events fuer Benachrichtigungen
-- **5 Custom Lovelace Cards** — Plant, Mix, Tank, Care, Houseplant Card (auto-registriert)
-- **Services** — Tank fuellen, Kanal giessen, Pflege bestaetigen, Daten aktualisieren
+- :seedling: **Pflanzen-Monitoring** — Wachstumsphasen, Tage in Phase, VPD/EC-Sollwerte, naechste Phase, Naehrplanprofil
+- :test_tube: **Naehrstoff-Dosierungen** — pro Kanal als Sensor-Attribute (ml/L), Dashboard-ready
+- :potable_water: **Tank-Management** — Fuellstand, Loesungsalter, EC/pH via HA-Services
+- :house: **Standort-Uebersicht** — aktive Runs und Pflanzenanzahl pro Zelt/Raum/Beet
+- :ballot_box_with_check: **Aufgaben-Tracking** — Todo-Entity, ueberfaellige Aufgaben, Kalender-Events
+- :bell: **Pflege-Erinnerungen** — Binary Sensors fuer ueberfaellige Pflege, Events fuer Benachrichtigungen
+- :art: **5 Custom Lovelace Cards** — Plant, Mix, Tank, Care, Houseplant Card (auto-registriert)
+- :gear: **5 Services** — Tank fuellen, Kanal giessen, Pflege bestaetigen, Daten aktualisieren, Cache leeren
+
+!!! info "5 unabhaengige Coordinators"
+    Die Integration nutzt **5 separate DataUpdateCoordinators** (Plant, Location, Run, Alert, Task) mit individuell konfigurierbaren Polling-Intervallen. Zeitkritische Alerts kommen so schneller an als Stammdaten.
 
 ## Weiter
 
 - [Installation](guides/installation.md) — HACS oder manuell installieren
-- [Einrichtung](guides/setup.md) — Config Flow und Token-Austausch
+- [Einrichtung](guides/setup.md) — Config Flow, Token-Austausch, Reauth & Reconfigure
 - [Entities](guides/entities.md) — Alle verfuegbaren Sensoren und Entities
 - [Automationen](guides/automations.md) — Beispiel-Automationen und Jinja2-Templates
 - [Lovelace Cards](guides/lovelace-cards.md) — Custom Cards konfigurieren
