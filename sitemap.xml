@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/changelog/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/changelog/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/changelog/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/development/architecture/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/development/architecture/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/development/architecture/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/development/local-setup/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/development/local-setup/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/development/local-setup/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/guides/automations/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/automations/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/automations/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/guides/entities/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/entities/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/entities/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/guides/installation/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/installation/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/installation/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/guides/lovelace-cards/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/lovelace-cards/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/lovelace-cards/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/guides/services/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/services/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/services/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/guides/setup/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/setup/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/setup/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/guides/troubleshooting/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/troubleshooting/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/troubleshooting/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/changelog/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/changelog/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/changelog/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/development/architecture/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/development/architecture/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/development/architecture/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/development/local-setup/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/development/local-setup/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/development/local-setup/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/guides/automations/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/automations/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/automations/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/guides/entities/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/entities/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/entities/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/guides/installation/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/installation/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/installation/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/guides/lovelace-cards/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/lovelace-cards/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/lovelace-cards/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/guides/services/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/services/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/services/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/guides/setup/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/setup/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/setup/"/>
+    </url>
+    <url>
+        <loc>https://nolte.github.io/kamerplanter-ha/en/guides/troubleshooting/</loc>
+        <lastmod>2026-04-14</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://nolte.github.io/kamerplanter-ha/en/guides/troubleshooting/"/>
+        <xhtml:link rel="alternate" hreflang="de" href="https://nolte.github.io/kamerplanter-ha/guides/troubleshooting/"/>
+    </url>
+</urlset>
