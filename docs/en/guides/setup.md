@@ -20,17 +20,17 @@ flowchart LR
 
 ### Setting Up Tokens
 
-**1. Create Kamerplanter API key** (for HA → Kamerplanter):
+=== "Kamerplanter API Key (HA → Kamerplanter)"
 
-1. In Kamerplanter: **Settings** > **API Keys** > **New Key**
-2. Copy the generated key (`kp_...`)
-3. In Home Assistant: Enter during the Kamerplanter integration config flow
+    1. In Kamerplanter: **Settings** > **API Keys** > **New Key**
+    2. Copy the generated key (`kp_...`)
+    3. In Home Assistant: Enter during the Kamerplanter integration config flow
 
-**2. Create HA Access Token** (for Kamerplanter → HA):
+=== "HA Access Token (Kamerplanter → HA)"
 
-1. In Home Assistant: **Profile** (bottom left) > **Long-Lived Access Tokens** > **Create Token**
-2. Copy the token
-3. In Kamerplanter: **Settings** > **Home Assistant** > Enter URL and token
+    1. In Home Assistant: **Profile** (bottom left) > **Long-Lived Access Tokens** > **Create Token**
+    2. Copy the token
+    3. In Kamerplanter: **Settings** > **Home Assistant** > Enter URL and token
 
 ---
 
@@ -42,10 +42,13 @@ After installation, a 4-step wizard guides you through configuration:
 
 Enter the URL of your Kamerplanter instance:
 
-- Local: `http://raspberry:8000` or `http://192.168.1.50:8000`
-- External: `https://kamerplanter.example.com`
+| Example | URL |
+|---------|-----|
+| Local | `http://raspberry:8000` or `http://192.168.1.50:8000` |
+| External | `https://kamerplanter.example.com` |
 
-The integration automatically checks reachability via `/api/health`.
+!!! info "Automatic health check"
+    The integration automatically checks reachability via `/api/health`.
 
 ### Step 2: Authentication
 
@@ -65,13 +68,34 @@ Choose which plants, locations, and tanks should be created as HA entities. By d
 
 ---
 
+## Reauth & Reconfigure
+
+The integration supports two correction flows, accessible via **Settings** > **Integrations** > **Kamerplanter**:
+
+=== "Reauthentication"
+
+    When your API key has expired or been revoked, HA shows the integration as faulty. Click **Re-authenticate** and enter a new API key.
+
+    !!! tip "When is reauth triggered?"
+        HA automatically detects when the API responds with `401 Unauthorized` and shows the reauth flow.
+
+=== "Reconfigure"
+
+    Change the server URL, e.g. after moving the backend to a new address. Click **Configure** > **Change server URL**.
+
+---
+
 ## Polling Intervals
 
 Configurable under **Settings** > **Integrations** > **Kamerplanter** > **Configure**:
 
-| Data Type | Default | Minimum | Description |
-|-----------|---------|---------|-------------|
-| Plants | 300s | 120s | Plants, phases, dosages |
-| Locations | 300s | 120s | Sites, tanks, runs |
-| Alerts | 60s | 30s | Overdue tasks, sensor offline |
-| Tasks | 300s | 120s | Pending tasks |
+| Coordinator | Default | Minimum | Data |
+|-------------|---------|---------|------|
+| **Plant** | 300s | 120s | Plants, phases, dosages, VPD/EC targets |
+| **Location** | 300s | 120s | Locations, tanks, fill levels |
+| **Run** | 300s | 120s | Planting runs, run status, plant counts |
+| **Alert** | 60s | 30s | Overdue tasks, sensor offline |
+| **Task** | 300s | 120s | Pending tasks |
+
+!!! tip "Faster alert polling"
+    The Alert coordinator intentionally has a shorter default interval (60s) so time-critical notifications arrive faster.

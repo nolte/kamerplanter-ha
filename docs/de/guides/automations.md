@@ -1,5 +1,9 @@
 # Automationen
 
+Kamerplanter-Entities lassen sich direkt in HA-Automationen verwenden. Hier einige praxiserprobte Beispiele.
+
+---
+
 ## Phasenwechsel: Lichtprogramm umstellen
 
 Wenn Kamerplanter einen Phasenwechsel zu "Bluete" meldet, wird das Lichtprogramm automatisch auf 12h/12h umgestellt:
@@ -23,9 +27,11 @@ action:
       message: "Northern Lights wechselt in Bluete. Licht auf 12/12 umgestellt."
 ```
 
+---
+
 ## VPD-Regelung mit Kamerplanter-Sollwert
 
-Kamerplanter liefert den optimalen VPD-Sollwert pro Phase. Home Assistant regelt den Befeuchter:
+Kamerplanter liefert den optimalen VPD-Sollwert pro Phase ueber `sensor.kp_{key}_vpd_target`. Home Assistant regelt den Befeuchter:
 
 ```yaml
 alias: "KP: VPD-Regelung"
@@ -58,6 +64,11 @@ action:
               entity_id: switch.befeuchter_zelt_1
 ```
 
+!!! tip "VPD- und EC-Sollwerte"
+    Neben `vpd_target` liefert Kamerplanter auch `ec_target` pro Pflanze. Damit kannst du z.B. die Duengerpumpe regeln oder Warnungen bei Abweichungen ausloesen.
+
+---
+
 ## Tank nachfuellen
 
 ```yaml
@@ -76,7 +87,11 @@ action:
         pH: {{ states('sensor.kp_haupttank_ph') }}
 ```
 
+---
+
 ## Actionable Care Notification
+
+Pflege-Erinnerungen mit Aktions-Buttons direkt in der Benachrichtigung — Erledigt oder Ueberspringen:
 
 ```yaml
 alias: "KP: Pflege-Erinnerung"
@@ -94,6 +109,30 @@ action:
             title: "Erledigt"
           - action: "SKIP_CARE_{{ trigger.event.data.notification_key }}"
             title: "Ueberspringen"
+```
+
+!!! info "Actionable Notifications"
+    Die Aktions-Buttons funktionieren mit der HA Companion App. Zum Bestaetigen verwendest du den Service [`kamerplanter.confirm_care`](services.md#kamerplanterconfirm_care).
+
+---
+
+## Bewaesserungs-Erinnerung
+
+Nutze den `days_until_watering`-Sensor, um rechtzeitig zu erinnern:
+
+```yaml
+alias: "KP: Morgen giessen"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.kp_northern_lights_days_until_watering
+    below: 2
+action:
+  - service: notify.mobile_app_phone
+    data:
+      title: "Giessen bald faellig"
+      message: >
+        {{ state_attr('sensor.kp_northern_lights_days_until_watering', 'friendly_name') }}:
+        Naechste Bewasserung am {{ states('sensor.kp_northern_lights_next_watering') }}
 ```
 
 ---
