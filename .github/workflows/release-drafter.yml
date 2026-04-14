@@ -1,0 +1,12 @@
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  update_release_draft:
+    uses: nolte/gh-plumbing/.github/workflows/reusable-release-drafter.yml@v1.1.12
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+      pull-requests: write
