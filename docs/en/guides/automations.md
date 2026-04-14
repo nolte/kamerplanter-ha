@@ -1,5 +1,9 @@
 # Automations
 
+Kamerplanter entities can be used directly in HA automations. Here are some proven examples.
+
+---
+
 ## Phase Change: Switch Light Schedule
 
 When Kamerplanter reports a phase change to "flowering", the light schedule is automatically switched to 12h/12h:
@@ -23,9 +27,11 @@ action:
       message: "Northern Lights entering flowering. Light switched to 12/12."
 ```
 
+---
+
 ## VPD Control with Kamerplanter Target
 
-Kamerplanter provides the optimal VPD target per phase. Home Assistant controls the humidifier:
+Kamerplanter provides the optimal VPD target per phase via `sensor.kp_{key}_vpd_target`. Home Assistant controls the humidifier:
 
 ```yaml
 alias: "KP: VPD Control"
@@ -58,6 +64,11 @@ action:
               entity_id: switch.humidifier_tent_1
 ```
 
+!!! tip "VPD and EC targets"
+    Besides `vpd_target`, Kamerplanter also provides `ec_target` per plant. Use it to control fertilizer pumps or trigger alerts on deviations.
+
+---
+
 ## Low Tank: Refill Reminder
 
 ```yaml
@@ -76,7 +87,11 @@ action:
         pH: {{ states('sensor.kp_main_tank_ph') }}
 ```
 
+---
+
 ## Actionable Care Notification
+
+Care reminders with action buttons directly in the notification — Done or Skip:
 
 ```yaml
 alias: "KP: Care Reminder"
@@ -94,6 +109,30 @@ action:
             title: "Done"
           - action: "SKIP_CARE_{{ trigger.event.data.notification_key }}"
             title: "Skip"
+```
+
+!!! info "Actionable notifications"
+    The action buttons work with the HA Companion App. To confirm, use the [`kamerplanter.confirm_care`](services.md#kamerplanterconfirm_care) service.
+
+---
+
+## Watering Reminder
+
+Use the `days_until_watering` sensor to get timely reminders:
+
+```yaml
+alias: "KP: Water tomorrow"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.kp_northern_lights_days_until_watering
+    below: 2
+action:
+  - service: notify.mobile_app_phone
+    data:
+      title: "Watering due soon"
+      message: >
+        {{ state_attr('sensor.kp_northern_lights_days_until_watering', 'friendly_name') }}:
+        Next watering on {{ states('sensor.kp_northern_lights_next_watering') }}
 ```
 
 ---
