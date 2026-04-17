@@ -30,6 +30,13 @@
         "data": {
           "url": "URL"
         }
+      },
+      "discovery_confirm": {
+        "title": "Kamerplanter entdeckt",
+        "description": "Ein Kamerplanter-Backend wurde unter **{url}** gefunden (Version {version}, Modus: {mode}).\n\nMoechtest du diese Instanz einrichten?",
+        "data": {
+          "api_key": "API-Key (kp_...)"
+        }
       }
     },
     "error": {
@@ -39,7 +46,8 @@
     },
     "abort": {
       "already_configured": "Diese Kamerplanter-Instanz ist bereits konfiguriert",
-      "reauth_successful": "Erneute Authentifizierung erfolgreich"
+      "reauth_successful": "Erneute Authentifizierung erfolgreich",
+      "missing_instance_id": "Der entdeckte Dienst hat keine erforderliche Instanz-ID"
     }
   },
   "options": {

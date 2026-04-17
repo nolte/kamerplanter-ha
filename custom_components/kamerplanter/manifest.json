@@ -4,11 +4,12 @@
   "codeowners": ["@nolte"],
   "config_flow": true,
   "documentation": "https://github.com/nolte/kamerplanter-ha",
-  "iot_class": "cloud_polling",
+  "iot_class": "local_polling",
   "issue_tracker": "https://github.com/nolte/kamerplanter-ha/issues",
   "integration_type": "hub",
   "loggers": ["custom_components.kamerplanter"],
   "requirements": [],
   "version": "0.1.0",
-  "preload_platforms": false
+  "preload_platforms": false,
+  "zeroconf": ["_kamerplanter._tcp.local."]
 }
