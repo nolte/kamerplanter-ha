@@ -12,6 +12,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlowWithReload,
 )
+from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.const import CONF_URL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -23,6 +24,7 @@ from .api import (
 )
 from .const import (
     CONF_API_KEY,
+    CONF_INSTANCE_ID,
     CONF_LIGHT_MODE,
     CONF_POLL_ALERTS,
     CONF_POLL_LOCATIONS,
@@ -82,6 +84,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
         self._light_mode: bool = False
         self._server_version: str = ""
         self._tenants: list[dict[str, Any]] = []
+        self._instance_id: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -186,6 +189,124 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(step_id="tenant", data_schema=schema)
 
+    # --- Zeroconf Discovery Flow ---
+
+    async def async_step_zeroconf(
+        self, discovery_info: ZeroconfServiceInfo
+    ) -> ConfigFlowResult:
+        """Handle mDNS/Zeroconf discovery of a Kamerplanter backend."""
+        properties = discovery_info.properties
+
+        instance_id = properties.get("instance_id", "")
+        version = properties.get("version", "unknown")
+        mode = properties.get("mode", "full")
+        api_path = properties.get("api_path", "/api")
+        tenant = properties.get("tenant")
+
+        if not instance_id:
+            return self.async_abort(reason="missing_instance_id")
+
+        # Deduplicate by instance_id (+ tenant if provided)
+        unique_suffix = f"{instance_id}_{tenant}" if tenant else instance_id
+        await self.async_set_unique_id(unique_suffix)
+        self._base_url = self._build_url(discovery_info, api_path)
+        self._abort_if_unique_id_configured(
+            updates={CONF_URL: self._base_url}
+        )
+
+        self._server_version = version
+        self._light_mode = mode == "light"
+        self._instance_id = instance_id
+
+        self.context["title_placeholders"] = {
+            "name": discovery_info.name.split(".")[0],
+            "host": str(discovery_info.host) if discovery_info.host else "unknown",
+        }
+
+        # Health-check before showing dialog
+        session = async_get_clientsession(self.hass)
+        api_no_auth = KamerplanterApi(base_url=self._base_url, session=session)
+        try:
+            await api_no_auth.async_get_health()
+        except KamerplanterConnectionError:
+            return self.async_abort(reason="cannot_connect")
+
+        if tenant:
+            self._tenants = [{"slug": tenant, "name": tenant}]
+
+        return await self.async_step_discovery_confirm()
+
+    async def async_step_discovery_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm discovered Kamerplanter instance and collect API key."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            self._api_key = user_input.get(CONF_API_KEY) or None
+
+            if not self._light_mode:
+                if not self._api_key:
+                    errors["base"] = "invalid_auth"
+                    return self.async_show_form(
+                        step_id="discovery_confirm",
+                        data_schema=self._discovery_confirm_schema(),
+                        description_placeholders=self._discovery_placeholders(),
+                        errors=errors,
+                    )
+                session = async_get_clientsession(self.hass)
+                api = KamerplanterApi(
+                    base_url=self._base_url,
+                    session=session,
+                    api_key=self._api_key,
+                )
+                try:
+                    await api.async_get_current_user()
+                except KamerplanterAuthError:
+                    errors["base"] = "invalid_auth"
+                    return self.async_show_form(
+                        step_id="discovery_confirm",
+                        data_schema=self._discovery_confirm_schema(),
+                        description_placeholders=self._discovery_placeholders(),
+                        errors=errors,
+                    )
+
+            # Fetch tenants if not already known from TXT record
+            if not self._tenants:
+                session = async_get_clientsession(self.hass)
+                api = KamerplanterApi(
+                    base_url=self._base_url,
+                    session=session,
+                    api_key=self._api_key,
+                )
+                try:
+                    self._tenants = await api.async_get_tenants()
+                except KamerplanterConnectionError:
+                    errors["base"] = "cannot_connect"
+                    return self.async_show_form(
+                        step_id="discovery_confirm",
+                        data_schema=self._discovery_confirm_schema(),
+                        description_placeholders=self._discovery_placeholders(),
+                        errors=errors,
+                    )
+
+                if not self._tenants:
+                    return self.async_abort(reason="no_tenants")
+
+                if len(self._tenants) > 1:
+                    return await self.async_step_tenant()
+
+            tenant_slug = self._tenants[0]["slug"]
+            await self.async_set_unique_id(f"{self._instance_id}_{tenant_slug}")
+            self._abort_if_unique_id_configured()
+            return self._create_entry(tenant_slug=tenant_slug)
+
+        return self.async_show_form(
+            step_id="discovery_confirm",
+            data_schema=self._discovery_confirm_schema(),
+            description_placeholders=self._discovery_placeholders(),
+        )
+
     # --- Reauth Flow ---
 
     async def async_step_reauth(
@@ -277,6 +398,34 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
+    @staticmethod
+    def _build_url(discovery_info: ZeroconfServiceInfo, api_path: str) -> str:
+        """Build base URL from Zeroconf discovery info."""
+        host = str(discovery_info.host) if discovery_info.host else "unknown"
+        port = discovery_info.port
+        # IPv6 addresses in brackets
+        if ":" in host:
+            host = f"[{host}]"
+        return f"http://{host}:{port}"
+
+    def _discovery_confirm_schema(self) -> vol.Schema:
+        """Schema for discovery confirmation (API key only)."""
+        if self._light_mode:
+            return vol.Schema({})
+        return vol.Schema(
+            {
+                vol.Required(CONF_API_KEY): str,
+            }
+        )
+
+    def _discovery_placeholders(self) -> dict[str, str]:
+        """Placeholders for discovery confirmation description."""
+        return {
+            "url": self._base_url,
+            "version": self._server_version,
+            "mode": "Light" if self._light_mode else "Full",
+        }
+
     def _create_entry(self, tenant_slug: str | None = None) -> ConfigFlowResult:
         title = "Kamerplanter"
         if tenant_slug:
@@ -290,6 +439,8 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
             data[CONF_API_KEY] = self._api_key
         if tenant_slug:
             data[CONF_TENANT_SLUG] = tenant_slug
+        if self._instance_id:
+            data[CONF_INSTANCE_ID] = self._instance_id
 
         return self.async_create_entry(title=title, data=data)
 

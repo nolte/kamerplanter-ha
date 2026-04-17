@@ -30,6 +30,13 @@
         "data": {
           "url": "URL"
         }
+      },
+      "discovery_confirm": {
+        "title": "Kamerplanter discovered",
+        "description": "A Kamerplanter backend was found at **{url}** (version {version}, mode: {mode}).\n\nDo you want to set up this instance?",
+        "data": {
+          "api_key": "API Key (kp_...)"
+        }
       }
     },
     "error": {
@@ -39,7 +46,8 @@
     },
     "abort": {
       "already_configured": "This Kamerplanter instance is already configured",
-      "reauth_successful": "Re-authentication successful"
+      "reauth_successful": "Re-authentication successful",
+      "missing_instance_id": "The discovered service is missing a required instance ID"
     }
   },
   "options": {
