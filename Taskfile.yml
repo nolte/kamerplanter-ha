@@ -1,0 +1,120 @@
+---
+version: "3"
+
+vars:
+  NAMESPACE: default
+  POD_SELECTOR: app.kubernetes.io/name=homeassistant
+  POD:
+    sh: kubectl get pod -n {{.NAMESPACE}} -l {{.POD_SELECTOR}} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+  COMPONENT_PATH: custom_components/kamerplanter
+  REMOTE_PATH: /config/custom_components/kamerplanter
+
+tasks:
+  # ---------------------------------------------------------------------------
+  # deploy-ha — Full deploy cycle: lint → copy → restart → verify
+  # ---------------------------------------------------------------------------
+  deploy-ha:
+    desc: Deploy HA-Integration in den lokalen Kind-Cluster
+    cmds:
+      - task: deploy-ha:preflight
+      - task: deploy-ha:lint
+      - task: deploy-ha:copy
+      - task: deploy-ha:cache-clear
+      - task: deploy-ha:restart
+      - task: deploy-ha:wait
+      - task: deploy-ha:logs
+
+  deploy-ha:preflight:
+    desc: Prüfe ob der HA-Pod läuft
+    internal: true
+    cmds:
+      - |
+        if [ -z "{{.POD}}" ]; then
+          echo "FEHLER: Kein Pod mit Label {{.POD_SELECTOR}} in Namespace {{.NAMESPACE}} gefunden"
+          exit 1
+        fi
+        phase=$(kubectl get pod {{.POD}} -n {{.NAMESPACE}} -o jsonpath='{.status.phase}')
+        if [ "$phase" != "Running" ]; then
+          echo "FEHLER: Pod {{.POD}} ist nicht Running (Status: $phase)"
+          exit 1
+        fi
+        echo "Pod {{.POD}} läuft."
+
+  deploy-ha:lint:
+    desc: Ruff lint + format check
+    internal: true
+    cmds:
+      - ruff check {{.COMPONENT_PATH}}/
+      - ruff format --check {{.COMPONENT_PATH}}/
+
+  deploy-ha:copy:
+    desc: Dateien in den Pod kopieren
+    internal: true
+    cmds:
+      - kubectl cp {{.COMPONENT_PATH}}/ {{.NAMESPACE}}/{{.POD}}:{{.REMOTE_PATH}}/
+
+  deploy-ha:cache-clear:
+    desc: Python-Bytecode-Cache im Pod löschen
+    internal: true
+    cmds:
+      - kubectl exec {{.POD}} -n {{.NAMESPACE}} -- find {{.REMOTE_PATH}} -type d -name __pycache__ -exec rm -rf {} +
+
+  deploy-ha:restart:
+    desc: HA-Prozess im Container neustarten (NICHT den Pod löschen!)
+    internal: true
+    cmds:
+      - kubectl exec {{.POD}} -n {{.NAMESPACE}} -- kill 1
+
+  deploy-ha:wait:
+    desc: Warten bis der Container wieder ready ist (max 120s)
+    internal: true
+    cmds:
+      - kubectl wait --for=condition=ready pod/{{.POD}} -n {{.NAMESPACE}} --timeout=120s
+
+  deploy-ha:logs:
+    desc: Kamerplanter-Logs und Fehler nach Restart anzeigen
+    internal: true
+    cmds:
+      - echo "=== Kamerplanter-Logs ==="
+      - kubectl logs {{.POD}} -n {{.NAMESPACE}} --since=90s | grep -iE "(kamerplanter|custom_components)" | tail -30 || true
+      - echo ""
+      - echo "=== Fehler ==="
+      - kubectl logs {{.POD}} -n {{.NAMESPACE}} --since=90s | grep -iE "(error|exception|traceback)" | grep -v "template" | tail -20 || true
+
+  # ---------------------------------------------------------------------------
+  # verify-ha — Diagnose der laufenden Integration (ohne Deploy)
+  # ---------------------------------------------------------------------------
+  verify-ha:
+    desc: Prüfe die laufende HA-Integration auf Fehler
+    cmds:
+      - task: verify-ha:pod-status
+      - task: verify-ha:logs
+      - task: verify-ha:errors
+      - task: verify-ha:files
+
+  verify-ha:pod-status:
+    desc: Pod-Status anzeigen
+    internal: true
+    cmds:
+      - kubectl get pod {{.POD}} -n {{.NAMESPACE}} -o wide
+
+  verify-ha:logs:
+    desc: Aktuelle Kamerplanter-Logs anzeigen
+    internal: true
+    cmds:
+      - echo "=== Kamerplanter-Logs (letzte 5 Min) ==="
+      - kubectl logs {{.POD}} -n {{.NAMESPACE}} --since=5m | grep -iE "(kamerplanter|custom_components)" | tail -40 || true
+
+  verify-ha:errors:
+    desc: Fehler-Scan in den Logs
+    internal: true
+    cmds:
+      - echo "=== Fehler/Warnings ==="
+      - kubectl logs {{.POD}} -n {{.NAMESPACE}} --since=5m | grep -iE "(error|exception|traceback|warning)" | grep -iv "template" | tail -30 || true
+
+  verify-ha:files:
+    desc: Installierte Dateien im Pod auflisten
+    internal: true
+    cmds:
+      - echo "=== Installierte Dateien ==="
+      - kubectl exec {{.POD}} -n {{.NAMESPACE}} -- ls -la {{.REMOTE_PATH}}/

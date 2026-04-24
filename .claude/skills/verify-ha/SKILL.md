@@ -9,37 +9,15 @@ disable-model-invocation: true
 > **Umgebung:** Lokaler Kind-Cluster (Kubernetes in Docker), Skaffold-managed.
 > HA laeuft als StatefulSet `homeassistant-0` im Namespace `default`.
 
-## Schritt 1: Pod-Status pruefen
+## Ausfuehrung
+
+Fuehre den Taskfile-Task aus:
 
 ```bash
-kubectl get pod homeassistant-0 -n default -o wide 2>&1
+task verify-ha 2>&1; echo "EXIT:$?"
 ```
 
-## Schritt 2: Aktuelle Kamerplanter-Logs
-
-Zeige die letzten Kamerplanter-bezogenen Log-Eintraege:
-
-```bash
-kubectl logs homeassistant-0 -n default --since=5m 2>&1 | grep -iE "(kamerplanter|custom_components)" | tail -40
-```
-
-## Schritt 3: Fehler-Scan
-
-Pruefe auf Fehler und Exceptions:
-
-```bash
-kubectl logs homeassistant-0 -n default --since=5m 2>&1 | grep -iE "(error|exception|traceback|warning)" | grep -iv "template" | tail -30
-```
-
-## Schritt 4: Integration-Status via API
-
-Falls der Pod laeuft, pruefe den HA-Integrationsstatus:
-
-```bash
-kubectl exec homeassistant-0 -n default -- ls -la /config/custom_components/kamerplanter/ 2>&1
-```
-
-## Schritt 5: Ergebnis zusammenfassen
+## Ergebnis zusammenfassen
 
 - **Pod-Status:** Running/NotRunning + Uptime
 - **Integration geladen:** Ja/Nein (aus Logs)
