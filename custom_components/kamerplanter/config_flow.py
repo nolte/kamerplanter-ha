@@ -210,9 +210,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
         unique_suffix = f"{instance_id}_{tenant}" if tenant else instance_id
         await self.async_set_unique_id(unique_suffix)
         self._base_url = self._build_url(discovery_info, api_path)
-        self._abort_if_unique_id_configured(
-            updates={CONF_URL: self._base_url}
-        )
+        self._abort_if_unique_id_configured(updates={CONF_URL: self._base_url})
 
         self._server_version = version
         self._light_mode = mode == "light"

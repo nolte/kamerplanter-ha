@@ -410,7 +410,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     const c = this._config || {};
     if (c.show_watering !== false) rows += 2;
     if (c.show_fertilizer !== false) rows += 2;
-    return { columns: 12, min_columns: 6, rows, min_rows: 2 };
+    return { columns: 2, min_columns: 2, rows, min_rows: 2 };
   }
 
   static getConfigElement() {

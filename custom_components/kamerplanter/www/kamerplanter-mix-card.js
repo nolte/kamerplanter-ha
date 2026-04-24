@@ -115,7 +115,7 @@ class KamerplanterMixCard extends HTMLElement {
   }
 
   getCardSize() { return 3; }
-  getGridOptions() { return { columns: 6, min_columns: 3, rows: 3, min_rows: 2 }; }
+  getGridOptions() { return { columns: 2, min_columns: 2, rows: 2, min_rows: 1 }; }
   static getConfigElement() { return document.createElement("kamerplanter-mix-card-editor"); }
   static getStubConfig() { return { __preview: true, entities: [], title: "Mix Rezept" }; }
 

@@ -133,7 +133,7 @@ class KamerplanterTankCard extends HTMLElement {
   }
 
   getCardSize() { return 5; }
-  getGridOptions() { return { columns: 6, min_columns: 3, rows: 5, min_rows: 4 }; }
+  getGridOptions() { return { columns: 2, min_columns: 2, rows: 3, min_rows: 2 }; }
   static getConfigElement() { return document.createElement("kamerplanter-tank-card-editor"); }
   static getStubConfig() {
     return { __preview: true, tank_entity: "", title: "", ph_entity: "", ec_entity: "", temp_entity: "",

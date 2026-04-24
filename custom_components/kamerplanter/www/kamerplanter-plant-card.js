@@ -734,18 +734,16 @@ class KamerplanterPlantCard extends HTMLElement {
   }
 
   getGridOptions() {
-    // Sections view: 12-column grid, 56px per row + 8px gap
-    // Calculate rows from active sections
     let rows = 2; // header
     const c = this._config || {};
     if (c.show_stats !== false) rows += 1;
-    if (c.show_progress !== false) rows += 2;
+    if (c.show_progress !== false) rows += 1;
     if (c.show_timeline !== false) rows += 2;
     if (c.show_next_hint !== false) rows += 1;
     if (c.show_details !== false) rows += 2;
     return {
-      columns: 12,
-      min_columns: 6,
+      columns: 2,
+      min_columns: 2,
       rows: rows,
       min_rows: 2,
     };
