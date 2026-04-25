@@ -3,10 +3,23 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
-from aiohttp import ClientError, ClientResponseError, ClientSession
+from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
+
+# Per-request timeout for the HTTP client. Coordinator paths set their own
+# `async_timeout`; this guards direct callers (service handlers) where no
+# outer timeout exists, so a hung backend cannot block the event loop.
+DEFAULT_REQUEST_TIMEOUT: ClientTimeout = ClientTimeout(total=30)
+
+# Reverse-proxy paths can have multiple segments, but anything outside this
+# alphabet (or a `..` traversal segment) is rejected — mDNS responders are
+# only as trustworthy as the LAN, so we refuse to ship a bearer token down
+# a path the operator cannot recognise.
+_API_PATH_RE = re.compile(r"^/(?:[A-Za-z0-9_\-]+(?:/[A-Za-z0-9_\-]+)*)?$")
+DEFAULT_API_PATH = "/api"
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,6 +45,23 @@ class KamerplanterApi:
     session: ClientSession
     api_key: str | None = None
     tenant_slug: str | None = None
+    api_path: str = "/api"
+
+    def __post_init__(self) -> None:
+        # Normalize api_path: leading slash, no trailing slash, empty allowed.
+        if self.api_path and not self.api_path.startswith("/"):
+            self.api_path = "/" + self.api_path
+        self.api_path = self.api_path.rstrip("/")
+        # Empty path is legal (mounted at the host root); anything else has
+        # to match the safe-alphabet whitelist.
+        if self.api_path and not _API_PATH_RE.fullmatch(self.api_path):
+            _LOGGER.warning(
+                "Rejecting api_path %r (contains characters outside the safe "
+                "alphabet); falling back to %s",
+                self.api_path,
+                DEFAULT_API_PATH,
+            )
+            self.api_path = DEFAULT_API_PATH
 
     @property
     def _headers(self) -> dict[str, str]:
@@ -43,11 +73,16 @@ class KamerplanterApi:
     @property
     def _tenant_prefix(self) -> str:
         if self.tenant_slug:
-            return f"/api/v1/t/{self.tenant_slug}"
-        return "/api/v1"
+            return f"{self.api_path}/v1/t/{self.tenant_slug}"
+        return f"{self.api_path}/v1"
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         url = f"{self.base_url.rstrip('/')}{path}"
+        # Disable redirects so a compromised/misconfigured backend cannot
+        # exfiltrate the bearer token to a different host (aiohttp does not
+        # strip Authorization on cross-host redirects).
+        kwargs.setdefault("allow_redirects", False)
+        kwargs.setdefault("timeout", DEFAULT_REQUEST_TIMEOUT)
         try:
             async with self.session.request(
                 method, url, headers=self._headers, **kwargs
@@ -71,15 +106,15 @@ class KamerplanterApi:
 
     async def async_get_health(self) -> dict[str, Any]:
         """Check backend health and retrieve version info."""
-        return await self._request("GET", "/api/health")
+        return await self._request("GET", f"{self.api_path}/health")
 
     async def async_get_current_user(self) -> dict[str, Any]:
         """Validate credentials by fetching current user."""
-        return await self._request("GET", "/api/v1/users/me")
+        return await self._request("GET", f"{self.api_path}/v1/users/me")
 
     async def async_get_tenants(self) -> list[dict[str, Any]]:
         """Fetch tenants for the authenticated user."""
-        return await self._request("GET", "/api/v1/tenants/")
+        return await self._request("GET", f"{self.api_path}/v1/tenants/")
 
     async def async_get_plants(self) -> list[dict[str, Any]]:
         """Fetch all plant instances."""
@@ -90,7 +125,7 @@ class KamerplanterApi:
     ) -> list[dict[str, Any]]:
         """Fetch phase history for a plant instance (non-tenant-scoped)."""
         return await self._request(
-            "GET", f"/api/v1/plant-instances/{plant_key}/phases/history"
+            "GET", f"{self.api_path}/v1/plant-instances/{plant_key}/phases/history"
         )
 
     async def async_get_sites(self) -> list[dict[str, Any]]:
@@ -402,7 +437,9 @@ class KamerplanterApi:
     async def async_get_growth_phase(self, phase_key: str) -> dict[str, Any] | None:
         """Fetch a single growth phase by key."""
         try:
-            return await self._request("GET", f"/api/v1/growth-phases/{phase_key}")
+            return await self._request(
+                "GET", f"{self.api_path}/v1/growth-phases/{phase_key}"
+            )
         except KamerplanterApiError:
             return None
 
@@ -412,7 +449,8 @@ class KamerplanterApi:
         """Fetch care profile for a plant (auto-created if missing)."""
         try:
             return await self._request(
-                "GET", f"/api/v1/care-reminders/plants/{plant_key}/profile"
+                "GET",
+                f"{self.api_path}/v1/care-reminders/plants/{plant_key}/profile",
             )
         except KamerplanterApiError:
             return None
@@ -424,7 +462,7 @@ class KamerplanterApi:
         try:
             return await self._request(
                 "GET",
-                f"/api/v1/care-reminders/plants/{plant_key}/history",
+                f"{self.api_path}/v1/care-reminders/plants/{plant_key}/history",
                 params={"reminder_type": reminder_type, "limit": limit},
             )
         except KamerplanterApiError:

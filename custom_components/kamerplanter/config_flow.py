@@ -12,7 +12,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlowWithReload,
 )
-from homeassistant.components.zeroconf import ZeroconfServiceInfo
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.const import CONF_URL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -24,6 +24,7 @@ from .api import (
 )
 from .const import (
     CONF_API_KEY,
+    CONF_API_PATH,
     CONF_INSTANCE_ID,
     CONF_LIGHT_MODE,
     CONF_POLL_ALERTS,
@@ -31,6 +32,7 @@ from .const import (
     CONF_POLL_PLANTS,
     CONF_POLL_TASKS,
     CONF_TENANT_SLUG,
+    DEFAULT_API_PATH,
     DEFAULT_POLL_ALERTS,
     DEFAULT_POLL_LOCATIONS,
     DEFAULT_POLL_PLANTS,
@@ -81,6 +83,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self._base_url: str = ""
         self._api_key: str | None = None
+        self._api_path: str = DEFAULT_API_PATH
         self._light_mode: bool = False
         self._server_version: str = ""
         self._tenants: list[dict[str, Any]] = []
@@ -98,7 +101,11 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
             session = async_get_clientsession(self.hass)
 
             # Probe health endpoint (no auth needed)
-            api_no_auth = KamerplanterApi(base_url=self._base_url, session=session)
+            api_no_auth = KamerplanterApi(
+                base_url=self._base_url,
+                session=session,
+                api_path=self._api_path,
+            )
             try:
                 health = await api_no_auth.async_get_health()
                 self._server_version = health.get("version", "unknown")
@@ -117,6 +124,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                 base_url=self._base_url,
                 session=session,
                 api_key=self._api_key,
+                api_path=self._api_path,
             )
             if not self._light_mode:
                 if not self._api_key:
@@ -200,17 +208,24 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
         instance_id = properties.get("instance_id", "")
         version = properties.get("version", "unknown")
         mode = properties.get("mode", "full")
-        api_path = properties.get("api_path", "/api")
+        api_path = properties.get("api_path") or DEFAULT_API_PATH
+        scheme = (properties.get("scheme") or "http").lower()
+        if scheme not in ("http", "https"):
+            scheme = "http"
         tenant = properties.get("tenant")
 
         if not instance_id:
             return self.async_abort(reason="missing_instance_id")
 
+        self._api_path = api_path
+
         # Deduplicate by instance_id (+ tenant if provided)
         unique_suffix = f"{instance_id}_{tenant}" if tenant else instance_id
         await self.async_set_unique_id(unique_suffix)
-        self._base_url = self._build_url(discovery_info, api_path)
-        self._abort_if_unique_id_configured(updates={CONF_URL: self._base_url})
+        self._base_url = self._build_url(discovery_info, scheme=scheme)
+        self._abort_if_unique_id_configured(
+            updates={CONF_URL: self._base_url, CONF_API_PATH: self._api_path}
+        )
 
         self._server_version = version
         self._light_mode = mode == "light"
@@ -223,7 +238,11 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Health-check before showing dialog
         session = async_get_clientsession(self.hass)
-        api_no_auth = KamerplanterApi(base_url=self._base_url, session=session)
+        api_no_auth = KamerplanterApi(
+            base_url=self._base_url,
+            session=session,
+            api_path=self._api_path,
+        )
         try:
             await api_no_auth.async_get_health()
         except KamerplanterConnectionError:
@@ -257,6 +276,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                     base_url=self._base_url,
                     session=session,
                     api_key=self._api_key,
+                    api_path=self._api_path,
                 )
                 try:
                     await api.async_get_current_user()
@@ -276,6 +296,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                     base_url=self._base_url,
                     session=session,
                     api_key=self._api_key,
+                    api_path=self._api_path,
                 )
                 try:
                     self._tenants = await api.async_get_tenants()
@@ -326,6 +347,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                 base_url=reauth_entry.data[CONF_URL],
                 session=session,
                 api_key=user_input[CONF_API_KEY],
+                api_path=reauth_entry.data.get(CONF_API_PATH, DEFAULT_API_PATH),
             )
             try:
                 await api.async_get_current_user()
@@ -354,30 +376,59 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle reconfiguration (URL change)."""
+        """Handle reconfiguration (URL and api_path)."""
         errors: dict[str, str] = {}
+        reconfigure_entry = self._get_reconfigure_entry()
 
         if user_input is not None:
             new_url = user_input[CONF_URL].rstrip("/")
+            new_api_path = (
+                user_input.get(CONF_API_PATH) or DEFAULT_API_PATH
+            ).rstrip("/")
+            existing_api_key = reconfigure_entry.data.get(CONF_API_KEY)
             session = async_get_clientsession(self.hass)
-            api = KamerplanterApi(base_url=new_url, session=session)
+            api = KamerplanterApi(
+                base_url=new_url,
+                session=session,
+                api_key=existing_api_key,
+                api_path=new_api_path,
+            )
             try:
                 await api.async_get_health()
+                # Re-validate the stored API key against the new endpoint so
+                # the bearer token never gets reused against a foreign instance.
+                if existing_api_key and not reconfigure_entry.data.get(
+                    CONF_LIGHT_MODE
+                ):
+                    await api.async_get_current_user()
+            except KamerplanterAuthError:
+                errors["base"] = "invalid_auth"
             except KamerplanterConnectionError:
                 errors["base"] = "cannot_connect"
             else:
+                data_updates: dict[str, Any] = {CONF_URL: new_url}
+                if new_api_path != DEFAULT_API_PATH:
+                    data_updates[CONF_API_PATH] = new_api_path
+                elif CONF_API_PATH in reconfigure_entry.data:
+                    # Caller reset to default — drop the stored override.
+                    data_updates[CONF_API_PATH] = DEFAULT_API_PATH
                 return self.async_update_reload_and_abort(
-                    self._get_reconfigure_entry(),
-                    data_updates={CONF_URL: new_url},
+                    reconfigure_entry,
+                    data_updates=data_updates,
                 )
 
-        reconfigure_entry = self._get_reconfigure_entry()
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_URL, default=reconfigure_entry.data.get(CONF_URL, "")
+                    ): str,
+                    vol.Optional(
+                        CONF_API_PATH,
+                        default=reconfigure_entry.data.get(
+                            CONF_API_PATH, DEFAULT_API_PATH
+                        ),
                     ): str,
                 }
             ),
@@ -397,14 +448,21 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     @staticmethod
-    def _build_url(discovery_info: ZeroconfServiceInfo, api_path: str) -> str:
-        """Build base URL from Zeroconf discovery info."""
+    def _build_url(
+        discovery_info: ZeroconfServiceInfo, scheme: str = "http"
+    ) -> str:
+        """Build base URL (scheme://host:port) from Zeroconf discovery info.
+
+        Scheme defaults to ``http`` and is overridden by the ``scheme`` TXT
+        property advertised by the backend. Only ``http`` and ``https`` are
+        accepted; anything else is coerced to ``http`` by the caller.
+        """
         host = str(discovery_info.host) if discovery_info.host else "unknown"
         port = discovery_info.port
         # IPv6 addresses in brackets
         if ":" in host:
             host = f"[{host}]"
-        return f"http://{host}:{port}"
+        return f"{scheme}://{host}:{port}"
 
     def _discovery_confirm_schema(self) -> vol.Schema:
         """Schema for discovery confirmation (API key only)."""
@@ -439,6 +497,8 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
             data[CONF_TENANT_SLUG] = tenant_slug
         if self._instance_id:
             data[CONF_INSTANCE_ID] = self._instance_id
+        if self._api_path and self._api_path != DEFAULT_API_PATH:
+            data[CONF_API_PATH] = self._api_path
 
         return self.async_create_entry(title=title, data=data)
 

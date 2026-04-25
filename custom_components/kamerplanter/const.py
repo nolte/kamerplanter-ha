@@ -9,9 +9,11 @@ CONF_API_KEY: Final = "api_key"
 CONF_TENANT_SLUG: Final = "tenant_slug"
 CONF_LIGHT_MODE: Final = "light_mode"
 CONF_INSTANCE_ID: Final = "instance_id"
+CONF_API_PATH: Final = "api_path"
 
 # Zeroconf / Discovery
 MDNS_SERVICE_TYPE: Final = "_kamerplanter._tcp.local."
+DEFAULT_API_PATH: Final = "/api"
 
 # Default polling intervals (seconds)
 DEFAULT_POLL_PLANTS: Final = 300

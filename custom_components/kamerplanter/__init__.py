@@ -16,7 +16,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .api import KamerplanterApi
 from .const import (
     CONF_API_KEY,
+    CONF_API_PATH,
     CONF_TENANT_SLUG,
+    DEFAULT_API_PATH,
     DOMAIN,
     PLATFORMS,
     SERVICE_CLEAR_CACHE,
@@ -31,6 +33,11 @@ from .coordinator import (
     KamerplanterPlantCoordinator,
     KamerplanterRunCoordinator,
     KamerplanterTaskCoordinator,
+)
+from .helpers import (
+    resolve_entry_id,
+    resolve_plant_channel,
+    resolve_tank_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,6 +65,7 @@ async def async_setup_entry(
         session=session,
         api_key=entry.data.get(CONF_API_KEY),
         tenant_slug=entry.data.get(CONF_TENANT_SLUG),
+        api_path=entry.data.get(CONF_API_PATH, DEFAULT_API_PATH),
     )
 
     coordinators: dict[str, DataUpdateCoordinator] = {
@@ -161,19 +169,81 @@ async def async_unload_entry(
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
+async def async_remove_entry(
+    hass: HomeAssistant, entry: KamerplanterConfigEntry
+) -> None:
+    """Remove auto-registered Lovelace resources when the last entry is gone.
+
+    Called by HA after the entry has been unloaded and is being deleted. We
+    only deregister the Lovelace resources when *no* Kamerplanter entries
+    remain, so reload / multi-instance setups keep their cards working.
+    """
+    remaining = [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    ]
+    if remaining:
+        return
+    await _async_deregister_lovelace_resources(hass)
+
+
+async def _async_deregister_lovelace_resources(hass: HomeAssistant) -> None:
+    """Remove all Lovelace resources we previously auto-registered."""
+    try:
+        from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+
+        lovelace_data = hass.data.get(LOVELACE_DOMAIN)
+        if lovelace_data is None:
+            return
+        resources = getattr(lovelace_data, "resources", None)
+        if resources is None:
+            return
+
+        if not resources.loaded:
+            await resources.async_load()
+
+        # Resources we own are mounted under `/<DOMAIN>/`. Match by prefix so
+        # we don't depend on the JS file list still existing on disk.
+        prefix = f"/{DOMAIN}/"
+        owned = [r for r in resources.async_items() if r["url"].startswith(prefix)]
+        for resource in owned:
+            await resources.async_delete_item(resource["id"])
+            _LOGGER.info("Removed Lovelace resource: %s", resource["url"])
+    except Exception:
+        _LOGGER.debug("Could not deregister Lovelace resources", exc_info=True)
+
+
 async def _async_register_services(hass: HomeAssistant) -> None:
     """Register Kamerplanter services."""
 
-    def _get_runtime_data(entry_id: str = "") -> KamerplanterRuntimeData | None:
-        """Get runtime_data from the first (or targeted) config entry."""
-        entries = [
-            e
-            for e in hass.config_entries.async_entries(DOMAIN)
-            if not entry_id or e.entry_id == entry_id
-        ]
-        if entries and hasattr(entries[0], "runtime_data"):
-            return entries[0].runtime_data
-        return None
+    def _runtime_data_for(entry_id: str | None) -> KamerplanterRuntimeData | None:
+        """Return the runtime_data for a specific config entry."""
+        if not entry_id:
+            return None
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if entry is None or entry.domain != DOMAIN:
+            return None
+        return getattr(entry, "runtime_data", None)
+
+    def _resolve_runtime_data(
+        call: ServiceCall, *, ambiguity_hint: str
+    ) -> KamerplanterRuntimeData | None:
+        """Resolve the targeted runtime_data, with a clear error on ambiguity."""
+        entry_id = resolve_entry_id(hass, dict(call.data))
+        if not entry_id:
+            entries = list(hass.config_entries.async_entries(DOMAIN))
+            if len(entries) > 1:
+                _LOGGER.error(
+                    "Multiple Kamerplanter instances configured — pass an "
+                    "explicit `entry_id` or %s to target one (%d entries).",
+                    ambiguity_hint,
+                    len(entries),
+                )
+            else:
+                _LOGGER.error("No Kamerplanter instance found")
+            return None
+        return _runtime_data_for(entry_id)
 
     async def handle_refresh(call: ServiceCall) -> None:
         target_id = call.data.get("entry_id", "")
@@ -200,71 +270,22 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                     coordinator.data = None
                     await coordinator.async_request_refresh()
 
-    # Known suffixes for tank entities (used to extract tank_key from entity_id)
-    _TANK_ENTITY_SUFFIXES = (
-        "_info",
-        "_volume",
-        "_fill_level",
-        "_ec",
-        "_ph",
-        "_water_temp",
-        "_solution_age_days",
-        "_alert_active",
-    )
-
-    def _resolve_tank_key(call_data: dict) -> str | None:
-        """Resolve tank_key from entity_id or direct tank_key."""
-        if "entity_id" in call_data:
-            entity_id = str(call_data["entity_id"])
-
-            # Strategy 1: Read tank_key from state attributes
-            state = hass.states.get(entity_id)
-            if state and state.attributes.get("tank_key"):
-                _LOGGER.debug("Resolved tank_key from state attributes")
-                return str(state.attributes["tank_key"])
-
-            # Strategy 2: Parse from entity_id pattern
-            entity_name = entity_id.split(".", 1)[-1]
-            if entity_name.startswith("kp_"):
-                rest = entity_name[3:]
-                if rest.startswith("tank_"):
-                    rest = rest[5:]
-                for suffix in _TANK_ENTITY_SUFFIXES:
-                    if rest.endswith(suffix):
-                        tank_key = rest[: -len(suffix)]
-                        _LOGGER.debug(
-                            "Resolved tank_key '%s' from entity_id pattern", tank_key
-                        )
-                        return tank_key
-
-            _LOGGER.error("Could not resolve tank_key from entity_id %s", entity_id)
-            return None
-
-        if "tank_key" in call_data:
-            return str(call_data["tank_key"])
-
-        return None
-
     async def handle_fill_tank(call: ServiceCall) -> None:
         """Handle the fill_tank service call."""
-        _LOGGER.debug(
-            "fill_tank call.data keys: %s, values: %s",
-            list(call.data.keys()),
-            dict(call.data),
-        )
-        tank_key = _resolve_tank_key(dict(call.data))
+        _LOGGER.debug("fill_tank call.data keys: %s", list(call.data.keys()))
+        tank_key = resolve_tank_key(hass, dict(call.data))
         if not tank_key:
             _LOGGER.error(
-                "No tank_key or entity_id provided. Received data: %s",
-                dict(call.data),
+                "No tank_key or entity_id provided. Received keys: %s",
+                list(call.data.keys()),
             )
             return
         fill_type = call.data.get("fill_type", "full_change")
 
-        # Find the API instance from runtime_data
-        runtime_data = _get_runtime_data()
+        runtime_data = _resolve_runtime_data(
+            call, ambiguity_hint="a tank entity_id"
+        )
         if not runtime_data:
-            _LOGGER.error("No Kamerplanter instance found")
             return
 
         api = runtime_data.api
@@ -352,87 +373,23 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         except Exception:
             _LOGGER.exception("Failed to fill tank %s", tank_key)
 
-    # Known suffixes for plant channel entities
-    _CHANNEL_SUFFIX = "_mix"
-
-    def _resolve_plant_channel(call_data: dict) -> tuple[str | None, str | None]:
-        """Resolve plant_key and channel_id from entity_id or direct parameters."""
-        if "entity_id" in call_data:
-            entity_id = str(call_data["entity_id"])
-
-            # Strategy 1: Read from state attributes
-            state = hass.states.get(entity_id)
-            if state:
-                attrs = state.attributes or {}
-                if attrs.get("plant_key") and attrs.get("channel_id"):
-                    _LOGGER.debug("Resolved plant/channel from state attributes")
-                    return str(attrs["plant_key"]), str(attrs["channel_id"])
-
-            # Strategy 2: Parse from entity_id pattern
-            entity_name = entity_id.split(".", 1)[-1]
-            if entity_name.startswith("kp_") and entity_name.endswith(_CHANNEL_SUFFIX):
-                rest = entity_name[3 : -len(_CHANNEL_SUFFIX)]
-                for entry in hass.config_entries.async_entries(DOMAIN):
-                    if not hasattr(entry, "runtime_data"):
-                        continue
-                    plant_coord = entry.runtime_data.coordinators.get("plants")
-                    if plant_coord and plant_coord.data:
-                        for plant in plant_coord.data:
-                            pk = plant.get("key", "")
-                            slug = pk.replace("-", "_").lower()
-                            if rest.startswith(slug + "_"):
-                                channel_slug = rest[len(slug) + 1 :]
-                                dosage_data = plant.get("_current_dosages")
-                                if dosage_data and isinstance(dosage_data, dict):
-                                    for ch in dosage_data.get("channels", []):
-                                        ch_id = ch.get("channel_id", "")
-                                        if _slugify_label(ch_id) == channel_slug:
-                                            _LOGGER.debug(
-                                                "Resolved plant_key='%s', channel_id='%s' from entity_id",
-                                                pk,
-                                                ch_id,
-                                            )
-                                            return pk, ch_id
-
-                _LOGGER.error(
-                    "Could not resolve plant/channel from entity_id %s", entity_id
-                )
-                return None, None
-
-        plant_key = call_data.get("plant_key")
-        channel_id = call_data.get("channel_id")
-        if plant_key:
-            return str(plant_key), str(channel_id) if channel_id else None
-        return None, None
-
-    def _slugify_label(text: str) -> str:
-        """Slugify a label for entity ID matching (simplified)."""
-        import re
-        import unicodedata
-
-        text = unicodedata.normalize("NFKD", text)
-        text = text.encode("ascii", "ignore").decode("ascii")
-        text = re.sub(r"[^a-z0-9]+", "_", text.lower())
-        return text.strip("_")
-
     async def handle_water_channel(call: ServiceCall) -> None:
         """Handle the water_channel service call."""
         _LOGGER.debug(
-            "water_channel call.data keys: %s, values: %s",
-            list(call.data.keys()),
-            dict(call.data),
+            "water_channel call.data keys: %s", list(call.data.keys())
         )
-        plant_key, channel_id = _resolve_plant_channel(dict(call.data))
+        plant_key, channel_id = resolve_plant_channel(hass, dict(call.data))
         if not plant_key:
             _LOGGER.error(
-                "No plant_key or entity_id provided. Received data: %s",
-                dict(call.data),
+                "No plant_key or entity_id provided. Received keys: %s",
+                list(call.data.keys()),
             )
             return
 
-        runtime_data = _get_runtime_data()
+        runtime_data = _resolve_runtime_data(
+            call, ambiguity_hint="a channel entity_id"
+        )
         if not runtime_data:
-            _LOGGER.error("No Kamerplanter instance found")
             return
 
         api = runtime_data.api
@@ -517,16 +474,17 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         notification_key = call.data.get("notification_key")
         if not notification_key:
             _LOGGER.error(
-                "No notification_key provided. Received data: %s",
-                dict(call.data),
+                "No notification_key provided. Received keys: %s",
+                list(call.data.keys()),
             )
             return
 
         action = call.data.get("action", "confirmed")
 
-        runtime_data = _get_runtime_data()
+        runtime_data = _resolve_runtime_data(
+            call, ambiguity_hint="an explicit entry_id"
+        )
         if not runtime_data:
-            _LOGGER.error("No Kamerplanter instance found")
             return
 
         api = runtime_data.api
