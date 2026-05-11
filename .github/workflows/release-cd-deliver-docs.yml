@@ -4,7 +4,7 @@ on:
 
 jobs:
   publish_docs:
-    uses: nolte/gh-plumbing/.github/workflows/reusable-mkdocs.yaml@v1.1.15
+    uses: nolte/gh-plumbing/.github/workflows/reusable-mkdocs.yaml@v1.1.16
     with:
       requirements: docs/requirements.txt
     secrets:
