@@ -1,0 +1,22 @@
+# Portfolio manifest for nolte/kamerplanter-ha.
+# Schema: spec/portfolio/portfolio-management/ §Capability inventory per repository
+# Audience references resolve against AUDIENCES.md at the repo root.
+
+capabilities:
+  - name: kamerplanter-home-assistant-integration
+    description: >-
+      A HACS-distributed Home Assistant custom integration that connects a
+      Kamerplanter instance to Home Assistant — exposing plant monitoring
+      (growth phases, days-in-phase, next-phase predictions, nutrient-plan
+      assignments), per-channel nutrient dosages, tank management, and
+      per-location overviews as sensors and services.
+    audience:
+      - "Home Assistant user running Kamerplanter"
+      - "Self-hoster running both Kamerplanter and Home Assistant"
+    status: active
+    rationale: >-
+      This repository owns the Home Assistant surface for Kamerplanter,
+      decoupled from the core system so the integration can track Home Assistant
+      and HACS conventions independently.
+    peers:
+      - kamerplanter:plant-lifecycle-management-system
