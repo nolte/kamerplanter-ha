@@ -1,6 +1,6 @@
 # Installation
 
-=== "HACS (recommended)"
+=== "HACS (Home Assistant Community Store) (recommended)"
 
     1. Open **HACS** in Home Assistant
     2. Click the three dots (top right) and select **Custom repositories**
@@ -15,7 +15,7 @@
     3. Restart Home Assistant
 
     !!! warning "Directory structure matters"
-        The path must be exactly `config/custom_components/kamerplanter/manifest.json` — not nested deeper.
+        The path must be exactly `config/custom_components/kamerplanter/manifest.json`. Do not place it in a deeper subdirectory.
 
 !!! tip "After restart"
     Go to **Settings** > **Integrations** > **Add Integration** and search for "Kamerplanter". The integration only appears after the HA restart.

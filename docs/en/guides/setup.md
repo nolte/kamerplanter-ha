@@ -1,5 +1,11 @@
 # Setup
 
+!!! note "Before you start"
+    This guide assumes two things:
+
+    1. A running and reachable Kamerplanter backend instance.
+    2. Network access from the Home Assistant host to the backend URL.
+
 ## Prerequisites: Bidirectional API Access
 
 For a full integration, **both systems need mutual API access**:
@@ -77,7 +83,7 @@ The integration supports two correction flows, accessible via **Settings** > **I
     When your API key has expired or been revoked, HA shows the integration as faulty. Click **Re-authenticate** and enter a new API key.
 
     !!! tip "When is reauth triggered?"
-        HA automatically detects when the API responds with `401 Unauthorized` and shows the reauth flow.
+        HA automatically detects when the API responds with `401 Unauthorized` and triggers the reauthentication prompt.
 
 === "Reconfigure"
 
@@ -91,7 +97,7 @@ Configurable under **Settings** > **Integrations** > **Kamerplanter** > **Config
 
 | Coordinator | Default | Minimum | Data |
 |-------------|---------|---------|------|
-| **Plant** | 300s | 120s | Plants, phases, dosages, VPD/EC targets |
+| **Plant** | 300s | 120s | Plants, phases, dosages, VPD (Vapor Pressure Deficit) / EC (Electrical Conductivity) targets |
 | **Location** | 300s | 120s | Locations, tanks, fill levels |
 | **Run** | 300s | 120s | Planting runs, run status, plant counts |
 | **Alert** | 60s | 30s | Overdue tasks, sensor offline |

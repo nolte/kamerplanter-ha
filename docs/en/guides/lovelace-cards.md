@@ -1,6 +1,6 @@
 # Lovelace Custom Cards
 
-The integration ships with 5 custom Lovelace cards that are auto-registered on setup — no manual resource registration needed.
+The integration ships with 5 custom Lovelace cards. They are auto-registered during setup, so no manual resource registration is needed.
 
 | Card | Description |
 |------|------------|

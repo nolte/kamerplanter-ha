@@ -1,8 +1,14 @@
 # Einrichtung
 
+!!! note "Bevor du beginnst"
+    Diese Anleitung setzt zwei Dinge voraus:
+
+    1. Eine laufende und erreichbare Kamerplanter-Backend-Instanz.
+    2. Netzwerkzugang vom Home-Assistant-Host zur Backend-URL.
+
 ## Voraussetzungen: Bidirektionaler API-Zugriff
 
-Fuer eine vollstaendige Integration muessen **beide Systeme gegenseitig API-Zugriff** haben:
+Für eine vollständige Integration brauchen **beide Systeme gegenseitigen API-Zugriff**:
 
 ```mermaid
 flowchart LR
@@ -16,7 +22,7 @@ flowchart LR
 | **Kamerplanter → HA** | HA Long-Lived Access Token | Kamerplanter liest Sensordaten, steuert Aktoren | Home Assistant: **Profil** > **Long-Lived Access Tokens** |
 
 !!! warning "Beide Tokens erforderlich"
-    Ohne den **Kamerplanter API-Key** kann die HA-Integration keine Daten abfragen. Ohne den **HA Access Token** kann Kamerplanter keine Sensordaten aus Home Assistant lesen und keine Aktoren steuern. Fuer reinen Lese-Betrieb (nur HA-Dashboard) reicht der Kamerplanter API-Key allein.
+    Ohne den **Kamerplanter API-Key** kann die HA-Integration keine Daten abfragen. Ohne den **HA Access Token** kann Kamerplanter keine Sensordaten aus Home Assistant lesen und keine Aktoren steuern. Für reinen Lese-Betrieb (nur HA-Dashboard) reicht der Kamerplanter API-Key allein.
 
 ### Tokens einrichten
 
@@ -34,9 +40,9 @@ flowchart LR
 
 ---
 
-## Config Flow
+## Config Flow (Einrichtungsassistent)
 
-Nach der Installation fuehrt ein 4-Schritte-Assistent durch die Konfiguration:
+Nach der Installation führt ein 4-Schritte-Assistent durch die Konfiguration:
 
 ### Schritt 1: Kamerplanter-URL
 
@@ -48,40 +54,40 @@ Gib die URL deiner Kamerplanter-Instanz ein:
 | Extern | `https://kamerplanter.example.com` |
 
 !!! info "Automatischer Health-Check"
-    Die Integration prueft die Erreichbarkeit automatisch via `/api/health`.
+    Die Integration prüft die Erreichbarkeit automatisch via `/api/health`.
 
 ### Schritt 2: Authentifizierung
 
 | Modus | Beschreibung |
 |-------|-------------|
-| **Light-Modus** | Keine Authentifizierung noetig |
-| **API-Key** | API-Schluessel mit `kp_`-Prefix eingeben (empfohlen) |
+| **Light-Modus** | Keine Authentifizierung nötig |
+| **API-Key** | API-Schlüssel mit `kp_`-Prefix eingeben (empfohlen) |
 | **Login** | Benutzername und Passwort als Fallback |
 
-### Schritt 3: Tenant auswaehlen
+### Schritt 3: Tenant (Benutzerbereich) auswählen
 
-Bei Multi-Tenant-Betrieb (z.B. Gemeinschaftsgarten) den gewuenschten Tenant aus der Liste waehlen. Bei Einzelnutzern wird dieser Schritt uebersprungen.
+Bei Multi-Tenant-Betrieb (z.B. Gemeinschaftsgarten) den gewünschten Tenant aus der Liste wählen. Bei Einzelnutzern wird dieser Schritt übersprungen.
 
 ### Schritt 4: Entities konfigurieren
 
-Waehle aus, welche Pflanzen, Standorte und Tanks als HA-Entities angelegt werden sollen. Per Default werden alle verfuegbaren Entities erstellt.
+Wähle aus, welche Pflanzen, Standorte und Tanks als HA-Entities angelegt werden sollen. Per Default werden alle verfügbaren Entities erstellt.
 
 ---
 
 ## Reauth & Reconfigure
 
-Die Integration unterstuetzt zwei Korrektur-Flows, erreichbar ueber **Einstellungen** > **Integrationen** > **Kamerplanter**:
+Die Integration unterstützt zwei Korrektur-Flows, erreichbar über **Einstellungen** > **Integrationen** > **Kamerplanter**:
 
 === "Reauthentifizierung"
 
     Wenn dein API-Key abgelaufen oder widerrufen wurde, zeigt HA die Integration als fehlerhaft an. Klicke auf **Erneut authentifizieren** und gib einen neuen API-Key ein.
 
-    !!! tip "Wann wird Reauth ausgeloest?"
-        HA erkennt automatisch, wenn die API mit `401 Unauthorized` antwortet, und zeigt den Reauth-Flow an.
+    !!! tip "Wann wird Reauth ausgelöst?"
+        HA erkennt automatisch, wenn die API mit `401 Unauthorized` antwortet, und löst dann die Reauth-Aufforderung aus.
 
 === "Reconfigure"
 
-    Aendere die Server-URL, z.B. nach einem Umzug des Backends auf eine neue Adresse. Klicke auf **Konfigurieren** > **Server-URL aendern**.
+    Ändere die Server-URL, z.B. nach einem Umzug des Backends auf eine neue Adresse. Klicke auf **Konfigurieren** > **Server-URL ändern**.
 
 ---
 
@@ -91,11 +97,11 @@ Konfigurierbar unter **Einstellungen** > **Integrationen** > **Kamerplanter** > 
 
 | Coordinator | Standard | Minimum | Daten |
 |-------------|----------|---------|-------|
-| **Plant** | 300s | 120s | Pflanzen, Phasen, Dosierungen, VPD/EC-Sollwerte |
-| **Location** | 300s | 120s | Standorte, Tanks, Fuellstaende |
-| **Run** | 300s | 120s | Pflanzdurchlaeufe, Run-Status, Pflanzenanzahl |
-| **Alert** | 60s | 30s | Ueberfaellige Aufgaben, Sensor offline |
+| **Plant** | 300s | 120s | Pflanzen, Phasen, Dosierungen, VPD (Vapor Pressure Deficit) / EC (Electrical Conductivity)-Sollwerte |
+| **Location** | 300s | 120s | Standorte, Tanks, Füllstände |
+| **Run** | 300s | 120s | Pflanzdurchläufe, Run-Status, Pflanzenanzahl |
+| **Alert** | 60s | 30s | Überfällige Aufgaben, Sensor offline |
 | **Task** | 300s | 120s | Anstehende Aufgaben |
 
 !!! tip "Alerts schneller pollen"
-    Der Alert-Coordinator hat bewusst ein kuerzeres Standard-Intervall (60s), damit zeitkritische Benachrichtigungen schneller ankommen.
+    Der Alert-Coordinator hat bewusst ein kürzeres Standard-Intervall (60s), damit zeitkritische Benachrichtigungen schneller ankommen.

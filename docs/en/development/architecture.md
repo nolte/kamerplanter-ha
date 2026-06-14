@@ -27,6 +27,8 @@ flowchart TB
 
 ## Components
 
+Data flows in one direction: the API client fetches from the backend, the coordinators schedule those fetches, the entity platforms expose the polled data as HA entities, and the Lovelace cards render those entities.
+
 ### API Client (`api.py`)
 
 - Aiohttp-based HTTP client against the Kamerplanter backend
@@ -35,7 +37,7 @@ flowchart TB
 
 ### Coordinators (`coordinator.py`)
 
-Five `DataUpdateCoordinator` instances with independent polling intervals:
+Five `DataUpdateCoordinator` ([HA's built-in polling manager](https://developers.home-assistant.io/docs/integration_fetching_data/)) instances with independent polling intervals:
 
 | Coordinator | Data | Default Interval |
 |-------------|------|-----------------|

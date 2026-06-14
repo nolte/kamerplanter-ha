@@ -1,33 +1,33 @@
 # Fehlerbehebung
 
-## Haeufige Fehler
+## Häufige Fehler
 
-| Fehler | Ursache | Loesung |
+| Fehler | Ursache | Lösung |
 |--------|---------|---------|
-| "Kamerplanter nicht erreichbar" | Backend offline oder URL falsch | URL pruefen, Backend starten |
-| "API-Key ungueltig" | Key revoked oder falsch | Neuen API-Key in Kamerplanter generieren, dann [Reauth](setup.md#reauth--reconfigure) |
-| Entity zeigt "unavailable" | Coordinator-Update fehlgeschlagen | Logs pruefen, Polling-Intervall erhoehen |
-| Integration laedt nicht | Verzeichnisstruktur falsch | Pfad pruefen: `custom_components/kamerplanter/manifest.json` |
+| "Kamerplanter nicht erreichbar" | Backend offline oder URL falsch | URL prüfen, Backend starten |
+| "API-Key ungültig" | Key revoked oder falsch | Neuen API-Key in Kamerplanter generieren, dann [Reauth](setup.md#reauth-reconfigure) |
+| Entity zeigt "unavailable" | Coordinator-Update fehlgeschlagen | Logs prüfen, Polling-Intervall erhöhen |
+| Integration lädt nicht | Verzeichnisstruktur falsch | Pfad prüfen: `custom_components/kamerplanter/manifest.json` |
 | Entities fehlen nach Update | Cache veraltet | Service [`kamerplanter.clear_cache`](services.md#kamerplanterclear_cache) aufrufen |
 
 ---
 
 ## Diagnostics
 
-Diagnostics-Daten sind verfuegbar unter **Einstellungen** > **Integrationen** > **Kamerplanter** > **Diagnostik**.
+Diagnostics-Daten sind verfügbar unter **Einstellungen** > **Integrationen** > **Kamerplanter** > **Diagnostik**.
 
 Die Diagnostics enthalten:
 
 - **Konfiguration** — URL, Tenant (API-Keys werden automatisch maskiert)
 - **Coordinator-Status** — letztes Update, Fehleranzahl, Polling-Intervall pro Coordinator
-- **Entity-Uebersicht** — Anzahl pro Plattform (Sensor, Binary Sensor, Calendar, Todo, Button)
+- **Entity-Übersicht** — Anzahl pro Plattform (Sensor, Binary Sensor, Calendar, Todo, Button)
 
 !!! tip "Bug-Reports"
-    Bei Bug-Reports die Diagnostics-Datei anhaengen — sie enthaelt alle relevanten Infos ohne sensible Daten.
+    Bei Bug-Reports die Diagnostics-Datei anhängen. Sie enthält alle relevanten Infos ohne sensible Daten.
 
 ---
 
-## Logs pruefen
+## Logs prüfen
 
 === "configuration.yaml"
 
@@ -42,4 +42,4 @@ Die Diagnostics enthalten:
     **Einstellungen** > **System** > **Protokolle** und nach `kamerplanter` filtern.
 
 !!! info "Debug-Logging deaktivieren"
-    Debug-Logging erzeugt viele Log-Eintraege. Vergiss nicht, es nach der Fehlersuche wieder auf `info` oder `warning` zu setzen.
+    Debug-Logging erzeugt viele Log-Einträge. Vergiss nicht, es nach der Fehlersuche wieder auf `info` oder `warning` zu setzen.

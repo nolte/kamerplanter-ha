@@ -1,6 +1,6 @@
 # Architektur
 
-## Uebersicht
+## Übersicht
 
 ```mermaid
 flowchart TB
@@ -27,6 +27,8 @@ flowchart TB
 
 ## Komponenten
 
+Die Daten fließen in eine Richtung: Der API-Client holt sie vom Backend, die Coordinators planen diese Abrufe, die Entity-Plattformen stellen die gepollten Daten als HA-Entities bereit, und die Lovelace-Cards rendern diese Entities.
+
 ### API Client (`api.py`)
 
 - Aiohttp-basierter HTTP-Client gegen das Kamerplanter-Backend
@@ -35,18 +37,18 @@ flowchart TB
 
 ### Coordinators (`coordinator.py`)
 
-Fuenf `DataUpdateCoordinator`-Instanzen mit unabhaengigen Polling-Intervallen:
+Fünf `DataUpdateCoordinator`-Instanzen ([HAs eingebauter Polling-Manager](https://developers.home-assistant.io/docs/integration_fetching_data/)) mit unabhängigen Polling-Intervallen:
 
 | Coordinator | Daten | Standard-Intervall |
 |-------------|-------|-------------------|
 | **Plant** | Pflanzen, Phasen, Dosierungen, VPD/EC-Sollwerte | 300s |
-| **Location** | Standorte, Tanks, Fuellstaende | 300s |
-| **Run** | Pflanzdurchlaeufe, Run-Status, Pflanzenanzahl | 300s |
-| **Alert** | Ueberfaellige Aufgaben, Sensor-Status | 60s |
+| **Location** | Standorte, Tanks, Füllstände | 300s |
+| **Run** | Pflanzdurchläufe, Run-Status, Pflanzenanzahl | 300s |
+| **Alert** | Überfällige Aufgaben, Sensor-Status | 60s |
 | **Task** | Anstehende Aufgaben | 300s |
 
 !!! info "Warum 5 Coordinators?"
-    Durch die Trennung koennen zeitkritische Alerts (60s) haeufiger gepollt werden als Stammdaten (300s). Jeder Coordinator hat seinen eigenen Fehler-Counter und Recovery-Mechanismus.
+    Weil die Coordinators getrennt sind, lassen sich zeitkritische Alerts (60s) häufiger pollen als Stammdaten (300s). Jeder Coordinator hat seinen eigenen Fehler-Counter und Recovery-Mechanismus.
 
 ### Entity-Plattformen
 
@@ -72,7 +74,7 @@ Fuenf `DataUpdateCoordinator`-Instanzen mit unabhaengigen Polling-Intervallen:
 
 ## Style Guide
 
-Alle Code-Aenderungen muessen dem Style Guide folgen: [`spec/style-guides/HA-INTEGRATION.md`](https://github.com/nolte/kamerplanter-ha/blob/main/spec/style-guides/HA-INTEGRATION.md)
+Alle Code-Änderungen müssen dem Style Guide folgen: [`spec/style-guides/HA-INTEGRATION.md`](https://github.com/nolte/kamerplanter-ha/blob/main/spec/style-guides/HA-INTEGRATION.md)
 
 Wichtigste Patterns:
 

@@ -2,11 +2,14 @@
 
 Kamerplanter entities can be used directly in HA automations. Here are some proven examples.
 
+!!! note "Prerequisite"
+    Basic knowledge of HA automations is assumed. See the [HA automation docs](https://www.home-assistant.io/docs/automation/) for an introduction.
+
 ---
 
 ## Phase Change: Switch Light Schedule
 
-When Kamerplanter reports a phase change to "flowering", the light schedule is automatically switched to 12h/12h:
+When Kamerplanter reports a phase change to "flowering", the light schedule is automatically switched to 12/12:
 
 ```yaml
 alias: "KP: Flowering Start - 12/12 Light"
@@ -31,7 +34,7 @@ action:
 
 ## VPD Control with Kamerplanter Target
 
-Kamerplanter provides the optimal VPD target per phase via `sensor.kp_{key}_vpd_target`. Home Assistant controls the humidifier:
+Kamerplanter provides the optimal VPD target per phase. The value is exposed as `sensor.kp_{key}_vpd_target`, and Home Assistant controls the humidifier:
 
 ```yaml
 alias: "KP: VPD Control"

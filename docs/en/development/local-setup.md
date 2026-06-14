@@ -8,11 +8,15 @@
 | **Kubernetes** | Local Kind cluster with Skaffold |
 | **Home Assistant** | StatefulSet `homeassistant-0` in namespace `default` |
 
+Kind (Kubernetes IN Docker) runs a local cluster; `homeassistant-0` is the HA StatefulSet pod name.
+
 ## Development Workflow
 
 The HA integration is **not** automatically deployed via Skaffold, but manually via `kubectl cp` and container restart.
 
 ### Deploy Cycle
+
+Run the following steps in order. Each step builds on the previous one: lint the source, copy it into the pod, clear the cached bytecode, restart the process, wait for readiness, and finally inspect the logs.
 
 ```bash
 # 1. Lint check

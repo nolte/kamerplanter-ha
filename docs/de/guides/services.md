@@ -6,7 +6,7 @@ Die Integration stellt 5 Services bereit, die in Automationen, Scripts und der E
 
 ## `kamerplanter.fill_tank`
 
-Erfasst ein Tank-Fuell-Event. Dosierungen werden automatisch aus dem aktuellen Naehrplan aufgeloest.
+Erfasst ein Tank-Füll-Event. Dosierungen werden automatisch aus dem aktuellen Nährplan aufgelöst.
 
 ```yaml
 service: kamerplanter.fill_tank
@@ -22,16 +22,16 @@ data:
 |-----------|---------|-------------|
 | `entity_id` | Ja | Tank-Info-Sensor |
 | `fill_type` | Ja | `full_change`, `top_up` oder `adjustment` |
-| `volume_liters` | Nein | Fuellmenge in Litern |
+| `volume_liters` | Nein | Füllmenge in Litern |
 | `measured_ec_ms` | Nein | Gemessener EC-Wert (mS/cm) |
 | `measured_ph` | Nein | Gemessener pH-Wert |
-| `notes` | Nein | Freitext-Notiz zum Fuell-Event |
+| `notes` | Nein | Freitext-Notiz zum Füll-Event |
 
 ---
 
 ## `kamerplanter.water_channel`
 
-Erfasst ein Giessereignis fuer einen Duengekanal. Dosierungen und Volumen werden aus dem Naehrplan aufgeloest.
+Erfasst ein Gießereignis für einen Düngekanal. Dosierungen und Volumen werden aus dem Nährplan aufgelöst.
 
 ```yaml
 service: kamerplanter.water_channel
@@ -47,20 +47,20 @@ data:
 | Parameter | Pflicht | Beschreibung |
 |-----------|---------|-------------|
 | `entity_id` | Ja | Mix-Sensor des Kanals |
-| `volume_liters` | Nein | Giessmenge in Litern |
+| `volume_liters` | Nein | Gießmenge in Litern |
 | `application_method` | Nein | `drench`, `foliar`, `fertigation` oder `capillary` |
 | `measured_ec_ms` | Nein | Gemessener EC-Wert (mS/cm) |
 | `measured_ph` | Nein | Gemessener pH-Wert |
-| `notes` | Nein | Freitext-Notiz zum Giessereignis |
+| `notes` | Nein | Freitext-Notiz zum Gießereignis |
 
 !!! tip "Application Method"
-    Die Applikationsmethode beeinflusst, wie das Backend die Duengermengen berechnet. `drench` ist der Standard fuer normales Giessen, `foliar` fuer Blattduengung.
+    Die Applikationsmethode beeinflusst, wie das Backend die Düngermengen berechnet. `drench` ist der Standard für normales Gießen, `foliar` für Blattdüngung.
 
 ---
 
 ## `kamerplanter.confirm_care`
 
-Bestaetigt oder ueberspringt eine Pflege-Erinnerung. Fuer Actionable Notifications via HA Companion App.
+Bestätigt oder überspringt eine Pflege-Erinnerung. Gedacht für Actionable Notifications (interaktive Benachrichtigungen mit Antwort-Buttons in der Home Assistant Companion App) über die HA Companion App.
 
 ```yaml
 service: kamerplanter.confirm_care
@@ -75,13 +75,13 @@ data:
 | `action` | Ja | `confirmed` oder `skipped` |
 
 !!! example "In Kombination mit Actionable Notification"
-    Siehe [Automationen: Actionable Care Notification](automations.md#actionable-care-notification) fuer ein vollstaendiges Beispiel.
+    Siehe [Automationen: Actionable Care Notification](automations.md#actionable-care-notification) für ein vollständiges Beispiel.
 
 ---
 
 ## `kamerplanter.refresh_data`
 
-Erzwingt erneutes Polling aller 5 Coordinatoren. Nuetzlich nach manuellen Aenderungen im Kamerplanter-Backend.
+Erzwingt erneutes Polling aller 5 Coordinatoren. Nützlich nach manuellen Änderungen im Kamerplanter-Backend.
 
 ```yaml
 service: kamerplanter.refresh_data
@@ -91,11 +91,11 @@ service: kamerplanter.refresh_data
 
 ## `kamerplanter.clear_cache`
 
-Leert den Coordinator-Cache und erzwingt vollstaendigen Neuaufbau aller Daten.
+Leert den Coordinator-Cache und erzwingt vollständigen Neuaufbau aller Daten.
 
 ```yaml
 service: kamerplanter.clear_cache
 ```
 
 !!! warning "Cache leeren"
-    Dieser Service entfernt alle gecachten Daten und laedt alles neu vom Backend. Verwende ihn nur bei Datenproblemen — im Normalbetrieb reicht `refresh_data`.
+    Dieser Service löscht alle zwischengespeicherten Daten und lädt alles neu vom Backend. Verwende ihn nur bei Datenproblemen — im Normalbetrieb reicht `refresh_data`.

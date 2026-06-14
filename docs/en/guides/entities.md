@@ -1,6 +1,8 @@
 # Entities
 
-The integration automatically creates entities for all selected plants, locations, and tanks. Each entity belongs to one of the [5 coordinators](../development/architecture.md#coordinators-coordinatorpy) and updates at its polling interval.
+The integration automatically creates entities for all selected plants, locations, and tanks. Each entity belongs to one of the [5 coordinators](../development/architecture.md#coordinators-coordinatorpy). It refreshes on the coordinator's polling schedule.
+
+Two recurring measurements appear in the tables below: VPD — Vapor Pressure Deficit; EC — Electrical Conductivity.
 
 ---
 
@@ -136,7 +138,7 @@ The integration fires events that you can use as triggers in automations:
 | `kamerplanter_task_completed` | Task checked off via todo entity |
 | `kamerplanter_tank_alert` | Tank alert (low level, old solution) |
 | `kamerplanter_harvest` | Harvest notification |
-| `kamerplanter_ipm_alert` | Pest/disease alert |
+| `kamerplanter_ipm_alert` | Pest/disease alert (IPM — Integrated Pest Management) |
 | `kamerplanter_sensor_alert` | Sensor offline or threshold exceeded |
 | `kamerplanter_weather_alert` | Weather warning |
 | `kamerplanter_seasonal` | Seasonal reminder |

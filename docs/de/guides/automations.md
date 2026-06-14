@@ -2,11 +2,14 @@
 
 Kamerplanter-Entities lassen sich direkt in HA-Automationen verwenden. Hier einige praxiserprobte Beispiele.
 
+!!! note "Voraussetzung"
+    Grundkenntnisse zu HA-Automationen werden vorausgesetzt. Eine Einführung bietet die [HA-Automations-Dokumentation](https://www.home-assistant.io/docs/automation/).
+
 ---
 
 ## Phasenwechsel: Lichtprogramm umstellen
 
-Wenn Kamerplanter einen Phasenwechsel zu "Bluete" meldet, wird das Lichtprogramm automatisch auf 12h/12h umgestellt:
+Kamerplanter meldet einen Phasenwechsel zu "Blüte". Das Lichtprogramm wird dann automatisch auf 12/12 umgestellt:
 
 ```yaml
 alias: "KP: Bluete-Start - 12/12 Licht"
@@ -31,7 +34,7 @@ action:
 
 ## VPD-Regelung mit Kamerplanter-Sollwert
 
-Kamerplanter liefert den optimalen VPD-Sollwert pro Phase ueber `sensor.kp_{key}_vpd_target`. Home Assistant regelt den Befeuchter:
+Kamerplanter liefert den optimalen VPD-Sollwert pro Phase über `sensor.kp_{key}_vpd_target`. Home Assistant regelt den Befeuchter:
 
 ```yaml
 alias: "KP: VPD-Regelung"
@@ -65,14 +68,14 @@ action:
 ```
 
 !!! tip "VPD- und EC-Sollwerte"
-    Neben `vpd_target` liefert Kamerplanter auch `ec_target` pro Pflanze. Damit kannst du z.B. die Duengerpumpe regeln oder Warnungen bei Abweichungen ausloesen.
+    Neben `vpd_target` liefert Kamerplanter auch `ec_target` pro Pflanze. Damit kannst du z.B. die Düngerpumpe regeln oder Warnungen bei Abweichungen auslösen.
 
 ---
 
-## Tank nachfuellen
+## Tank nachfüllen
 
 ```yaml
-alias: "KP: Tank nachfuellen"
+alias: "KP: Tank nachfüllen"
 trigger:
   - platform: numeric_state
     entity_id: sensor.kp_haupttank_fill_level
@@ -82,7 +85,7 @@ action:
     data:
       title: "Tank fast leer!"
       message: >
-        Fuellstand: {{ states('sensor.kp_haupttank_fill_level') }}%.
+        Füllstand: {{ states('sensor.kp_haupttank_fill_level') }}%.
         EC: {{ states('sensor.kp_haupttank_ec') }} mS/cm,
         pH: {{ states('sensor.kp_haupttank_ph') }}
 ```
@@ -91,7 +94,7 @@ action:
 
 ## Actionable Care Notification
 
-Pflege-Erinnerungen mit Aktions-Buttons direkt in der Benachrichtigung — Erledigt oder Ueberspringen:
+Pflege-Erinnerungen mit Aktions-Buttons direkt in der Benachrichtigung — Erledigt oder Überspringen:
 
 ```yaml
 alias: "KP: Pflege-Erinnerung"
@@ -101,27 +104,27 @@ trigger:
 action:
   - service: notify.mobile_app_phone
     data:
-      title: "Pflege faellig"
+      title: "Pflege fällig"
       message: "{{ trigger.event.data.message }}"
       data:
         actions:
           - action: "CONFIRM_CARE_{{ trigger.event.data.notification_key }}"
             title: "Erledigt"
           - action: "SKIP_CARE_{{ trigger.event.data.notification_key }}"
-            title: "Ueberspringen"
+            title: "Überspringen"
 ```
 
 !!! info "Actionable Notifications"
-    Die Aktions-Buttons funktionieren mit der HA Companion App. Zum Bestaetigen verwendest du den Service [`kamerplanter.confirm_care`](services.md#kamerplanterconfirm_care).
+    Die Aktions-Buttons funktionieren mit der HA Companion App. Zum Bestätigen verwendest du den Service [`kamerplanter.confirm_care`](services.md#kamerplanterconfirm_care).
 
 ---
 
-## Bewaesserungs-Erinnerung
+## Bewässerungs-Erinnerung
 
 Nutze den `days_until_watering`-Sensor, um rechtzeitig zu erinnern:
 
 ```yaml
-alias: "KP: Morgen giessen"
+alias: "KP: Morgen gießen"
 trigger:
   - platform: numeric_state
     entity_id: sensor.kp_northern_lights_days_until_watering
@@ -129,7 +132,7 @@ trigger:
 action:
   - service: notify.mobile_app_phone
     data:
-      title: "Giessen bald faellig"
+      title: "Gießen bald fällig"
       message: >
         {{ state_attr('sensor.kp_northern_lights_days_until_watering', 'friendly_name') }}:
         Naechste Bewasserung am {{ states('sensor.kp_northern_lights_next_watering') }}
@@ -182,4 +185,4 @@ content: >
 ```
 
 !!! tip "Attribut-Zugriff allgemein"
-    Das Muster `state_attr('sensor.kp_{id}_phase_timeline', states('sensor.kp_{id}_phase'))` funktioniert fuer alle Kamerplanter-Pflanzen und Planting Runs. Bei Runs stehen zusaetzlich `phase_week`, `phase_progress_pct` und `remaining_days` als Attribute zur Verfuegung.
+    Das Muster `state_attr('sensor.kp_{id}_phase_timeline', states('sensor.kp_{id}_phase'))` funktioniert für alle Kamerplanter-Pflanzen und Planting Runs. Bei Runs stehen zusätzlich `phase_week`, `phase_progress_pct` und `remaining_days` als Attribute zur Verfügung.

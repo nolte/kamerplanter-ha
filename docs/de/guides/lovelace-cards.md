@@ -1,21 +1,21 @@
 # Lovelace Custom Cards
 
-Die Integration liefert 5 Custom Lovelace Cards mit, die beim Setup automatisch registriert werden — keine manuelle Ressourcen-Registrierung noetig.
+Die Integration liefert 5 Custom Lovelace Cards mit. Sie werden beim Setup automatisch registriert. Eine manuelle Ressourcen-Registrierung ist nicht nötig.
 
 | Card | Beschreibung |
 |------|-------------|
-| `kamerplanter-plant-card` | Pflanzen-Uebersicht mit Phasen-Timeline und Sollwerten |
-| `kamerplanter-mix-card` | Naehrstoff-Dosierung pro Kanal visualisiert |
-| `kamerplanter-tank-card` | Tank-Status mit Fuellstand und Loesungsalter |
-| `kamerplanter-care-card` | Pflege-Erinnerungen mit Bestaetigen/Ueberspringen |
-| `kamerplanter-houseplant-card` | Vereinfachte Card fuer Zimmerpflanzen |
+| `kamerplanter-plant-card` | Pflanzen-Übersicht mit Phasen-Timeline und Sollwerten |
+| `kamerplanter-mix-card` | Nährstoff-Dosierung pro Kanal visualisiert |
+| `kamerplanter-tank-card` | Tank-Status mit Füllstand und Lösungsalter |
+| `kamerplanter-care-card` | Pflege-Erinnerungen mit Bestätigen/Überspringen |
+| `kamerplanter-houseplant-card` | Vereinfachte Card für Zimmerpflanzen |
 
 !!! info "Auto-Registrierung"
-    Die Cards werden aus dem `www/`-Verzeichnis der Integration geladen. Du musst sie nicht manuell als Lovelace-Ressource hinzufuegen.
+    Die Cards werden aus dem `www/`-Verzeichnis der Integration geladen. Du musst sie nicht manuell als Lovelace-Ressource hinzufügen.
 
 ## Konfiguration
 
-Alle Cards koennen ueber den Standard-HA-Editor konfiguriert werden (Entity-Picker, keine YAML-Pflicht).
+Alle Cards können über den Standard-HA-Editor konfiguriert werden (Entity-Picker, keine YAML-Pflicht).
 
 === "Plant Card"
 
@@ -28,7 +28,7 @@ Alle Cards koennen ueber den Standard-HA-Editor konfiguriert werden (Entity-Pick
 
 === "Mix Card"
 
-    Visualisiert die Duenger-Dosierung pro Kanal mit Mengenangaben in ml/L.
+    Visualisiert die Dünger-Dosierung pro Kanal mit Mengenangaben in ml/L.
 
     ```yaml
     type: custom:kamerplanter-mix-card
@@ -37,7 +37,7 @@ Alle Cards koennen ueber den Standard-HA-Editor konfiguriert werden (Entity-Pick
 
 === "Tank Card"
 
-    Zeigt Fuellstand, Volumen und Loesungsalter des Tanks.
+    Zeigt Füllstand, Volumen und Lösungsalter des Tanks.
 
     ```yaml
     type: custom:kamerplanter-tank-card
@@ -46,7 +46,7 @@ Alle Cards koennen ueber den Standard-HA-Editor konfiguriert werden (Entity-Pick
 
 === "Care Card"
 
-    Listet faellige Pflege-Aufgaben mit Bestaetigen/Ueberspringen-Buttons.
+    Listet fällige Pflege-Aufgaben mit Bestätigen/Überspringen-Buttons.
 
     ```yaml
     type: custom:kamerplanter-care-card
@@ -55,7 +55,7 @@ Alle Cards koennen ueber den Standard-HA-Editor konfiguriert werden (Entity-Pick
 
 === "Houseplant Card"
 
-    Vereinfachte Darstellung fuer Zimmerpflanzen ohne komplexe Naehrstoffdaten.
+    Vereinfachte Darstellung für Zimmerpflanzen ohne komplexe Nährstoffdaten.
 
     ```yaml
     type: custom:kamerplanter-houseplant-card

@@ -29,8 +29,8 @@ flowchart LR
 - :art: **5 custom Lovelace cards** — plant, mix, tank, care, houseplant card (auto-registered)
 - :gear: **5 services** — fill tank, water channel, confirm care, refresh data, clear cache
 
-!!! info "5 independent coordinators"
-    The integration uses **5 separate DataUpdateCoordinators** (Plant, Location, Run, Alert, Task) with individually configurable polling intervals. Time-critical alerts arrive faster than master data.
+!!! info "5 independent polling schedules"
+    The integration uses 5 separate polling schedules (Plant, Location, Run, Alert, Task) — each configurable independently. Time-critical alerts arrive faster than master data.
 
 ## Next Steps
 

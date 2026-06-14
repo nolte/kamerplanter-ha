@@ -1,6 +1,6 @@
 # Kamerplanter Home Assistant Integration
 
-Kamerplanter laesst sich ueber eine **Custom Integration** in Home Assistant einbinden. Alle Pflanzendaten, Tankwerte, Aufgaben und Kalendereintraege erscheinen als native HA-Entities und koennen in Dashboards, Automationen und Benachrichtigungen genutzt werden.
+Kamerplanter lässt sich über eine **Custom Integration** in Home Assistant einbinden. Alle Pflanzendaten, Tankwerte, Aufgaben und Kalendereinträge erscheinen als native HA-Entities und können in Dashboards, Automationen und Benachrichtigungen genutzt werden.
 
 ```mermaid
 flowchart LR
@@ -20,30 +20,30 @@ flowchart LR
 
 ## Features
 
-- :seedling: **Pflanzen-Monitoring** — Wachstumsphasen, Tage in Phase, VPD/EC-Sollwerte, naechste Phase, Naehrplanprofil
-- :test_tube: **Naehrstoff-Dosierungen** — pro Kanal als Sensor-Attribute (ml/L), Dashboard-ready
-- :potable_water: **Tank-Management** — Fuellstand, Loesungsalter, EC/pH via HA-Services
-- :house: **Standort-Uebersicht** — aktive Runs und Pflanzenanzahl pro Zelt/Raum/Beet
-- :ballot_box_with_check: **Aufgaben-Tracking** — Todo-Entity, ueberfaellige Aufgaben, Kalender-Events
-- :bell: **Pflege-Erinnerungen** — Binary Sensors fuer ueberfaellige Pflege, Events fuer Benachrichtigungen
+- :seedling: **Pflanzen-Monitoring** — Wachstumsphasen, Tage in Phase, VPD/EC-Sollwerte, nächste Phase, Nährplanprofil
+- :test_tube: **Nährstoff-Dosierungen** — pro Kanal als Sensor-Attribute (ml/L), direkt für Dashboards nutzbar
+- :potable_water: **Tank-Management** — Füllstand, Lösungsalter, EC/pH via HA-Services
+- :house: **Standort-Übersicht** — aktive Runs und Pflanzenanzahl pro Zelt/Raum/Beet
+- :ballot_box_with_check: **Aufgaben-Tracking** — Todo-Entity, überfällige Aufgaben, Kalender-Events
+- :bell: **Pflege-Erinnerungen** — Binary Sensors für überfällige Pflege, Events für Benachrichtigungen
 - :art: **5 Custom Lovelace Cards** — Plant, Mix, Tank, Care, Houseplant Card (auto-registriert)
-- :gear: **5 Services** — Tank fuellen, Kanal giessen, Pflege bestaetigen, Daten aktualisieren, Cache leeren
+- :gear: **5 Services** — Tank füllen, Kanal gießen, Pflege bestätigen, Daten aktualisieren, Cache leeren
 
-!!! info "5 unabhaengige Coordinators"
-    Die Integration nutzt **5 separate DataUpdateCoordinators** (Plant, Location, Run, Alert, Task) mit individuell konfigurierbaren Polling-Intervallen. Zeitkritische Alerts kommen so schneller an als Stammdaten.
+!!! info "5 unabhängige Polling-Zeitpläne"
+    Die Integration nutzt **5 separate Polling-Zeitpläne** (Plant, Location, Run, Alert, Task) — jeder einzeln konfigurierbar. Zeitkritische Alerts kommen so schneller an als Stammdaten.
 
 ## Weiter
 
 - [Installation](guides/installation.md) — HACS oder manuell installieren
 - [Einrichtung](guides/setup.md) — Config Flow, Token-Austausch, Reauth & Reconfigure
-- [Entities](guides/entities.md) — Alle verfuegbaren Sensoren und Entities
+- [Entities](guides/entities.md) — Alle verfügbaren Sensoren und Entities
 - [Automationen](guides/automations.md) — Beispiel-Automationen und Jinja2-Templates
 - [Lovelace Cards](guides/lovelace-cards.md) — Custom Cards konfigurieren
 - [Services](guides/services.md) — HA-Services der Integration
 
 ## Kamerplanter-Hauptprojekt
 
-Die HA-Integration ist ein eigenstaendiges Repository. Das Kamerplanter-Backend und die vollstaendige Dokumentation findest du unter:
+Die HA-Integration ist ein eigenständiges Repository. Das Kamerplanter-Backend und die vollständige Dokumentation findest du unter:
 
 - [Kamerplanter Dokumentation](https://nolte.github.io/kamerplanter/)
 - [Kamerplanter Repository](https://github.com/nolte/kamerplanter)

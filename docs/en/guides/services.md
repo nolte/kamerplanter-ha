@@ -81,7 +81,7 @@ data:
 
 ## `kamerplanter.refresh_data`
 
-Force re-poll of all 5 coordinators. Useful after manual changes in the Kamerplanter backend.
+Forces a re-poll of all five coordinators. Use this after making manual changes in the Kamerplanter backend.
 
 ```yaml
 service: kamerplanter.refresh_data
@@ -91,7 +91,7 @@ service: kamerplanter.refresh_data
 
 ## `kamerplanter.clear_cache`
 
-Clear coordinator cache and force full rebuild of all data.
+Clears the coordinator cache and forces a full rebuild of all data from the backend.
 
 ```yaml
 service: kamerplanter.clear_cache
