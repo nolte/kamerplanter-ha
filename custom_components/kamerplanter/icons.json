@@ -35,12 +35,17 @@
       "tasks_due_today": { "default": "mdi:clipboard-check-outline" },
       "tasks_overdue": { "default": "mdi:clipboard-alert-outline" },
       "days_until_watering": { "default": "mdi:watering-can-outline" },
-      "next_watering": { "default": "mdi:watering-can" }
+      "next_watering": { "default": "mdi:watering-can" },
+      "pest_pressure": { "default": "mdi:bug" },
+      "karenz_remaining": { "default": "mdi:timer-sand" },
+      "last_inspection_days": { "default": "mdi:magnify" }
     },
     "binary_sensor": {
       "needs_attention": { "default": "mdi:alert-circle" },
       "sensor_offline": { "default": "mdi:access-point-network-off" },
-      "care_overdue": { "default": "mdi:watering-can-outline" }
+      "care_overdue": { "default": "mdi:watering-can-outline" },
+      "harvest_safe": { "default": "mdi:fruit-cherries" },
+      "pest_alert": { "default": "mdi:bug-check" }
     },
     "button": {
       "refresh_all": { "default": "mdi:refresh" }

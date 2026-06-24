@@ -9,7 +9,8 @@ from pathlib import Path
 from aiohttp import ClientSession
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_URL
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -29,6 +30,7 @@ from .const import (
 )
 from .coordinator import (
     KamerplanterAlertCoordinator,
+    KamerplanterIpmCoordinator,
     KamerplanterLocationCoordinator,
     KamerplanterPlantCoordinator,
     KamerplanterRunCoordinator,
@@ -74,6 +76,7 @@ async def async_setup_entry(
         "runs": KamerplanterRunCoordinator(hass, entry, api),
         "alerts": KamerplanterAlertCoordinator(hass, entry, api),
         "tasks": KamerplanterTaskCoordinator(hass, entry, api),
+        "ipm": KamerplanterIpmCoordinator(hass, entry, api),
     }
 
     # First refresh all coordinators
@@ -90,14 +93,33 @@ async def async_setup_entry(
     # Forward setup to platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Prune devices whose backing element is no longer HA-published / active.
+    # New entities are only *created* for published elements, but HA never
+    # *removes* devices on its own, so un-publishing a plant in Kamerplanter
+    # would otherwise leave its device + entities behind. Run once now and on
+    # every relevant coordinator update so un-publishing takes effect on the
+    # next poll without a reload.
+    @callback
+    def _cleanup_orphaned_devices() -> None:
+        _async_cleanup_orphaned_devices(hass, entry)
+
+    for _name in ("plants", "locations", "runs"):
+        _coord = coordinators.get(_name)
+        if _coord is not None:
+            entry.async_on_unload(_coord.async_add_listener(_cleanup_orphaned_devices))
+    _cleanup_orphaned_devices()
+
     # Auto-register Lovelace cards and assets from www/ subdirectory
     www_dir = Path(__file__).parent / "www"
     if www_dir.is_dir():
         from homeassistant.components.http import StaticPathConfig
 
         js_files = await hass.async_add_executor_job(lambda: list(www_dir.glob("*.js")))
+        # cache_headers=False: serve the cards with ETag revalidation instead of
+        # a 31-day immutable cache. Otherwise an updated card stays masked by the
+        # browser cache after a redeploy/update (stale getGridOptions, layout...).
         paths = [
-            StaticPathConfig(f"/{DOMAIN}/{js_file.name}", str(js_file), True)
+            StaticPathConfig(f"/{DOMAIN}/{js_file.name}", str(js_file), False)
             for js_file in js_files
         ]
 
@@ -123,6 +145,60 @@ async def async_setup_entry(
         await _async_register_lovelace_resources(hass, js_files)
 
     return True
+
+
+@callback
+def _async_cleanup_orphaned_devices(
+    hass: HomeAssistant, entry: KamerplanterConfigEntry
+) -> None:
+    """Remove devices whose backing element is no longer published / active.
+
+    A plant/location/tank/run drops out of its coordinator data when it is
+    un-published in Kamerplanter (or removed/completed). HA does not delete the
+    matching device automatically, so we prune it here together with all of its
+    entities.
+
+    Conservative by design: if any source coordinator has not produced a
+    successful update we skip the whole pass, so a transient backend error can
+    never wipe still-valid devices.
+    """
+    coordinators = entry.runtime_data.coordinators
+    plant_coord = coordinators.get("plants")
+    loc_coord = coordinators.get("locations")
+    run_coord = coordinators.get("runs")
+
+    sources = [c for c in (plant_coord, loc_coord, run_coord) if c is not None]
+    if any(not c.last_update_success or c.data is None for c in sources):
+        return
+
+    # Identifiers we consider valid; everything else under this entry is orphaned.
+    valid: set[tuple[str, str]] = {(DOMAIN, entry.entry_id)}  # server hub
+    if plant_coord and plant_coord.data:
+        for plant in plant_coord.data:
+            valid.add((DOMAIN, f"{entry.entry_id}_plant_{plant['key']}"))
+    if run_coord and run_coord.data:
+        for run in run_coord.data:
+            if run.get("status") not in ("completed", "cancelled"):
+                valid.add((DOMAIN, f"{entry.entry_id}_run_{run['key']}"))
+    if loc_coord and loc_coord.data:
+        for loc in loc_coord.data:
+            loc_key = loc.get("key") or loc.get("_key", "")
+            if loc_key:
+                valid.add((DOMAIN, f"{entry.entry_id}_location_{loc_key}"))
+            for tank in loc.get("_tanks", []):
+                tank_key = tank.get("key", "")
+                if tank_key:
+                    valid.add((DOMAIN, f"{entry.entry_id}_tank_{tank_key}"))
+
+    device_reg = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
+        if not (device.identifiers & valid):
+            _LOGGER.debug(
+                "Removing orphaned Kamerplanter device %s", device.identifiers
+            )
+            device_reg.async_update_device(
+                device.id, remove_config_entry_id=entry.entry_id
+            )
 
 
 async def _async_register_lovelace_resources(
@@ -282,9 +358,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             return
         fill_type = call.data.get("fill_type", "full_change")
 
-        runtime_data = _resolve_runtime_data(
-            call, ambiguity_hint="a tank entity_id"
-        )
+        runtime_data = _resolve_runtime_data(call, ambiguity_hint="a tank entity_id")
         if not runtime_data:
             return
 
@@ -375,9 +449,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
     async def handle_water_channel(call: ServiceCall) -> None:
         """Handle the water_channel service call."""
-        _LOGGER.debug(
-            "water_channel call.data keys: %s", list(call.data.keys())
-        )
+        _LOGGER.debug("water_channel call.data keys: %s", list(call.data.keys()))
         plant_key, channel_id = resolve_plant_channel(hass, dict(call.data))
         if not plant_key:
             _LOGGER.error(
@@ -386,9 +458,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             )
             return
 
-        runtime_data = _resolve_runtime_data(
-            call, ambiguity_hint="a channel entity_id"
-        )
+        runtime_data = _resolve_runtime_data(call, ambiguity_hint="a channel entity_id")
         if not runtime_data:
             return
 

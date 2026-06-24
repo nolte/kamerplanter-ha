@@ -7,7 +7,6 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-import async_timeout
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -19,17 +18,37 @@ from homeassistant.helpers.update_coordinator import (
 from .api import KamerplanterApi, KamerplanterAuthError, KamerplanterConnectionError
 from .const import (
     CONF_POLL_ALERTS,
+    CONF_POLL_IPM,
     CONF_POLL_LOCATIONS,
     CONF_POLL_PLANTS,
     CONF_POLL_TASKS,
     DEFAULT_POLL_ALERTS,
+    DEFAULT_POLL_IPM,
     DEFAULT_POLL_LOCATIONS,
     DEFAULT_POLL_PLANTS,
     DEFAULT_POLL_TASKS,
     DOMAIN,
+    EVENT_IPM_ALERT,
 )
 
+# Pest pressure levels that trigger an IPM alert event.
+IPM_ALERT_LEVELS: frozenset[str] = frozenset({"high", "critical"})
+
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _fetch_published_keys(
+    api: KamerplanterApi, entity_type: str
+) -> set[str] | None:
+    """Return the set of HA-published keys for an entity type, or None.
+
+    ``None`` means the backend predates per-entity HA publishing, so callers
+    must not filter (publish everything for backwards compatibility). An empty
+    set means the feature exists but nothing is published yet — strict opt-in,
+    so nothing is exposed to Home Assistant.
+    """
+    keys = await api.async_get_ha_published_keys(entity_type)
+    return None if keys is None else set(keys)
 
 
 def _normalize_phase_name(name: str) -> str:
@@ -132,9 +151,14 @@ class KamerplanterPlantCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 plants = await self.api.async_get_plants()
+                published = await _fetch_published_keys(self.api, "plant")
                 active_plants = [p for p in plants if not p.get("removed_on")]
+                if published is not None:
+                    active_plants = [
+                        p for p in active_plants if p.get("key") in published
+                    ]
 
                 # Parallel enrichment instead of sequential
                 enrichment_tasks = [
@@ -142,7 +166,7 @@ class KamerplanterPlantCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
                 ]
                 await asyncio.gather(*enrichment_tasks, return_exceptions=True)
 
-                return plants
+                return active_plants
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
         except KamerplanterAuthError as err:
@@ -276,8 +300,16 @@ class KamerplanterLocationCoordinator(DataUpdateCoordinator[list[dict[str, Any]]
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 locations = await self.api.async_get_all_locations()
+                published_loc = await _fetch_published_keys(self.api, "location")
+                published_tank = await _fetch_published_keys(self.api, "tank")
+                if published_loc is not None:
+                    locations = [
+                        loc
+                        for loc in locations
+                        if (loc.get("key") or loc.get("_key", "")) in published_loc
+                    ]
 
                 for loc in locations:
                     loc_key = loc.get("key") or loc.get("_key", "")
@@ -367,6 +399,11 @@ class KamerplanterLocationCoordinator(DataUpdateCoordinator[list[dict[str, Any]]
                 # Enrich locations with tank data (use cached tank list, only poll fill status)
                 tanks_by_loc: dict[str, list[dict[str, Any]]] = {}
                 for tank in self._all_tanks:
+                    if (
+                        published_tank is not None
+                        and tank.get("key") not in published_tank
+                    ):
+                        continue
                     tlk = tank.get("location_key")
                     if tlk:
                         tanks_by_loc.setdefault(tlk, []).append(tank)
@@ -417,7 +454,7 @@ class KamerplanterAlertCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 return await self.api.async_get_overdue_tasks()
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
@@ -459,7 +496,7 @@ class KamerplanterRunCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 runs = await self.api.async_get_planting_runs()
 
                 for run in runs:
@@ -540,7 +577,7 @@ class KamerplanterTaskCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 return await self.api.async_get_pending_tasks()
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
@@ -548,3 +585,153 @@ class KamerplanterTaskCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             raise ConfigEntryAuthFailed(str(err)) from err
         except KamerplanterConnectionError as err:
             raise UpdateFailed(str(err)) from err
+
+
+def _days_until(date_iso: str | None) -> int | None:
+    """Return whole days from today until an ISO date/datetime (negative = past)."""
+    if not date_iso:
+        return None
+    try:
+        parsed = datetime.fromisoformat(date_iso)
+    except ValueError:
+        try:
+            parsed = datetime.combine(
+                date.fromisoformat(date_iso[:10]), datetime.min.time()
+            )
+        except ValueError:
+            return None
+    target = parsed.date() if parsed.tzinfo is None else parsed.astimezone().date()
+    return (target - date.today()).days
+
+
+def _days_since(date_iso: str | None) -> int | None:
+    """Return whole days from an ISO date/datetime until today (negative = future)."""
+    days = _days_until(date_iso)
+    return None if days is None else -days
+
+
+class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
+    """Coordinator for IPM data (pest pressure, Karenz, harvest safety) per plant.
+
+    The backend exposes IPM only through granular, plant-scoped endpoints, so we
+    aggregate them client-side into one record per active plant. The record list
+    mirrors the plant-coordinator shape (each item carries ``key`` = plant_key),
+    which lets the IPM sensors reuse ``KpSensorBase._find_resource``.
+    """
+
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, api: KamerplanterApi
+    ) -> None:
+        interval = entry.options.get(CONF_POLL_IPM, DEFAULT_POLL_IPM)
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_ipm",
+            config_entry=entry,
+            update_interval=timedelta(seconds=interval),
+            always_update=False,
+        )
+        self.api = api
+        # Remember the last pressure level per plant so we only fire an alert
+        # on the transition *into* a high/critical level, not every poll.
+        self._prev_pressure: dict[str, str] = {}
+
+    async def _async_update_data(self) -> list[dict[str, Any]]:
+        try:
+            async with asyncio.timeout(30):
+                plants = await self.api.async_get_plants()
+                published = await _fetch_published_keys(self.api, "plant")
+                active_plants = [p for p in plants if not p.get("removed_on")]
+                if published is not None:
+                    active_plants = [
+                        p for p in active_plants if p.get("key") in published
+                    ]
+
+                records = await asyncio.gather(
+                    *(self._build_ipm_record(plant) for plant in active_plants),
+                    return_exceptions=True,
+                )
+                result = [r for r in records if isinstance(r, dict)]
+                self._fire_alerts(result)
+                return result
+        except TimeoutError as err:
+            raise UpdateFailed("API request timed out") from err
+        except KamerplanterAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        except KamerplanterConnectionError as err:
+            raise UpdateFailed(str(err)) from err
+
+    async def _build_ipm_record(self, plant: dict[str, Any]) -> dict[str, Any]:
+        """Aggregate the per-plant IPM endpoints into a single record."""
+        key = plant["key"]
+        inspections, karenz, harvest = await asyncio.gather(
+            self.api.async_get_pest_inspections(key),
+            self.api.async_get_karenz(key),
+            self.api.async_get_harvest_safety(key),
+            return_exceptions=True,
+        )
+        if isinstance(inspections, BaseException) or not inspections:
+            inspections = []
+        if isinstance(karenz, BaseException) or not karenz:
+            karenz = []
+        if isinstance(harvest, BaseException):
+            harvest = None
+
+        latest = max(
+            inspections,
+            key=lambda i: i.get("inspected_at", ""),
+            default=None,
+        )
+
+        record: dict[str, Any] = {
+            "key": key,
+            "plant_name": plant.get("plant_name") or plant.get("instance_id", key),
+            "pressure_level": (latest or {}).get("pressure_level", "none"),
+            "detected_pest_keys": (latest or {}).get("detected_pest_keys", []),
+            "last_inspection_at": (latest or {}).get("inspected_at"),
+            "last_inspection_days": _days_since((latest or {}).get("inspected_at")),
+            "karenz_remaining_days": None,
+            "karenz_safe_date": None,
+            "treatment_name": None,
+            "active_ingredient": None,
+            "can_harvest": True,
+            "blocking_treatments": [],
+        }
+
+        # The backend returns a list of Karenz periods; the one with the latest
+        # safe_date binds harvest the longest, so it drives the sensor values.
+        periods = [k for k in karenz if isinstance(k, dict) and k.get("safe_date")]
+        if periods:
+            binding = max(periods, key=lambda k: k["safe_date"])
+            record["karenz_safe_date"] = binding.get("safe_date")
+            record["karenz_remaining_days"] = max(
+                0, _days_until(binding.get("safe_date")) or 0
+            )
+            record["treatment_name"] = binding.get("treatment_name")
+            record["active_ingredient"] = binding.get("active_ingredient")
+
+        if harvest is not None:
+            record["can_harvest"] = harvest.get("can_harvest", True)
+            record["blocking_treatments"] = harvest.get("blocking_treatments", [])
+
+        return record
+
+    def _fire_alerts(self, records: list[dict[str, Any]]) -> None:
+        """Fire EVENT_IPM_ALERT when a plant transitions into high/critical."""
+        current: dict[str, str] = {}
+        for record in records:
+            key = record["key"]
+            level = record.get("pressure_level", "none")
+            current[key] = level
+            was = self._prev_pressure.get(key, "none")
+            if level in IPM_ALERT_LEVELS and was not in IPM_ALERT_LEVELS:
+                self.hass.bus.async_fire(
+                    EVENT_IPM_ALERT,
+                    {
+                        "plant_key": key,
+                        "plant_name": record.get("plant_name"),
+                        "pressure_level": level,
+                        "detected_pest_keys": record.get("detected_pest_keys", []),
+                    },
+                )
+        self._prev_pressure = current

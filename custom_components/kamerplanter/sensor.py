@@ -115,6 +115,7 @@ async def async_setup_entry(
     loc_coord: KamerplanterLocationCoordinator = coordinators["locations"]
     task_coord: KamerplanterTaskCoordinator = coordinators["tasks"]
     alert_coord: KamerplanterAlertCoordinator = coordinators["alerts"]
+    ipm_coord = coordinators.get("ipm")
 
     entities: list[SensorEntity] = []
 
@@ -136,6 +137,16 @@ async def async_setup_entry(
                     PlantDaysUntilWateringSensor(plant_coord, entry, key, dev),
                 ]
             )
+            # IPM sensors (REQ-010) — sourced from the IPM coordinator but
+            # attached to the same plant device.
+            if ipm_coord is not None:
+                entities.extend(
+                    [
+                        PlantPestPressureSensor(ipm_coord, entry, key, dev),
+                        PlantKarenzRemainingSensor(ipm_coord, entry, key, dev),
+                        PlantLastInspectionDaysSensor(ipm_coord, entry, key, dev),
+                    ]
+                )
 
     # Plant channel sensors — one per delivery channel, dosages as attributes.
     # Channels are discovered dynamically: initial setup + listener for late arrivals.
@@ -2187,3 +2198,82 @@ class NextWateringSensor(KamerplanterEntity, RestoreEntity, SensorEntity):
             self.async_write_ha_state()
         if self.coordinator.data:
             self._handle_coordinator_update()
+
+
+# --- IPM sensors (REQ-010) ---
+
+
+class PlantPestPressureSensor(KpSensorBase):
+    """Current pest pressure for a plant, derived from the latest inspection."""
+
+    _attr_translation_key = "pest_pressure"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["none", "low", "medium", "high", "critical"]
+
+    def __init__(
+        self, coordinator: Any, entry: ConfigEntry, key: str, dev: DeviceInfo
+    ) -> None:
+        super().__init__(coordinator, entry, key, "pest_pressure", dev)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        resource = self._find_resource()
+        if resource:
+            level = resource.get("pressure_level", "none")
+            self._attr_native_value = level if level in self._attr_options else "none"
+            self._attr_extra_state_attributes = {
+                "detected_pest_keys": resource.get("detected_pest_keys", []),
+                "last_inspection_at": resource.get("last_inspection_at"),
+            }
+        else:
+            self._attr_native_value = None
+        self.async_write_ha_state()
+
+
+class PlantKarenzRemainingSensor(KpSensorBase):
+    """Remaining harvest waiting period (Karenz) in days for a plant."""
+
+    _attr_translation_key = "karenz_remaining"
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self, coordinator: Any, entry: ConfigEntry, key: str, dev: DeviceInfo
+    ) -> None:
+        super().__init__(coordinator, entry, key, "karenz_remaining", dev)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        resource = self._find_resource()
+        if resource:
+            self._attr_native_value = resource.get("karenz_remaining_days")
+            self._attr_extra_state_attributes = {
+                "safe_date": resource.get("karenz_safe_date"),
+                "treatment_name": resource.get("treatment_name"),
+                "active_ingredient": resource.get("active_ingredient"),
+            }
+        else:
+            self._attr_native_value = None
+        self.async_write_ha_state()
+
+
+class PlantLastInspectionDaysSensor(KpSensorBase):
+    """Days since the last pest/disease inspection of a plant."""
+
+    _attr_translation_key = "last_inspection_days"
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self, coordinator: Any, entry: ConfigEntry, key: str, dev: DeviceInfo
+    ) -> None:
+        super().__init__(coordinator, entry, key, "last_inspection_days", dev)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        resource = self._find_resource()
+        if resource:
+            self._attr_native_value = resource.get("last_inspection_days")
+        else:
+            self._attr_native_value = None
+        self.async_write_ha_state()

@@ -139,9 +139,7 @@ def resolve_plant_channel(
     return None, None
 
 
-def resolve_entry_id(
-    hass: HomeAssistant, call_data: dict[str, Any]
-) -> str | None:
+def resolve_entry_id(hass: HomeAssistant, call_data: dict[str, Any]) -> str | None:
     """Resolve a Kamerplanter config-entry id from service call data.
 
     Order of resolution:

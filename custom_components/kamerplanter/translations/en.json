@@ -59,7 +59,8 @@
           "poll_interval_plants": "Plants polling interval (seconds)",
           "poll_interval_locations": "Locations polling interval (seconds)",
           "poll_interval_alerts": "Alerts polling interval (seconds)",
-          "poll_interval_tasks": "Tasks polling interval (seconds)"
+          "poll_interval_tasks": "Tasks polling interval (seconds)",
+          "poll_interval_ipm": "IPM polling interval (seconds)"
         }
       }
     }
@@ -103,12 +104,26 @@
       "tasks_due_today": { "name": "Tasks Due Today" },
       "tasks_overdue": { "name": "Tasks Overdue" },
       "days_until_watering": { "name": "Days Until Watering" },
-      "next_watering": { "name": "Next Watering" }
+      "next_watering": { "name": "Next Watering" },
+      "pest_pressure": {
+        "name": "Pest Pressure",
+        "state": {
+          "none": "None",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "critical": "Critical"
+        }
+      },
+      "karenz_remaining": { "name": "Harvest Waiting Period" },
+      "last_inspection_days": { "name": "Days Since Inspection" }
     },
     "binary_sensor": {
       "needs_attention": { "name": "Needs Attention" },
       "sensor_offline": { "name": "Sensor Offline" },
-      "care_overdue": { "name": "Care Overdue" }
+      "care_overdue": { "name": "Care Overdue" },
+      "harvest_safe": { "name": "Safe to Harvest" },
+      "pest_alert": { "name": "Pest Alert" }
     },
     "button": {
       "refresh_all": { "name": "Refresh All Data" }

@@ -1,4 +1,5 @@
 """Tests for the Kamerplanter coordinators."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -24,6 +25,7 @@ def test_calc_current_week() -> None:
     """Test week calculation from ISO date."""
     # 7 days = week 2
     from datetime import datetime, timedelta, timezone
+
     started = (datetime.now(tz=timezone.utc) - timedelta(days=7)).isoformat()
     assert _calc_current_week(started) == 2
 
@@ -64,6 +66,48 @@ async def test_plant_coordinator_connection_error(hass) -> None:
     coord = KamerplanterPlantCoordinator(hass, entry, api)
     with pytest.raises(UpdateFailed):
         await coord._async_update_data()
+
+
+def _plant_api(plants: list[dict], published: list[str] | None) -> MagicMock:
+    """Build a mock API for the plant coordinator with neutral enrichment."""
+    api = MagicMock(spec=KamerplanterApi)
+    api.async_get_plants = AsyncMock(return_value=plants)
+    api.async_get_ha_published_keys = AsyncMock(return_value=published)
+    # Enrichment methods return neutral values so _enrich_plant is a no-op.
+    api.async_get_plant_nutrient_plan = AsyncMock(return_value=None)
+    api.async_get_plant_phase_history = AsyncMock(return_value=[])
+    api.async_get_growth_phase = AsyncMock(return_value=None)
+    api.async_get_care_profile = AsyncMock(return_value=None)
+    api.async_get_care_history = AsyncMock(return_value=[])
+    api.async_get_plant_current_dosages = AsyncMock(return_value=None)
+    api.async_get_plant_active_channels = AsyncMock(return_value=[])
+    return api
+
+
+async def test_plant_coordinator_ha_publish_filter(hass) -> None:
+    """Plant coordinator returns only HA-published plants when feature active."""
+    api = _plant_api([{"key": "plant-1"}, {"key": "plant-2"}], ["plant-1"])
+
+    entry = MagicMock()
+    entry.options = {}
+    entry.entry_id = "test"
+
+    coord = KamerplanterPlantCoordinator(hass, entry, api)
+    result = await coord._async_update_data()
+    assert {p["key"] for p in result} == {"plant-1"}
+
+
+async def test_plant_coordinator_no_filter_without_feature(hass) -> None:
+    """A backend without ha-publish (None) is not filtered."""
+    api = _plant_api([{"key": "plant-1"}, {"key": "plant-2"}], None)
+
+    entry = MagicMock()
+    entry.options = {}
+    entry.entry_id = "test"
+
+    coord = KamerplanterPlantCoordinator(hass, entry, api)
+    result = await coord._async_update_data()
+    assert {p["key"] for p in result} == {"plant-1", "plant-2"}
 
 
 async def test_alert_coordinator_success(hass) -> None:

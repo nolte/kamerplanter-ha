@@ -4,8 +4,10 @@ version: "3"
 vars:
   NAMESPACE: default
   POD_SELECTOR: app.kubernetes.io/name=homeassistant
+  # `|| true` so a missing pod yields an empty POD instead of aborting every
+  # task; deploy-ha:preflight turns the empty value into a readable error.
   POD:
-    sh: kubectl get pod -n {{.NAMESPACE}} -l {{.POD_SELECTOR}} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+    sh: kubectl get pod -n {{.NAMESPACE}} -l {{.POD_SELECTOR}} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
   COMPONENT_PATH: custom_components/kamerplanter
   REMOTE_PATH: /config/custom_components/kamerplanter
 
@@ -51,7 +53,12 @@ tasks:
     desc: Dateien in den Pod kopieren
     internal: true
     cmds:
-      - kubectl cp {{.COMPONENT_PATH}}/ {{.NAMESPACE}}/{{.POD}}:{{.REMOTE_PATH}}/
+      # Ziel zuerst loeschen: kopiert man in ein BEREITS existierendes
+      # Verzeichnis, schachtelt `kubectl cp` die Quelle hinein
+      # (.../kamerplanter/kamerplanter/) und laesst zudem geloeschte Dateien
+      # stehen. Erst rm -rf, dann cp auf den nicht-existenten Pfad.
+      - kubectl exec {{.POD}} -n {{.NAMESPACE}} -- rm -rf {{.REMOTE_PATH}}
+      - kubectl cp {{.COMPONENT_PATH}} {{.NAMESPACE}}/{{.POD}}:{{.REMOTE_PATH}}
 
   deploy-ha:cache-clear:
     desc: Python-Bytecode-Cache im Pod löschen

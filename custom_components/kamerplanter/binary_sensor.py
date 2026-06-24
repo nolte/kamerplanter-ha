@@ -17,6 +17,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .coordinator import (
     KamerplanterAlertCoordinator,
+    KamerplanterIpmCoordinator,
     KamerplanterLocationCoordinator,
 )
 from .entity import (
@@ -40,8 +41,23 @@ async def async_setup_entry(
     alert_coordinator: KamerplanterAlertCoordinator = coordinators["alerts"]
     plant_coordinator = coordinators["plants"]
     loc_coordinator: KamerplanterLocationCoordinator = coordinators["locations"]
+    ipm_coordinator: KamerplanterIpmCoordinator | None = coordinators.get("ipm")
 
     entities: list[BinarySensorEntity] = []
+
+    # IPM binary sensors (REQ-010) — one harvest-safe + one pest-alert per plant
+    if ipm_coordinator is not None and plant_coordinator.data:
+        ipm_plant_lookup: dict[str, dict[str, Any]] = {
+            p["key"]: p for p in plant_coordinator.data if not p.get("removed_on")
+        }
+        for plant_key, plant in ipm_plant_lookup.items():
+            dev = plant_device_info(entry, plant)
+            entities.append(
+                PlantHarvestSafeSensor(ipm_coordinator, entry, plant_key, dev)
+            )
+            entities.append(
+                PlantPestAlertSensor(ipm_coordinator, entry, plant_key, dev)
+            )
 
     # Plant attention sensors (derived from overdue tasks)
     if alert_coordinator.data and plant_coordinator.data:
@@ -251,3 +267,100 @@ class CareOverdueSensor(KamerplanterEntity, RestoreEntity, BinarySensorEntity):
         if last and last.state not in ("unknown", "unavailable", ""):
             self._attr_is_on = last.state == "on"
             self.async_write_ha_state()
+
+
+class _IpmPlantBinarySensor(KamerplanterEntity, RestoreEntity, BinarySensorEntity):
+    """Base for plant-scoped IPM binary sensors backed by the IPM coordinator."""
+
+    def __init__(
+        self,
+        coordinator: KamerplanterIpmCoordinator,
+        entry: ConfigEntry,
+        plant_key: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        super().__init__(coordinator, entry.entry_id, device_info)
+        self._plant_key = plant_key
+
+    def _find_record(self) -> dict[str, Any] | None:
+        if not self.coordinator.data:
+            return None
+        for record in self.coordinator.data:
+            if record.get("key") == self._plant_key:
+                return record
+        return None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last and last.state not in ("unknown", "unavailable", ""):
+            self._attr_is_on = last.state == "on"
+            self.async_write_ha_state()
+        if self.coordinator.data:
+            self._handle_coordinator_update()
+
+
+class PlantHarvestSafeSensor(_IpmPlantBinarySensor):
+    """Binary sensor indicating a plant is safe to harvest (no active Karenz).
+
+    ``on`` = harvestable. No device_class so the on-state reads as the positive
+    "safe to harvest" condition rather than a problem.
+    """
+
+    _attr_translation_key = "harvest_safe"
+
+    def __init__(
+        self,
+        coordinator: KamerplanterIpmCoordinator,
+        entry: ConfigEntry,
+        plant_key: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        super().__init__(coordinator, entry, plant_key, device_info)
+        slug = _slugify_key(plant_key)
+        self._attr_unique_id = f"{entry.entry_id}_kp_{slug}_harvest_safe"
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        record = self._find_record()
+        if record is not None:
+            self._attr_is_on = bool(record.get("can_harvest", True))
+            self._attr_extra_state_attributes = {
+                "blocking_treatments": record.get("blocking_treatments", []),
+                "karenz_safe_date": record.get("karenz_safe_date"),
+            }
+        else:
+            self._attr_is_on = None
+        self.async_write_ha_state()
+
+
+class PlantPestAlertSensor(_IpmPlantBinarySensor):
+    """Binary sensor that turns on when pest pressure reaches high/critical."""
+
+    _attr_translation_key = "pest_alert"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(
+        self,
+        coordinator: KamerplanterIpmCoordinator,
+        entry: ConfigEntry,
+        plant_key: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        super().__init__(coordinator, entry, plant_key, device_info)
+        slug = _slugify_key(plant_key)
+        self._attr_unique_id = f"{entry.entry_id}_kp_{slug}_pest_alert"
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        record = self._find_record()
+        if record is not None:
+            level = record.get("pressure_level", "none")
+            self._attr_is_on = level in ("high", "critical")
+            self._attr_extra_state_attributes = {
+                "pressure_level": level,
+                "detected_pest_keys": record.get("detected_pest_keys", []),
+            }
+        else:
+            self._attr_is_on = False
+        self.async_write_ha_state()

@@ -59,7 +59,8 @@
           "poll_interval_plants": "Pflanzen-Abfrageintervall (Sekunden)",
           "poll_interval_locations": "Standort-Abfrageintervall (Sekunden)",
           "poll_interval_alerts": "Alarm-Abfrageintervall (Sekunden)",
-          "poll_interval_tasks": "Aufgaben-Abfrageintervall (Sekunden)"
+          "poll_interval_tasks": "Aufgaben-Abfrageintervall (Sekunden)",
+          "poll_interval_ipm": "IPM-Abfrageintervall (Sekunden)"
         }
       }
     }
@@ -103,12 +104,26 @@
       "tasks_due_today": { "name": "Aufgaben heute faellig" },
       "tasks_overdue": { "name": "Ueberfaellige Aufgaben" },
       "days_until_watering": { "name": "Tage bis Giessen" },
-      "next_watering": { "name": "Naechste Bewasserung" }
+      "next_watering": { "name": "Naechste Bewasserung" },
+      "pest_pressure": {
+        "name": "Befallsdruck",
+        "state": {
+          "none": "Keiner",
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch",
+          "critical": "Kritisch"
+        }
+      },
+      "karenz_remaining": { "name": "Karenzzeit bis Ernte" },
+      "last_inspection_days": { "name": "Tage seit Inspektion" }
     },
     "binary_sensor": {
       "needs_attention": { "name": "Aufmerksamkeit erforderlich" },
       "sensor_offline": { "name": "Sensor offline" },
-      "care_overdue": { "name": "Pflege ueberfaellig" }
+      "care_overdue": { "name": "Pflege ueberfaellig" },
+      "harvest_safe": { "name": "Erntefreigabe" },
+      "pest_alert": { "name": "Schaedlingsalarm" }
     },
     "button": {
       "refresh_all": { "name": "Alle Daten aktualisieren" }
