@@ -94,7 +94,7 @@ def mock_api():
         api.async_get_tank_sensors = AsyncMock(return_value=[])
         api.async_get_plan_phase_entries = AsyncMock(return_value=[])
         api.async_get_pest_inspections = AsyncMock(return_value=[])
-        api.async_get_karenz = AsyncMock(return_value=None)
+        api.async_get_karenz = AsyncMock(return_value=[])
         api.async_get_harvest_safety = AsyncMock(return_value=None)
         # Default: backend without HA-publish feature -> no filtering.
         api.async_get_ha_published_keys = AsyncMock(return_value=None)

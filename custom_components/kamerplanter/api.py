@@ -536,12 +536,12 @@ class KamerplanterApi:
         except KamerplanterApiError:
             return []
 
-    async def async_get_karenz(self, plant_key: str) -> dict[str, Any] | None:
-        """Fetch the harvest safety interval (Karenz) for a plant instance.
+    async def async_get_karenz(self, plant_key: str) -> list[dict[str, Any]]:
+        """Fetch the active harvest-safety intervals (Karenz) for a plant.
 
-        Returns ``active_ingredient``, ``treatment_name``, ``applied_at``,
-        ``safety_interval_days`` and ``safe_date`` (or ``None`` when no
-        treatment imposes a waiting period).
+        The backend returns a *list* of periods, each with ``active_ingredient``,
+        ``treatment_name``, ``applied_at``, ``safety_interval_days`` and
+        ``safe_date`` (empty list when no treatment imposes a waiting period).
         """
         try:
             return await self._request(
@@ -549,7 +549,7 @@ class KamerplanterApi:
                 f"{self._tenant_prefix}/ipm/plants/{plant_key}/karenz",
             )
         except KamerplanterApiError:
-            return None
+            return []
 
     async def async_get_harvest_safety(self, plant_key: str) -> dict[str, Any] | None:
         """Fetch whether a plant may be harvested given active Karenz periods.

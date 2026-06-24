@@ -672,8 +672,8 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
         )
         if isinstance(inspections, BaseException) or not inspections:
             inspections = []
-        if isinstance(karenz, BaseException):
-            karenz = None
+        if isinstance(karenz, BaseException) or not karenz:
+            karenz = []
         if isinstance(harvest, BaseException):
             harvest = None
 
@@ -698,13 +698,17 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             "blocking_treatments": [],
         }
 
-        if karenz and karenz.get("safe_date"):
-            record["karenz_safe_date"] = karenz.get("safe_date")
+        # The backend returns a list of Karenz periods; the one with the latest
+        # safe_date binds harvest the longest, so it drives the sensor values.
+        periods = [k for k in karenz if isinstance(k, dict) and k.get("safe_date")]
+        if periods:
+            binding = max(periods, key=lambda k: k["safe_date"])
+            record["karenz_safe_date"] = binding.get("safe_date")
             record["karenz_remaining_days"] = max(
-                0, _days_until(karenz.get("safe_date")) or 0
+                0, _days_until(binding.get("safe_date")) or 0
             )
-            record["treatment_name"] = karenz.get("treatment_name")
-            record["active_ingredient"] = karenz.get("active_ingredient")
+            record["treatment_name"] = binding.get("treatment_name")
+            record["active_ingredient"] = binding.get("active_ingredient")
 
         if harvest is not None:
             record["can_harvest"] = harvest.get("can_harvest", True)

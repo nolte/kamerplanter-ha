@@ -72,11 +72,13 @@ async def test_ipm_coordinator_aggregates_record(hass) -> None:
                 "detected_pest_keys": ["aphid"],
             },
         ],
-        karenz={
-            "safe_date": safe_date,
-            "treatment_name": "Neem",
-            "active_ingredient": "azadirachtin",
-        },
+        karenz=[
+            {
+                "safe_date": safe_date,
+                "treatment_name": "Neem",
+                "active_ingredient": "azadirachtin",
+            },
+        ],
         harvest={"can_harvest": False, "blocking_treatments": [{"name": "Neem"}]},
     )
 
@@ -94,6 +96,25 @@ async def test_ipm_coordinator_aggregates_record(hass) -> None:
     assert rec["treatment_name"] == "Neem"
     assert rec["can_harvest"] is False
     assert rec["blocking_treatments"] == [{"name": "Neem"}]
+
+
+async def test_ipm_coordinator_picks_longest_binding_karenz(hass) -> None:
+    """With several Karenz periods, the latest safe_date drives the values."""
+    near = (date.today() + timedelta(days=2)).isoformat()
+    far = (date.today() + timedelta(days=9)).isoformat()
+    api = _ipm_api(
+        karenz=[
+            {"safe_date": near, "treatment_name": "Sulphur"},
+            {"safe_date": far, "treatment_name": "Neem"},
+        ],
+    )
+
+    coord = KamerplanterIpmCoordinator(hass, _mock_entry(), api)
+    rec = (await coord._async_update_data())[0]
+
+    assert rec["karenz_remaining_days"] == 9
+    assert rec["karenz_safe_date"] == far
+    assert rec["treatment_name"] == "Neem"
 
 
 async def test_ipm_coordinator_defaults_without_data(hass) -> None:
