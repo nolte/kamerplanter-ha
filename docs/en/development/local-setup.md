@@ -1,3 +1,11 @@
+---
+title: Local Setup
+audience:
+  - maintainers
+content_mode: how-to
+track: developer-docs
+last_updated: 2026-06-24
+---
 # Local Setup
 
 ## Prerequisites
@@ -8,15 +16,22 @@
 | **Kubernetes** | Local Kind cluster with Skaffold |
 | **Home Assistant** | StatefulSet `homeassistant-0` in namespace `default` |
 
-Kind (Kubernetes IN Docker) runs a local cluster; `homeassistant-0` is the HA StatefulSet pod name.
+Kind (Kubernetes IN Docker) runs a local cluster. `homeassistant-0` is the HA StatefulSet pod name.
 
 ## Development Workflow
 
-The HA integration is **not** automatically deployed via Skaffold, but manually via `kubectl cp` and container restart.
+Skaffold does **not** deploy the HA integration automatically. You deploy it by hand via `kubectl cp` and a container restart.
 
 ### Deploy Cycle
 
-Run the following steps in order. Each step builds on the previous one: lint the source, copy it into the pod, clear the cached bytecode, restart the process, wait for readiness, and finally inspect the logs.
+Run the following steps in order. Each step builds on the previous one:
+
+- lint the source
+- copy it into the pod
+- clear the cached bytecode
+- restart the process
+- wait for readiness
+- finally inspect the logs
 
 ```bash
 # 1. Lint check
@@ -45,12 +60,15 @@ kubectl logs homeassistant-0 -n default --since=90s | \
 !!! danger "Do NOT use `kubectl delete pod`!"
     The InitContainer `copy-ha-integration` would overwrite manually copied files with the old image. `kill 1` only terminates the HA process — the container restarts without running InitContainers.
 
-### Claude Code Skills
+### Claude Code Agents
 
-| Skill | Description |
+| Agent | Description |
 |-------|------------|
-| `/deploy-ha` | Deploys the integration and checks logs |
-| `/verify-ha` | Checks current status without redeployment |
+| `ha-integration-deploy` | Deploys the integration and checks logs (provided by the `claude-home-assistant` plugin) |
+| `ha-integration-verify` | Checks current status without redeployment (provided by the `claude-home-assistant` plugin) |
+
+!!! note "Manual entry points"
+    The `Taskfile.yml` targets `deploy-ha` / `verify-ha` remain as manual entry points.
 
 ---
 

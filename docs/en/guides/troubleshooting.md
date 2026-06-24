@@ -1,3 +1,12 @@
+---
+title: Troubleshooting
+audience:
+  - self-hosting-admin
+  - ha-end-users
+content_mode: troubleshooting
+track: user-docs
+last_updated: 2026-06-24
+---
 # Troubleshooting
 
 ## Common Errors
@@ -5,7 +14,7 @@
 | Error | Cause | Solution |
 |-------|-------|---------|
 | "Kamerplanter not reachable" | Backend offline or wrong URL | Check URL, start backend |
-| "API key invalid" | Key revoked or incorrect | Generate new API key in Kamerplanter, then [reauth](setup.md#reauth-reconfigure) |
+| "API key invalid" | Key revoked or incorrect | Generate new API key in Kamerplanter, then [reauthenticate](setup.md#reauthentication-reconfigure) |
 | Entity shows "unavailable" | Coordinator update failed | Check logs, increase polling interval |
 | Integration won't load | Wrong directory structure | Check path: `custom_components/kamerplanter/manifest.json` |
 | Entities missing after update | Stale cache | Call [`kamerplanter.clear_cache`](services.md#kamerplanterclear_cache) service |
@@ -14,16 +23,16 @@
 
 ## Diagnostics
 
-Diagnostics data is available under **Settings** > **Integrations** > **Kamerplanter** > **Diagnostics**.
+Find diagnostics data under **Settings** > **Integrations** > **Kamerplanter** > **Diagnostics**.
 
-Diagnostics include:
+Diagnostics include three parts:
 
-- **Configuration** — URL, tenant (API keys are automatically redacted)
-- **Coordinator status** — last update, error count, polling interval per coordinator
-- **Entity overview** — count per platform (sensor, binary sensor, calendar, todo, button)
+- **Configuration:** the URL and the tenant. HA redacts API keys for you.
+- **Coordinator status:** the last update, the error count, and the polling interval. Each coordinator gets its own row.
+- **Entity overview:** how many entities exist per platform. Platforms are sensor, binary sensor, calendar, todo, and button.
 
 !!! tip "Bug reports"
-    Attach the diagnostics file to bug reports. It contains all relevant info without sensitive data.
+    Attach the diagnostics file to a bug report. It holds all you need, but no secrets.
 
 ---
 
@@ -42,4 +51,4 @@ Diagnostics include:
     **Settings** > **System** > **Logs** and filter for `kamerplanter`.
 
 !!! info "Disable debug logging"
-    Debug logging produces many log entries. Don't forget to set it back to `info` or `warning` after troubleshooting.
+    Debug logging produces many log entries. After troubleshooting, set the level back to `info` or `warning`.

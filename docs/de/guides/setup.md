@@ -1,3 +1,12 @@
+---
+title: Einrichtung
+audience:
+  - self-hosting-admin
+  - ha-end-users
+content_mode: how-to
+track: user-docs
+last_updated: 2026-06-24
+---
 # Einrichtung
 
 !!! note "Bevor du beginnst"
@@ -22,13 +31,13 @@ flowchart LR
 | **Kamerplanter → HA** | HA Long-Lived Access Token | Kamerplanter liest Sensordaten, steuert Aktoren | Home Assistant: **Profil** > **Long-Lived Access Tokens** |
 
 !!! warning "Beide Tokens erforderlich"
-    Ohne den **Kamerplanter API-Key** kann die HA-Integration keine Daten abfragen. Ohne den **HA Access Token** kann Kamerplanter keine Sensordaten aus Home Assistant lesen und keine Aktoren steuern. Für reinen Lese-Betrieb (nur HA-Dashboard) reicht der Kamerplanter API-Key allein.
+    Die HA-Integration braucht den **Kamerplanter API-Key**, um Daten abzufragen. Kamerplanter braucht den **HA Access Token**, um Sensordaten aus Home Assistant zu lesen. Mit demselben Token steuert Kamerplanter außerdem Aktoren. Willst du nur lesen (nur HA-Dashboard), reicht der Kamerplanter API-Key allein.
 
 ### Tokens einrichten
 
 === "Kamerplanter API-Key (HA → Kamerplanter)"
 
-    1. In Kamerplanter: **Einstellungen** > **API-Keys** > **Neuer Key**
+    1. In Kamerplanter: **Einstellungen** > **API-Keys** > neuer Key
     2. Den generierten Key (`kp_...`) kopieren
     3. In Home Assistant: Bei der Kamerplanter-Integration im Config Flow eingeben
 
@@ -42,39 +51,29 @@ flowchart LR
 
 ## Config Flow (Einrichtungsassistent)
 
-Nach der Installation führt ein 4-Schritte-Assistent durch die Konfiguration:
+Nach der Installation führt ein 2-Schritte-Assistent durch die Konfiguration:
 
-### Schritt 1: Kamerplanter-URL
+### Schritt 1: Kamerplanter-URL und API-Key
 
-Gib die URL deiner Kamerplanter-Instanz ein:
+Gib die URL deiner Kamerplanter-Instanz und den API-Key zusammen ein:
 
 | Beispiel | URL |
 |----------|-----|
 | Lokal | `http://raspberry:8000` oder `http://192.168.1.50:8000` |
 | Extern | `https://kamerplanter.example.com` |
 
-!!! info "Automatischer Health-Check"
-    Die Integration prüft die Erreichbarkeit automatisch via `/api/health`.
+Den API-Key (`kp_`-Prefix) im selben Schritt eintragen. Im Light-Modus ist der Key optional.
 
-### Schritt 2: Authentifizierung
+!!! info "Automatischer Health-Check & Modus-Erkennung"
+    Die Integration prüft die Erreichbarkeit automatisch via `/api/health`. Dabei erkennt sie auch, ob das Backend im Light- oder Full-Modus läuft. Ein separater Auth-Auswahl-Schritt entfällt.
 
-| Modus | Beschreibung |
-|-------|-------------|
-| **Light-Modus** | Keine Authentifizierung nötig |
-| **API-Key** | API-Schlüssel mit `kp_`-Prefix eingeben (empfohlen) |
-| **Login** | Benutzername und Passwort als Fallback |
+### Schritt 2: Tenant (Benutzerbereich) auswählen
 
-### Schritt 3: Tenant (Benutzerbereich) auswählen
-
-Bei Multi-Tenant-Betrieb (z.B. Gemeinschaftsgarten) den gewünschten Tenant aus der Liste wählen. Bei Einzelnutzern wird dieser Schritt übersprungen.
-
-### Schritt 4: Entities konfigurieren
-
-Wähle aus, welche Pflanzen, Standorte und Tanks als HA-Entities angelegt werden sollen. Per Default werden alle verfügbaren Entities erstellt.
+Bei Multi-Tenant-Betrieb (z.B. Gemeinschaftsgarten) den gewünschten Tenant aus der Liste wählen. Bei Einzelnutzern überspringt HA diesen Schritt.
 
 ---
 
-## Reauth & Reconfigure
+## Erneute Authentifizierung & Neukonfiguration
 
 Die Integration unterstützt zwei Korrektur-Flows, erreichbar über **Einstellungen** > **Integrationen** > **Kamerplanter**:
 
@@ -97,11 +96,11 @@ Konfigurierbar unter **Einstellungen** > **Integrationen** > **Kamerplanter** > 
 
 | Coordinator | Standard | Minimum | Daten |
 |-------------|----------|---------|-------|
-| **Plant** | 300s | 120s | Pflanzen, Phasen, Dosierungen, VPD (Vapor Pressure Deficit) / EC (Electrical Conductivity)-Sollwerte |
+| **Plant** | 300s | 120s | Pflanzen, Phasen, Dosierungen (steuert auch den Run-Coordinator) |
 | **Location** | 300s | 120s | Standorte, Tanks, Füllstände |
-| **Run** | 300s | 120s | Pflanzdurchläufe, Run-Status, Pflanzenanzahl |
 | **Alert** | 60s | 30s | Überfällige Aufgaben, Sensor offline |
 | **Task** | 300s | 120s | Anstehende Aufgaben |
+| **IPM** | 120s | 60s | Schädlingsdruck, Karenz, Erntesicherheit |
 
-!!! tip "Alerts schneller pollen"
+!!! tip "Warnungen häufiger abrufen"
     Der Alert-Coordinator hat bewusst ein kürzeres Standard-Intervall (60s), damit zeitkritische Benachrichtigungen schneller ankommen.

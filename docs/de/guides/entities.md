@@ -1,8 +1,15 @@
+---
+title: Entities
+audience:
+  - ha-end-users
+  - self-hosting-admin
+content_mode: reference
+track: user-docs
+last_updated: 2026-06-24
+---
 # Entities
 
-Die Integration erstellt automatisch Entities für alle ausgewählten Pflanzen, Standorte und Tanks. Jede Entity gehört zu einem der [5 Coordinators](../development/architecture.md#coordinators-coordinatorpy). Sie wird in dessen Polling-Intervall aktualisiert.
-
-Zwei wiederkehrende Messgrößen tauchen in den Tabellen unten auf: VPD (Vapour Pressure Deficit) – Sättigungsdruckdefizit und EC (Electrical Conductivity) – elektrische Leitfähigkeit.
+Die Integration legt Entities für dich an. Du bekommst je einen Satz pro gewählter Pflanze, pro Standort und pro Tank. Jede Entity gehört zu einem der [6 Coordinators](../development/architecture.md#coordinators-coordinatorpy). Sie wird in dessen Polling-Intervall aktualisiert.
 
 ---
 
@@ -17,15 +24,30 @@ Zwei wiederkehrende Messgrößen tauchen in den Tabellen unten auf: VPD (Vapour 
 | `sensor.kp_{key}_nutrient_plan` | Zugewiesener Nährplan | `Bloom Week 3` |
 | `sensor.kp_{key}_phase_timeline` | Phasenverlauf mit Attributen | siehe [Templates](automations.md#phasen-attribute-per-jinja2-template) |
 | `sensor.kp_{key}_next_phase` | Nächste geplante Phase | `ripening` |
-| `sensor.kp_{key}_vpd_target` | VPD-Sollwert für aktuelle Phase (kPa) | `1.2` |
-| `sensor.kp_{key}_ec_target` | EC-Sollwert für aktuelle Phase (mS/cm) | `1.8` |
 | `sensor.kp_{key}_days_until_watering` | Tage bis zur nächsten Bewässerung | `2` |
 | `sensor.kp_{key}_next_watering` | Datum der nächsten Bewässerung | `2026-04-16` |
 | `sensor.kp_{key}_active_channels` | Aktive Düngekanäle | `2` |
 | `sensor.kp_{key}_{channel}_mix` | Mischverhältnis pro Kanal (ml/L) | Attribute: Düngermengen |
 
 !!! info "Phasen-Enum"
-    Mögliche Werte für `_phase`: `germination`, `seedling`, `vegetative`, `flowering`, `ripening`, `harvest`, `dormancy`, `flushing`, `drying`, `curing`, `juvenile`, `climbing`, `mature`, `senescence`, `leaf_phase`, `short_day_induction`
+    Mögliche Werte für `_phase`:
+
+    - `germination`
+    - `seedling`
+    - `vegetative`
+    - `flowering`
+    - `ripening`
+    - `harvest`
+    - `dormancy`
+    - `flushing`
+    - `drying`
+    - `curing`
+    - `juvenile`
+    - `climbing`
+    - `mature`
+    - `senescence`
+    - `leaf_phase`
+    - `short_day_induction`
 
 ---
 
@@ -43,7 +65,11 @@ Zwei wiederkehrende Messgrößen tauchen in den Tabellen unten auf: VPD (Vapour 
 | `sensor.kp_{key}_{channel}_mix` | Mischverhältnis pro Kanal | Attribute: Düngermengen |
 
 !!! tip "Run-spezifische Attribute"
-    Bei Runs stehen zusätzlich `phase_week`, `phase_progress_pct` und `remaining_days` als Attribute auf dem `phase_timeline`-Sensor zur Verfügung.
+    Runs bieten zusätzliche Attribute auf dem `phase_timeline`-Sensor:
+
+    - `phase_week`
+    - `phase_progress_pct`
+    - `remaining_days`
 
 ---
 
@@ -74,7 +100,18 @@ Zwei wiederkehrende Messgrößen tauchen in den Tabellen unten auf: VPD (Vapour 
 |--------|-------------|-------------|
 | `sensor.kp_{key}_info` | Tank-Info (Name, Typ) | `Haupttank` |
 | `sensor.kp_{key}_volume` | Aktuelles Volumen (L) | `45.0` |
-| `sensor.kp_{key}_fill_level` | Füllstand in Prozent | `75` |
+
+---
+
+## IPM-Sensoren (Integrierter Pflanzenschutz)
+
+**Pro Pflanze** (IPM Coordinator):
+
+| Entity | Beschreibung | Beispielwert |
+|--------|-------------|-------------|
+| `sensor.kp_{key}_pest_pressure` | Schädlingsdruck (Enum: `none`, `low`, `medium`, `high`, `critical`) | `low` |
+| `sensor.kp_{key}_karenz_remaining` | Verbleibende Karenz bis zur Ernte (Tage) | `3` |
+| `sensor.kp_{key}_last_inspection_days` | Tage seit der letzten Kontrolle | `5` |
 
 ---
 
@@ -96,6 +133,8 @@ Zwei wiederkehrende Messgrößen tauchen in den Tabellen unten auf: VPD (Vapour 
 | `binary_sensor.kp_loc_{key}_needs_attention` | Standort hat überfällige Aufgaben | Alert |
 | `binary_sensor.kp_sensor_offline` | Mindestens ein Sensor offline | Alert |
 | `binary_sensor.kp_care_overdue` | Pflege-Aufgaben überfällig | Alert |
+| `binary_sensor.kp_{key}_harvest_safe` | Ernte unbedenklich (Karenzzeit abgelaufen) | IPM |
+| `binary_sensor.kp_{key}_pest_alert` | Schädlingsbefall erkannt | IPM |
 
 !!! example "Einsatz in Automationen"
     ```yaml

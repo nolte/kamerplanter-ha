@@ -1,3 +1,11 @@
+---
+title: Lokales Setup
+audience:
+  - maintainers
+content_mode: how-to
+track: developer-docs
+last_updated: 2026-06-24
+---
 # Lokales Setup
 
 ## Voraussetzungen
@@ -8,15 +16,22 @@
 | **Kubernetes** | Lokaler Kind-Cluster mit Skaffold |
 | **Home Assistant** | StatefulSet `homeassistant-0` im Namespace `default` |
 
-Kind (Kubernetes IN Docker) betreibt einen lokalen Cluster; `homeassistant-0` ist der Name des HA-StatefulSet-Pods.
+Kind (Kubernetes IN Docker) betreibt einen lokalen Cluster. `homeassistant-0` ist der Name des HA-StatefulSet-Pods.
 
 ## Development-Workflow
 
-Die HA-Integration wird **nicht** automatisch per Skaffold deployed, sondern manuell per `kubectl cp` und Container-Restart.
+Skaffold deployt die HA-Integration **nicht** automatisch. Du deployst sie von Hand per `kubectl cp` und einem Container-Restart.
 
 ### Deploy-Zyklus
 
-Führe die folgenden Schritte der Reihe nach aus. Jeder Schritt baut auf dem vorherigen auf: Quellcode linten, in den Pod kopieren, den Bytecode-Cache löschen, den Prozess neustarten, auf Ready warten und zuletzt die Logs prüfen.
+Führe die folgenden Schritte der Reihe nach aus. Jeder Schritt baut auf dem vorherigen auf:
+
+- Quellcode linten
+- in den Pod kopieren
+- den Bytecode-Cache löschen
+- den Prozess neu starten
+- auf Ready warten
+- zuletzt die Logs prüfen
 
 ```bash
 # 1. Lint prüfen
@@ -43,14 +58,17 @@ kubectl logs homeassistant-0 -n default --since=90s | \
 ```
 
 !!! danger "NICHT `kubectl delete pod` verwenden!"
-    Der InitContainer `copy-ha-integration` würde die manuell kopierten Dateien mit dem alten Image überschreiben. `kill 1` beendet nur den HA-Prozess — der Container restartet ohne InitContainers.
+    Der InitContainer `copy-ha-integration` würde die manuell kopierten Dateien mit dem alten Image überschreiben. `kill 1` beendet nur den HA-Prozess — der Container startet neu ohne InitContainers.
 
-### Claude Code Skills
+### Claude Code Agents
 
-| Skill | Beschreibung |
+| Agent | Beschreibung |
 |-------|-------------|
-| `/deploy-ha` | Deployt die Integration und prüft die Logs |
-| `/verify-ha` | Prüft den aktuellen Status ohne Redeployment |
+| `ha-integration-deploy` | Deployt die Integration und prüft die Logs (über das `claude-home-assistant`-Plugin) |
+| `ha-integration-verify` | Prüft den aktuellen Status ohne Redeployment (über das `claude-home-assistant`-Plugin) |
+
+!!! note "Manuelle Einstiegspunkte"
+    Die `Taskfile.yml`-Targets `deploy-ha` / `verify-ha` bleiben als manuelle Einstiegspunkte bestehen.
 
 ---
 
