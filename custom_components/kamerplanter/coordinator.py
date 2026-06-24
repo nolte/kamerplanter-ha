@@ -7,7 +7,6 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-import async_timeout
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -152,7 +151,7 @@ class KamerplanterPlantCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 plants = await self.api.async_get_plants()
                 published = await _fetch_published_keys(self.api, "plant")
                 active_plants = [p for p in plants if not p.get("removed_on")]
@@ -301,7 +300,7 @@ class KamerplanterLocationCoordinator(DataUpdateCoordinator[list[dict[str, Any]]
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 locations = await self.api.async_get_all_locations()
                 published_loc = await _fetch_published_keys(self.api, "location")
                 published_tank = await _fetch_published_keys(self.api, "tank")
@@ -455,7 +454,7 @@ class KamerplanterAlertCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 return await self.api.async_get_overdue_tasks()
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
@@ -497,7 +496,7 @@ class KamerplanterRunCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 runs = await self.api.async_get_planting_runs()
 
                 for run in runs:
@@ -578,7 +577,7 @@ class KamerplanterTaskCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 return await self.api.async_get_pending_tasks()
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
@@ -639,7 +638,7 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 plants = await self.api.async_get_plants()
                 published = await _fetch_published_keys(self.api, "plant")
                 active_plants = [p for p in plants if not p.get("removed_on")]

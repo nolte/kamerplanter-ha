@@ -10,7 +10,7 @@ from typing import Any
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout
 
 # Per-request timeout for the HTTP client. Coordinator paths set their own
-# `async_timeout`; this guards direct callers (service handlers) where no
+# `asyncio.timeout`; this guards direct callers (service handlers) where no
 # outer timeout exists, so a hung backend cannot block the event loop.
 DEFAULT_REQUEST_TIMEOUT: ClientTimeout = ClientTimeout(total=30)
 
