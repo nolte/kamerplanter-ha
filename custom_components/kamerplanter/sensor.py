@@ -29,6 +29,7 @@ from .coordinator import (
 from .entity import (
     KamerplanterEntity,
     _slugify_key,
+    find_by_key,
     location_device_info,
     plant_device_info,
     run_device_info,
@@ -437,12 +438,7 @@ class KpSensorBase(KamerplanterEntity, SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_kp_{slug}_{suffix}"
 
     def _find_resource(self) -> dict[str, Any] | None:
-        if not self.coordinator.data:
-            return None
-        for item in self.coordinator.data:
-            if item.get("key") == self._resource_key:
-                return item
-        return None
+        return find_by_key(self.coordinator.data, self._resource_key)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -1408,16 +1404,8 @@ def _enrich_phase_progress(attrs: dict[str, Any], run: dict[str, Any]) -> None:
 
 
 class _LocationSensorBase(KpSensorBase):
-    """Base for location sensors — finds resource by location key."""
-
-    def _find_resource(self) -> dict[str, Any] | None:
-        if not self.coordinator.data:
-            return None
-        for loc in self.coordinator.data:
-            key = loc.get("key") or loc.get("_key", "")
-            if key == self._resource_key:
-                return loc
-        return None
+    """Base for location sensors. The `_key` fallback for the lookup lives in
+    `find_by_key`, so no `_find_resource` override is needed here."""
 
 
 class LocationTypeSensor(_LocationSensorBase):
