@@ -4,10 +4,15 @@ version: "3"
 vars:
   NAMESPACE: default
   POD_SELECTOR: app.kubernetes.io/name=homeassistant
+  # `|| true` so a missing pod yields an empty POD instead of aborting every
+  # task (deploy-dev-ha must run *before* a pod exists). deploy-ha:preflight
+  # turns the empty value into a readable error.
   POD:
-    sh: kubectl get pod -n {{.NAMESPACE}} -l {{.POD_SELECTOR}} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+    sh: kubectl get pod -n {{.NAMESPACE}} -l {{.POD_SELECTOR}} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
   COMPONENT_PATH: custom_components/kamerplanter
   REMOTE_PATH: /config/custom_components/kamerplanter
+  REMOTE_CC_DIR: /config/custom_components
+  DEV_HA_MANIFEST: deploy/dev-homeassistant.yaml
 
 tasks:
   # ---------------------------------------------------------------------------
@@ -51,7 +56,12 @@ tasks:
     desc: Dateien in den Pod kopieren
     internal: true
     cmds:
-      - kubectl cp {{.COMPONENT_PATH}}/ {{.NAMESPACE}}/{{.POD}}:{{.REMOTE_PATH}}/
+      # Ziel zuerst loeschen: kopiert man in ein BEREITS existierendes
+      # Verzeichnis, schachtelt `kubectl cp` die Quelle hinein
+      # (.../kamerplanter/kamerplanter/) und laesst zudem geloeschte Dateien
+      # stehen. Erst rm -rf, dann cp auf den nicht-existenten Pfad.
+      - kubectl exec {{.POD}} -n {{.NAMESPACE}} -- rm -rf {{.REMOTE_PATH}}
+      - kubectl cp {{.COMPONENT_PATH}} {{.NAMESPACE}}/{{.POD}}:{{.REMOTE_PATH}}
 
   deploy-ha:cache-clear:
     desc: Python-Bytecode-Cache im Pod löschen
@@ -118,3 +128,48 @@ tasks:
     cmds:
       - echo "=== Installierte Dateien ==="
       - kubectl exec {{.POD}} -n {{.NAMESPACE}} -- ls -la {{.REMOTE_PATH}}/
+
+  # ---------------------------------------------------------------------------
+  # deploy-dev-ha — Provision a disposable dev Home Assistant in the cluster
+  # ---------------------------------------------------------------------------
+  deploy-dev-ha:
+    desc: Dev-Home-Assistant im Kind-Cluster bereitstellen (StatefulSet + Service)
+    cmds:
+      - task: deploy-dev-ha:apply
+      - task: deploy-dev-ha:wait
+      - task: deploy-dev-ha:prepare
+      - task: deploy-dev-ha:info
+
+  deploy-dev-ha:apply:
+    desc: HA-Manifest anwenden
+    internal: true
+    cmds:
+      - kubectl apply -f {{.DEV_HA_MANIFEST}}
+
+  deploy-dev-ha:wait:
+    desc: Warten bis das StatefulSet ready ist (max 300s, Erststart dauert)
+    internal: true
+    cmds:
+      - kubectl rollout status statefulset/homeassistant -n {{.NAMESPACE}} --timeout=300s
+
+  deploy-dev-ha:prepare:
+    desc: custom_components-Verzeichnis anlegen, damit `task deploy-ha` kopieren kann
+    internal: true
+    cmds:
+      - kubectl exec homeassistant-0 -n {{.NAMESPACE}} -- mkdir -p {{.REMOTE_CC_DIR}}
+
+  deploy-dev-ha:info:
+    desc: Status und Zugriffshinweis ausgeben
+    internal: true
+    cmds:
+      - echo "=== Dev-Home-Assistant ==="
+      - kubectl get pod homeassistant-0 -n {{.NAMESPACE}} -o wide
+      - echo ""
+      - 'echo "UI:   kubectl port-forward -n {{.NAMESPACE}} svc/homeassistant 8123:8123  =>  http://localhost:8123"'
+      - 'echo "Code: task deploy-ha  (kopiert die Integration in die laufende Instanz)"'
+
+  deploy-dev-ha:teardown:
+    desc: Dev-Home-Assistant inkl. PVC vollständig entfernen
+    cmds:
+      - kubectl delete -f {{.DEV_HA_MANIFEST}} --ignore-not-found
+      - kubectl delete pvc -n {{.NAMESPACE}} -l app.kubernetes.io/name=homeassistant --ignore-not-found

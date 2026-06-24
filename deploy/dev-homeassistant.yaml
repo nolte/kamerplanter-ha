@@ -1,0 +1,94 @@
+# Dev-Home-Assistant fuer den lokalen Kind-Cluster.
+#
+# Zweck: Eine wegwerfbare HA-Instanz, in die die Kamerplanter-Integration via
+# `task deploy-ha` (kubectl cp) kopiert wird. Bewusst minimal — kein Ingress,
+# keine vorbefuellte configuration.yaml: HA generiert beim Erststart eine
+# Default-Config mit `default_config:`, das fuer Config-Flow/Entities reicht.
+#
+# Pod-Name ist stabil `homeassistant-0` (StatefulSet) und das Label
+# `app.kubernetes.io/name=homeassistant` matcht den POD_SELECTOR aus dem
+# Taskfile, damit deploy-ha / verify-ha die Instanz finden.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homeassistant
+  namespace: default
+  labels:
+    app.kubernetes.io/name: homeassistant
+    app.kubernetes.io/component: dev
+spec:
+  selector:
+    app.kubernetes.io/name: homeassistant
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: homeassistant
+  namespace: default
+  labels:
+    app.kubernetes.io/name: homeassistant
+    app.kubernetes.io/component: dev
+spec:
+  serviceName: homeassistant
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homeassistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: homeassistant
+        app.kubernetes.io/component: dev
+    spec:
+      # Das offizielle HA-Image laeuft unter s6-overlay als PID 1 (root). Das
+      # ist Voraussetzung dafuer, dass `kill 1` im deploy-ha-Task den HA-Prozess
+      # sauber durchstartet, ohne den Pod (und damit das /config-PVC) zu loeschen.
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: homeassistant
+          image: ghcr.io/home-assistant/home-assistant:stable
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8123
+          env:
+            - name: TZ
+              value: Europe/Berlin
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1536Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            # Erststart initialisiert /config und die HA-DB -> grosszuegig.
+            failureThreshold: 40
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 6
+  volumeClaimTemplates:
+    - metadata:
+        name: config
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
