@@ -31,16 +31,46 @@ const _haFormReadyCare = (async () => {
   await customElements.whenDefined("ha-form");
 })();
 
-/**
- * Care card editor schema — static, no entity filtering needed since
- * entity_due / entity_overdue are fixed global sensors.
- */
-const CARE_CARD_SCHEMA = [
-  { name: "title",          label: "Titel",                              selector: { text: {} } },
-  { name: "upcoming_days",  label: "Vorschau Tage",                      selector: { number: { min: 1, max: 14, step: 1 } } },
-  { name: "entity_due",     label: "F\u00e4llig-Heute Sensor (optional)", selector: { entity: { domain: ["sensor"] } } },
-  { name: "entity_overdue", label: "\u00dcberf\u00e4llig Sensor (optional)", selector: { entity: { domain: ["sensor"] } } },
-];
+/** Care card editor schema (built per-render so the entity picker can be
+ *  filtered against the live hass states). */
+function careCardSchema(hass) {
+  // The card needs the two hub task-aggregate sensors (kp_tasks_due_today /
+  // kp_tasks_overdue) -- they are the only sensors exposing a `plants` list
+  // attribute, which the card renders as the grouped task list. Per-plant IPM
+  // sensors (pest pressure, Karenz, days-since-inspection) carry a single
+  // value and would leave the card empty, so we steer the entity picker to the
+  // aggregate sensors and spell out the default in a helper text.
+  const taskSensors = hass
+    ? Object.keys(hass.states).filter(
+        (eid) =>
+          eid.startsWith("sensor.") &&
+          Array.isArray(hass.states[eid]?.attributes?.plants),
+      )
+    : [];
+  // Restrict the picker to the aggregate sensors when we can find them;
+  // otherwise fall back to all sensors so the field is never empty/unusable.
+  const sensorSelector = taskSensors.length
+    ? { entity: { include_entities: taskSensors } }
+    : { entity: { domain: ["sensor"] } };
+  return [
+    { name: "title",         label: "Titel",         selector: { text: {} } },
+    { name: "upcoming_days", label: "Vorschau Tage", selector: { number: { min: 1, max: 14, step: 1 } } },
+    {
+      name: "entity_due",
+      label: "F\u00e4llig-Heute Sensor (optional)",
+      helper:
+        "Standard: sensor.kp_tasks_due_today \u2013 Hub-Sensor mit heute & demn\u00e4chst f\u00e4lligen Aufgaben. Leer lassen f\u00fcr den Standard; keine Einzelpflanzen-Sensoren w\u00e4hlen.",
+      selector: sensorSelector,
+    },
+    {
+      name: "entity_overdue",
+      label: "\u00dcberf\u00e4llig Sensor (optional)",
+      helper:
+        "Standard: sensor.kp_tasks_overdue \u2013 Hub-Sensor mit \u00fcberf\u00e4lligen Aufgaben. Leer lassen f\u00fcr den Standard; keine Einzelpflanzen-Sensoren w\u00e4hlen.",
+      selector: sensorSelector,
+    },
+  ];
+}
 
 /**
  * Kamerplanter Care Card Editor
@@ -87,9 +117,10 @@ class KamerplanterCareCardEditor extends HTMLElement {
     }
 
     this._form.hass = this._hass;
-    this._form.schema = CARE_CARD_SCHEMA;
+    this._form.schema = careCardSchema(this._hass);
     this._form.data = this._config;
     this._form.computeLabel = (schema) => schema.label || schema.name;
+    this._form.computeHelper = (schema) => schema.helper || "";
   }
 }
 customElements.define("kamerplanter-care-card-editor", KamerplanterCareCardEditor);
@@ -131,10 +162,12 @@ class KamerplanterCareCard extends HTMLElement {
   }
 
   getGridOptions() {
+    // HA sections use a 12-column grid. Keep the task list readable: full
+    // width by default, never narrower than half a section.
     return {
-      columns: 2,
+      columns: 12,
       rows: 2,
-      min_columns: 2,
+      min_columns: 6,
       min_rows: 1,
       max_rows: 4,
     };

@@ -741,9 +741,10 @@ class KamerplanterPlantCard extends HTMLElement {
     if (c.show_timeline !== false) rows += 2;
     if (c.show_next_hint !== false) rows += 1;
     if (c.show_details !== false) rows += 2;
+    // 12-column grid: full width by default, never below half a section.
     return {
-      columns: 2,
-      min_columns: 2,
+      columns: 12,
+      min_columns: 6,
       rows: rows,
       min_rows: 2,
     };

@@ -115,8 +115,11 @@ async def async_setup_entry(
         from homeassistant.components.http import StaticPathConfig
 
         js_files = await hass.async_add_executor_job(lambda: list(www_dir.glob("*.js")))
+        # cache_headers=False: serve the cards with ETag revalidation instead of
+        # a 31-day immutable cache. Otherwise an updated card stays masked by the
+        # browser cache after a redeploy/update (stale getGridOptions, layout...).
         paths = [
-            StaticPathConfig(f"/{DOMAIN}/{js_file.name}", str(js_file), True)
+            StaticPathConfig(f"/{DOMAIN}/{js_file.name}", str(js_file), False)
             for js_file in js_files
         ]
 
