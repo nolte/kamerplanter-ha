@@ -24,6 +24,21 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from .conftest import load_fixture
 
 
+@pytest.fixture(autouse=True)
+def _bypass_integration_setup():
+    """Stop HA from really setting up the entry after a successful flow.
+
+    These tests assert the flow result, not the runtime setup. Without this,
+    HA loads the created entry, the coordinator makes a real network call, and
+    pytest-homeassistant-custom-component blocks the socket (HASocketBlockedError),
+    failing the test in teardown.
+    """
+    with patch(
+        "custom_components.kamerplanter.async_setup_entry", return_value=True
+    ):
+        yield
+
+
 def _make_zeroconf_info(
     *,
     instance_id: str = "kp-homelab-01",
