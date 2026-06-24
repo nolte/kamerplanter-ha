@@ -4,10 +4,21 @@
 
 # Kamerplanter Home Assistant Integration
 
+[![CI](https://github.com/nolte/kamerplanter-ha/actions/workflows/ci.yml/badge.svg)](https://github.com/nolte/kamerplanter-ha/actions/workflows/ci.yml)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
 [![HA Version](https://img.shields.io/badge/HA-2024.1.0+-blue.svg)](https://www.home-assistant.io/)
 
 Custom Integration for [Home Assistant](https://www.home-assistant.io/) to connect your [Kamerplanter](https://github.com/nolte/kamerplanter) plant management system.
+
+## Purpose
+
+Kamerplanter manages plants, nutrient plans, tanks, and care tasks in its own backend. That data stays in a separate web app and never reaches the Home Assistant instance where you already run your home automations. This integration closes that gap.
+
+- **For Home Assistant end users who grow plants:** it surfaces plant phases, nutrient dosages, tank levels, and care tasks as native HA entities, services, and Lovelace cards, so you can build dashboards and automations against your grow without leaving Home Assistant.
+- **For the self-hosting administrator** who runs both Home Assistant and a Kamerplanter backend: it connects the two over the backend REST API through a guided config flow, with backend URL, API key, tenant selection, and tunable polling intervals.
+- It keeps the two systems in sync by polling the backend, so HA reflects current plant, tank, and task state without manual export.
+
+Integration and card maintainers are a secondary audience; their development setup, architecture, and contribution guidance live under `docs/`.
 
 ## Features
 
