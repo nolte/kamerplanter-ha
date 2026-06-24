@@ -26,7 +26,8 @@ jobs:
       - name: Ruff format check
         run: ruff format --check custom_components/
 
-  "Static CI Tests":
+  static-ci-tests:
+    name: Static CI Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
