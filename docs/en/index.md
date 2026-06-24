@@ -1,3 +1,12 @@
+---
+title: Kamerplanter Home Assistant Integration
+audience:
+  - ha-end-users
+  - self-hosting-admin
+content_mode: meta
+track: user-docs
+last_updated: 2026-06-24
+---
 # Kamerplanter Home Assistant Integration
 
 Kamerplanter integrates with Home Assistant via a **Custom Integration**. All plant data, tank values, tasks, and calendar entries appear as native HA entities and can be used in dashboards, automations, and notifications.
@@ -20,22 +29,22 @@ flowchart LR
 
 ## Features
 
-- :seedling: **Plant monitoring** — growth phases, days in phase, VPD/EC targets, next phase, nutrient plan
+- :seedling: **Plant monitoring** — growth phases, days in phase, next phase, nutrient plan
 - :test_tube: **Nutrient dosages** — per-channel mixing ratios (ml/L) as sensor attributes, dashboard-ready
-- :potable_water: **Tank management** — fill level, solution age, EC/pH via HA services
+- :potable_water: **Tank management** — volume, solution age, EC/pH via HA services
 - :house: **Location overview** — active runs and plant counts per tent, room, or bed
 - :ballot_box_with_check: **Task tracking** — todo list entity, overdue counts, calendar events
 - :bell: **Care reminders** — binary sensors for overdue care, events for actionable notifications
 - :art: **5 custom Lovelace cards** — plant, mix, tank, care, houseplant card (auto-registered)
 - :gear: **5 services** — fill tank, water channel, confirm care, refresh data, clear cache
 
-!!! info "5 independent polling schedules"
-    The integration uses 5 separate polling schedules (Plant, Location, Run, Alert, Task) — each configurable independently. Time-critical alerts arrive faster than master data.
+!!! info "6 independent coordinators"
+    The integration uses **6 separate coordinators** (Plant, Location, Run, Alert, Task, IPM) with independent polling intervals. Time-critical alerts arrive faster than master data.
 
 ## Next Steps
 
 - [Installation](guides/installation.md) — Install via HACS or manually
-- [Setup](guides/setup.md) — Config flow, token exchange, reauth & reconfigure
+- [Setup](guides/setup.md) — Config flow, token exchange, reauthentication & reconfigure
 - [Entities](guides/entities.md) — All available sensors and entities
 - [Automations](guides/automations.md) — Example automations and Jinja2 templates
 - [Lovelace Cards](guides/lovelace-cards.md) — Configure custom cards

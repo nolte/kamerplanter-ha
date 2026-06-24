@@ -1,4 +1,15 @@
+---
+title: Installation
+audience:
+  - ha-end-users
+  - self-hosting-admin
+content_mode: how-to
+track: user-docs
+last_updated: 2026-06-24
+---
 # Installation
+
+Wähle unten deine Installationsmethode.
 
 === "HACS (Home Assistant Community Store) (empfohlen)"
 
@@ -11,14 +22,14 @@
 === "Manuell"
 
     1. Lade die aktuelle Version von der [Releases-Seite](https://github.com/nolte/kamerplanter-ha/releases/latest) herunter
-    2. Entpacke und kopiere `custom_components/kamerplanter/` in dein HA `config/custom_components/`-Verzeichnis
+    2. Entpacke das Archiv. Kopiere `custom_components/kamerplanter/` nach `config/custom_components/`
     3. Starte Home Assistant neu
 
     !!! warning "Verzeichnisstruktur beachten"
-        Der Pfad muss exakt `config/custom_components/kamerplanter/manifest.json` sein. Lege ihn nicht in einem tieferen Unterverzeichnis ab.
+        Der Pfad muss exakt `config/custom_components/kamerplanter/manifest.json` sein. Lege ihn nicht tiefer ab.
 
 !!! tip "Nach dem Neustart"
-    Gehe zu **Einstellungen** > **Integrationen** > **Integration hinzufügen** und suche nach "Kamerplanter". Die Integration erscheint erst nach dem HA-Neustart.
+    Gehe zu **Einstellungen** > **Integrationen** > **Integration hinzufügen**. Suche nach "Kamerplanter". Sie erscheint erst nach dem HA-Neustart.
 
 ## Voraussetzungen
 

@@ -1,12 +1,21 @@
+---
+title: Services
+audience:
+  - ha-end-users
+  - self-hosting-admin
+content_mode: reference
+track: user-docs
+last_updated: 2026-06-24
+---
 # Services
 
-The integration provides 5 services that can be used in automations, scripts, and the developer console.
+The integration provides 5 services. Use these services in automations, scripts, and the developer console.
 
 ---
 
 ## `kamerplanter.fill_tank`
 
-Records a tank fill event. Automatically resolves current dosages from the nutrient plan.
+Records a tank fill event. The service resolves current dosages from the nutrient plan.
 
 ```yaml
 service: kamerplanter.fill_tank
@@ -23,7 +32,7 @@ data:
 | `entity_id` | Yes | Tank info sensor |
 | `fill_type` | Yes | `full_change`, `top_up`, or `adjustment` |
 | `volume_liters` | No | Fill volume in liters |
-| `measured_ec_ms` | No | Measured EC value (mS/cm) |
+| `measured_ec_ms` | No | Measured EC (electrical conductivity) value (mS/cm) |
 | `measured_ph` | No | Measured pH value |
 | `notes` | No | Free-text note for the fill event |
 
@@ -31,7 +40,7 @@ data:
 
 ## `kamerplanter.water_channel`
 
-Records a watering event for a delivery channel. Resolves dosages and volume from the nutrient plan.
+Records a watering event for a delivery channel. The service resolves dosages and volume from the nutrient plan.
 
 ```yaml
 service: kamerplanter.water_channel
@@ -54,13 +63,16 @@ data:
 | `notes` | No | Free-text note for the watering event |
 
 !!! tip "Application method"
-    The application method affects how the backend calculates fertilizer amounts. `drench` is the default for normal watering, `foliar` for foliar feeding.
+    The application method affects how the backend calculates fertilizer amounts. Use `drench` for normal watering. Use `foliar` for foliar feeding.
 
 ---
 
 ## `kamerplanter.confirm_care`
 
-Confirms or skips a care reminder. Designed for actionable notifications via the HA Companion App.
+Confirms or skips a care reminder. It targets actionable notifications via the HA Companion App.
+
+!!! info "Actionable notifications"
+    These are interactive notifications with response buttons. You tap an action directly in the notification.
 
 ```yaml
 service: kamerplanter.confirm_care
@@ -81,7 +93,7 @@ data:
 
 ## `kamerplanter.refresh_data`
 
-Forces a re-poll of all five coordinators. Use this after making manual changes in the Kamerplanter backend.
+Forces a re-poll of all six coordinators. Use it after manual changes in the Kamerplanter backend.
 
 ```yaml
 service: kamerplanter.refresh_data
@@ -91,11 +103,11 @@ service: kamerplanter.refresh_data
 
 ## `kamerplanter.clear_cache`
 
-Clears the coordinator cache and forces a full rebuild of all data from the backend.
+Clears the coordinator cache. This forces a full rebuild of all data from the backend.
 
 ```yaml
 service: kamerplanter.clear_cache
 ```
 
 !!! warning "Cache clearing"
-    This service removes all cached data and reloads everything from the backend. Only use it for data issues — in normal operation, `refresh_data` is sufficient.
+    This service removes all cached data and reloads everything from the backend. Only use it for data issues. In normal operation, `refresh_data` is sufficient.

@@ -1,3 +1,11 @@
+---
+title: Architektur
+audience:
+  - maintainers
+content_mode: explanation
+track: developer-docs
+last_updated: 2026-06-24
+---
 # Architektur
 
 ## Übersicht
@@ -11,11 +19,14 @@ flowchart TB
         API --> C3["Run Coordinator"]
         API --> C4["Alert Coordinator"]
         API --> C5["Task Coordinator"]
+        API --> C6["IPM Coordinator"]
         C1 --> S["Sensors\nsensor.py"]
         C1 --> BS["Binary Sensors\nbinary_sensor.py"]
         C2 --> S
         C3 --> S
         C4 --> BS
+        C6 --> S
+        C6 --> BS
         C5 --> CAL["Calendar\ncalendar.py"]
         C5 --> TODO["Todo\ntodo.py"]
         S --> CARDS["Lovelace Cards\nwww/*.js"]
@@ -27,35 +38,41 @@ flowchart TB
 
 ## Komponenten
 
-Die Daten fließen in eine Richtung: Der API-Client holt sie vom Backend, die Coordinators planen diese Abrufe, die Entity-Plattformen stellen die gepollten Daten als HA-Entities bereit, und die Lovelace-Cards rendern diese Entities.
+Die Daten fließen in eine Richtung. Die Kette hat vier Stufen:
+
+- Der API-Client holt die Daten vom Backend.
+- Die Coordinators planen diese Abrufe.
+- Die Entity-Plattformen stellen die Daten als HA-Entities bereit.
+- Die Lovelace-Cards zeigen diese Entities an.
 
 ### API Client (`api.py`)
 
-- Aiohttp-basierter HTTP-Client gegen das Kamerplanter-Backend
+- aiohttp-basierter HTTP-Client gegen das Kamerplanter-Backend
 - Tenant-scoped Endpunkte via `_tenant_prefix`
 - Fehlerbehandlung mit `KamerplanterApiError`
 
 ### Coordinators (`coordinator.py`)
 
-Fünf `DataUpdateCoordinator`-Instanzen ([HAs eingebauter Polling-Manager](https://developers.home-assistant.io/docs/integration_fetching_data/)) mit unabhängigen Polling-Intervallen:
+Sechs `DataUpdateCoordinator`-Instanzen, jede mit eigenem Intervall. Der Coordinator ist [HAs eingebauter Polling-Manager](https://developers.home-assistant.io/docs/integration_fetching_data/):
 
 | Coordinator | Daten | Standard-Intervall |
 |-------------|-------|-------------------|
-| **Plant** | Pflanzen, Phasen, Dosierungen, VPD/EC-Sollwerte | 300s |
+| **Plant** | Pflanzen, Phasen, Dosierungen | 300s |
 | **Location** | Standorte, Tanks, Füllstände | 300s |
 | **Run** | Pflanzdurchläufe, Run-Status, Pflanzenanzahl | 300s |
 | **Alert** | Überfällige Aufgaben, Sensor-Status | 60s |
 | **Task** | Anstehende Aufgaben | 300s |
+| **IPM** | Schädlingsdruck, Karenz, Erntesicherheit | 120s |
 
-!!! info "Warum 5 Coordinators?"
-    Weil die Coordinators getrennt sind, lassen sich zeitkritische Alerts (60s) häufiger pollen als Stammdaten (300s). Jeder Coordinator hat seinen eigenen Fehler-Counter und Recovery-Mechanismus.
+!!! info "Warum 6 Coordinators?"
+    Die Coordinators sind getrennt. So fragt die Integration zeitkritische Alerts (60s) häufiger ab als Stammdaten (300s). Jeder Coordinator hat einen eigenen Fehler-Counter und eine eigene Recovery.
 
 ### Entity-Plattformen
 
-| Datei | Plattform | Entities | Coordinator(s) |
+| Datei | Plattform | Entities | Coordinators |
 |-------|-----------|----------|----------------|
-| `sensor.py` | `sensor` | Pflanzen, Runs, Standorte, Tanks, Server | Plant, Location, Run |
-| `binary_sensor.py` | `binary_sensor` | Attention, Care, Sensor-Status | Alert |
+| `sensor.py` | `sensor` | Pflanzen, Runs, Standorte, Tanks, Server | Plant, Location, Run, IPM |
+| `binary_sensor.py` | `binary_sensor` | Attention, Care, Sensor-Status | Alert, IPM |
 | `calendar.py` | `calendar` | Phasen, Aufgaben | Plant, Task |
 | `todo.py` | `todo` | Aufgabenliste | Task |
 | `button.py` | `button` | Refresh All | — |
@@ -72,9 +89,9 @@ Fünf `DataUpdateCoordinator`-Instanzen ([HAs eingebauter Polling-Manager](https
 
 ---
 
-## Style Guide
+## Styleguide
 
-Alle Code-Änderungen müssen dem Style Guide folgen: [`spec/style-guides/HA-INTEGRATION.md`](https://github.com/nolte/kamerplanter-ha/blob/main/spec/style-guides/HA-INTEGRATION.md)
+Alle Codeänderungen folgen dem Styleguide: [`spec/style-guides/HA-INTEGRATION.md`](https://github.com/nolte/kamerplanter-ha/blob/main/spec/style-guides/HA-INTEGRATION.md)
 
 Wichtigste Patterns:
 

@@ -1,3 +1,13 @@
+---
+title: Changelog
+audience:
+  - ha-end-users
+  - self-hosting-admin
+  - maintainers
+content_mode: meta
+track: user-docs
+last_updated: 2026-06-24
+---
 # Changelog
 
 ## 0.1.0 (Initial Release)
@@ -10,7 +20,7 @@
 
 ### Entities
 
-- Sensoren für Pflanzen (Phase, Tage in Phase, VPD/EC-Sollwerte, Nährplan, Bewässerung)
+- Sensoren für Pflanzen (Phase, Tage in Phase, Nährplan, Bewässerung)
 - Sensoren für Runs (Status, Pflanzenanzahl, Phasenverlauf)
 - Sensoren für Standorte (Typ, aktive Runs/Pflanzen, Run-Phase)
 - Sensoren für Tanks (Info, Volumen, Füllstand)

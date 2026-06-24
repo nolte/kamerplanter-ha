@@ -1,6 +1,14 @@
+---
+title: Lovelace Custom Cards
+audience:
+  - ha-end-users
+content_mode: how-to
+track: user-docs
+last_updated: 2026-06-24
+---
 # Lovelace Custom Cards
 
-Die Integration liefert 5 Custom Lovelace Cards mit. Sie werden beim Setup automatisch registriert. Eine manuelle Ressourcen-Registrierung ist nicht nötig.
+Die Integration liefert 5 Custom Lovelace Cards mit. Sie registriert die Cards beim Setup für dich. Du legst keine Ressource von Hand an.
 
 | Card | Beschreibung |
 |------|-------------|
@@ -11,15 +19,15 @@ Die Integration liefert 5 Custom Lovelace Cards mit. Sie werden beim Setup autom
 | `kamerplanter-houseplant-card` | Vereinfachte Card für Zimmerpflanzen |
 
 !!! info "Auto-Registrierung"
-    Die Cards werden aus dem `www/`-Verzeichnis der Integration geladen. Du musst sie nicht manuell als Lovelace-Ressource hinzufügen.
+    Die Integration lädt die Cards aus ihrem `www/`-Verzeichnis. Du fügst sie nicht von Hand als Lovelace-Ressource hinzu.
 
 ## Konfiguration
 
-Alle Cards können über den Standard-HA-Editor konfiguriert werden (Entity-Picker, keine YAML-Pflicht).
+Konfiguriere alle Cards über den Standard-HA-Editor. Du wählst die Entity im Editor aus, YAML ist also nicht nötig.
 
 === "Plant Card"
 
-    Zeigt die aktuelle Phase, Tage in Phase, VPD/EC-Sollwerte und den Phasenverlauf.
+    Zeigt die aktuelle Phase, Tage in Phase und den Phasenverlauf.
 
     ```yaml
     type: custom:kamerplanter-plant-card

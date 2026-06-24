@@ -1,15 +1,23 @@
+---
+title: Automationen
+audience:
+  - ha-end-users
+content_mode: how-to
+track: user-docs
+last_updated: 2026-06-24
+---
 # Automationen
 
-Kamerplanter-Entities lassen sich direkt in HA-Automationen verwenden. Hier einige praxiserprobte Beispiele.
+Kamerplanter-Entities lassen sich direkt in HA-Automationen nutzen. Hier einige bewährte Beispiele.
 
 !!! note "Voraussetzung"
-    Grundkenntnisse zu HA-Automationen werden vorausgesetzt. Eine Einführung bietet die [HA-Automations-Dokumentation](https://www.home-assistant.io/docs/automation/).
+    Diese Beispiele setzen voraus, dass du die Grundlagen von HA-Automationen kennst. Falls nicht, beginne mit der [HA-Automations-Dokumentation](https://www.home-assistant.io/docs/automation/).
 
 ---
 
 ## Phasenwechsel: Lichtprogramm umstellen
 
-Kamerplanter meldet einen Phasenwechsel zu "Blüte". Das Lichtprogramm wird dann automatisch auf 12/12 umgestellt:
+Kamerplanter meldet einen Phasenwechsel zu "Blüte". Diese Automation stellt das Lichtprogramm dann auf 12/12 um:
 
 ```yaml
 alias: "KP: Bluete-Start - 12/12 Licht"
@@ -32,43 +40,29 @@ action:
 
 ---
 
-## VPD-Regelung mit Kamerplanter-Sollwert
+## Schädlingsüberwachung (IPM)
 
-Kamerplanter liefert den optimalen VPD-Sollwert pro Phase über `sensor.kp_{key}_vpd_target`. Home Assistant regelt den Befeuchter:
+Das IPM-Modul (Integrierter Pflanzenschutz) bewertet den Schädlingsdruck pro Pflanze. Schlägt der Alarm an, schickt Home Assistant eine Benachrichtigung:
 
 ```yaml
-alias: "KP: VPD-Regelung"
+alias: "KP: Schädlingsalarm"
 trigger:
-  - platform: template
-    value_template: >
-      {{ states('sensor.growzelt_vpd') | float(0) >
-         (states('sensor.kp_northern_lights_vpd_target') | float(1.0) + 0.2) }}
-    id: vpd_too_high
-  - platform: template
-    value_template: >
-      {{ states('sensor.growzelt_vpd') | float(0) <
-         (states('sensor.kp_northern_lights_vpd_target') | float(1.0) - 0.1) }}
-    id: vpd_ok
+  - platform: state
+    entity_id: binary_sensor.kp_northern_lights_pest_alert
+    to: "on"
 action:
-  - choose:
-      - conditions:
-          - condition: trigger
-            id: vpd_too_high
-        sequence:
-          - service: switch.turn_on
-            target:
-              entity_id: switch.befeuchter_zelt_1
-      - conditions:
-          - condition: trigger
-            id: vpd_ok
-        sequence:
-          - service: switch.turn_off
-            target:
-              entity_id: switch.befeuchter_zelt_1
+  - service: notify.mobile_app_phone
+    data:
+      title: "Schädlingsdruck erkannt"
+      message: >
+        Northern Lights: Schädlingsdruck
+        {{ states('sensor.kp_northern_lights_pest_pressure') }}.
+        Letzte Kontrolle vor
+        {{ states('sensor.kp_northern_lights_last_inspection_days') }} Tagen.
 ```
 
-!!! tip "VPD- und EC-Sollwerte"
-    Neben `vpd_target` liefert Kamerplanter auch `ec_target` pro Pflanze. Damit kannst du z.B. die Düngerpumpe regeln oder Warnungen bei Abweichungen auslösen.
+!!! tip "Erntesicherheit prüfen"
+    `binary_sensor.kp_{key}_harvest_safe` zeigt an, ob die Karenzzeit abgelaufen ist. `sensor.kp_{key}_karenz_remaining` nennt die verbleibenden Tage.
 
 ---
 
@@ -78,23 +72,25 @@ action:
 alias: "KP: Tank nachfüllen"
 trigger:
   - platform: numeric_state
-    entity_id: sensor.kp_haupttank_fill_level
-    below: 20
+    entity_id: sensor.kp_haupttank_volume
+    below: 10
 action:
   - service: notify.mobile_app_phone
     data:
       title: "Tank fast leer!"
       message: >
-        Füllstand: {{ states('sensor.kp_haupttank_fill_level') }}%.
-        EC: {{ states('sensor.kp_haupttank_ec') }} mS/cm,
-        pH: {{ states('sensor.kp_haupttank_ph') }}
+        Restvolumen: {{ states('sensor.kp_haupttank_volume') }} L.
+        Jetzt nachfüllen und das Füll-Event erfassen.
 ```
+
+!!! tip "Füll-Event erfassen"
+    Erfasse das Nachfüllen mit dem Service [`kamerplanter.fill_tank`](services.md#kamerplanterfill_tank) — Kamerplanter aktualisiert dann EC, pH und Lösungsalter.
 
 ---
 
 ## Actionable Care Notification
 
-Pflege-Erinnerungen mit Aktions-Buttons direkt in der Benachrichtigung — Erledigt oder Überspringen:
+Pflege-Erinnerungen mit Aktions-Buttons direkt in der Benachrichtigung — erledigt oder überspringen:
 
 ```yaml
 alias: "KP: Pflege-Erinnerung"
@@ -142,7 +138,7 @@ action:
 
 ## Phasen-Attribute per Jinja2-Template
 
-Die Sensoren `phase_timeline` und `phase` stellen strukturierte Attribute bereit, die sich in Jinja2-Templates kombinieren lassen.
+Die Sensoren `phase_timeline` und `phase` stellen strukturierte Attribute bereit. Jinja2-Templates können diese Attribute kombinieren.
 
 ### Aktuelle Phasen-Details abrufen
 
@@ -185,4 +181,8 @@ content: >
 ```
 
 !!! tip "Attribut-Zugriff allgemein"
-    Das Muster `state_attr('sensor.kp_{id}_phase_timeline', states('sensor.kp_{id}_phase'))` funktioniert für alle Kamerplanter-Pflanzen und Planting Runs. Bei Runs stehen zusätzlich `phase_week`, `phase_progress_pct` und `remaining_days` als Attribute zur Verfügung.
+    Das Muster `state_attr('sensor.kp_{id}_phase_timeline', states('sensor.kp_{id}_phase'))` funktioniert für alle Kamerplanter-Pflanzen und Planting Runs. Bei Runs gibt es zusätzliche Attribute:
+
+    - `phase_week`
+    - `phase_progress_pct`
+    - `remaining_days`

@@ -26,7 +26,7 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
 
 ### Direct consumers
 
-- **Home Assistant end users (plant growers)** — _category_: direct-consumer ·
+- **Home Assistant end users (plant growers)** — _id_: `ha-end-users` · _category_: direct-consumer ·
   _surface_: HA UI, config flow, Lovelace cards, user guides (`docs/*/guides/`) ·
   _expects_: install via HACS, add the integration, see plants/tanks/tasks as
   entities, build dashboards and automations · _track_: `user-docs` ·
@@ -35,7 +35,7 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
 
 ### Operators
 
-- **Self-hosting HA / Kamerplanter administrator** — _category_: operator ·
+- **Self-hosting HA / Kamerplanter administrator** — _id_: `self-hosting-admin` · _category_: operator ·
   _surface_: config flow (backend URL, API key, tenant, Light mode), polling
   interval options, setup & troubleshooting guides · _expects_: connect HA to a
   reachable backend, manage auth and tenant selection, tune polling, diagnose
@@ -48,7 +48,7 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
 
 ### Contributors / maintainers
 
-- **Maintainer (`nolte`) & integration / card developers** — _category_: contributor ·
+- **Maintainer (`nolte`) & integration / card developers** — _id_: `maintainers` · _category_: contributor ·
   _surface_: Python source, Lovelace card JS, tests, `Taskfile`, CI, the specs
   under `spec/`, development docs (`docs/*/development/`) · _expects_: local dev
   setup against a Kind cluster, architecture overview, test patterns, green CI,
@@ -58,7 +58,7 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
 
 ### Governing parties
 
-- **HACS & Home Assistant Core quality gates** — _category_: governing-party ·
+- **HACS & Home Assistant Core quality gates** — _id_: `quality-gates` · _category_: governing-party ·
   _surface_: `manifest.json`, hassfest, HACS Action, brands repo, CI workflows ·
   _expects_: the integration meets HACS listing and HA quality requirements
   (manifest validity, brand assets, translations, semver releases) ·
@@ -67,7 +67,7 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
 
 ### Indirect audiences
 
-- **Kamerplanter backend maintainers** — _category_: indirect ·
+- **Kamerplanter backend maintainers** — _id_: `backend-maintainers` · _category_: indirect ·
   _surface_: the REST API contract this integration consumes · _expects_: that
   backend API changes are reflected here; this integration is a downstream API
   consumer · _track_: `developer-docs` · _status_: `assumed` ·

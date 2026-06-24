@@ -1,3 +1,12 @@
+---
+title: Fehlerbehebung
+audience:
+  - self-hosting-admin
+  - ha-end-users
+content_mode: troubleshooting
+track: user-docs
+last_updated: 2026-06-24
+---
 # Fehlerbehebung
 
 ## Häufige Fehler
@@ -5,7 +14,7 @@
 | Fehler | Ursache | Lösung |
 |--------|---------|---------|
 | "Kamerplanter nicht erreichbar" | Backend offline oder URL falsch | URL prüfen, Backend starten |
-| "API-Key ungültig" | Key revoked oder falsch | Neuen API-Key in Kamerplanter generieren, dann [Reauth](setup.md#reauth-reconfigure) |
+| "API-Key ungültig" | Key revoked oder falsch | Neuen API-Key in Kamerplanter generieren, dann [erneut authentifizieren](setup.md#erneute-authentifizierung-neukonfiguration) |
 | Entity zeigt "unavailable" | Coordinator-Update fehlgeschlagen | Logs prüfen, Polling-Intervall erhöhen |
 | Integration lädt nicht | Verzeichnisstruktur falsch | Pfad prüfen: `custom_components/kamerplanter/manifest.json` |
 | Entities fehlen nach Update | Cache veraltet | Service [`kamerplanter.clear_cache`](services.md#kamerplanterclear_cache) aufrufen |
@@ -14,16 +23,16 @@
 
 ## Diagnostics
 
-Diagnostics-Daten sind verfügbar unter **Einstellungen** > **Integrationen** > **Kamerplanter** > **Diagnostik**.
+Die Diagnosedaten findest du unter **Einstellungen** > **Integrationen** > **Kamerplanter** > **Diagnostik**.
 
-Die Diagnostics enthalten:
+Die Diagnostics haben drei Teile:
 
-- **Konfiguration** — URL, Tenant (API-Keys werden automatisch maskiert)
-- **Coordinator-Status** — letztes Update, Fehleranzahl, Polling-Intervall pro Coordinator
-- **Entity-Übersicht** — Anzahl pro Plattform (Sensor, Binary Sensor, Calendar, Todo, Button)
+- **Konfiguration:** die URL und der Tenant. API-Keys maskiert HA für dich.
+- **Coordinator-Status:** das letzte Update, die Fehleranzahl und das Polling-Intervall. Jeder Coordinator bekommt eine eigene Zeile.
+- **Entity-Übersicht:** wie viele Entities es pro Plattform gibt. Plattformen sind Sensor, Binary Sensor, Calendar, Todo und Button.
 
 !!! tip "Bug-Reports"
-    Bei Bug-Reports die Diagnostics-Datei anhängen. Sie enthält alle relevanten Infos ohne sensible Daten.
+    Hänge die Diagnostics-Datei an einen Bug-Report. Sie enthält alles Nötige, aber keine Geheimnisse.
 
 ---
 
@@ -42,4 +51,4 @@ Die Diagnostics enthalten:
     **Einstellungen** > **System** > **Protokolle** und nach `kamerplanter` filtern.
 
 !!! info "Debug-Logging deaktivieren"
-    Debug-Logging erzeugt viele Log-Einträge. Vergiss nicht, es nach der Fehlersuche wieder auf `info` oder `warning` zu setzen.
+    Debug-Logging erzeugt viele Log-Einträge. Setze die Stufe nach der Fehlersuche wieder auf `info` oder `warning`.

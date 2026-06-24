@@ -1,15 +1,23 @@
+---
+title: Automations
+audience:
+  - ha-end-users
+content_mode: how-to
+track: user-docs
+last_updated: 2026-06-24
+---
 # Automations
 
-Kamerplanter entities can be used directly in HA automations. Here are some proven examples.
+Kamerplanter entities work right in your HA automations. Here are some proven examples.
 
 !!! note "Prerequisite"
-    Basic knowledge of HA automations is assumed. See the [HA automation docs](https://www.home-assistant.io/docs/automation/) for an introduction.
+    These examples assume you already know the basics of HA automations. If you're new to them, start with the [HA automation docs](https://www.home-assistant.io/docs/automation/).
 
 ---
 
 ## Phase Change: Switch Light Schedule
 
-When Kamerplanter reports a phase change to "flowering", the light schedule is automatically switched to 12/12:
+Kamerplanter reports a phase change to "flowering". This automation then switches the light schedule to 12/12:
 
 ```yaml
 alias: "KP: Flowering Start - 12/12 Light"
@@ -32,63 +40,51 @@ action:
 
 ---
 
-## VPD Control with Kamerplanter Target
+## Pest monitoring (IPM)
 
-Kamerplanter provides the optimal VPD target per phase. The value is exposed as `sensor.kp_{key}_vpd_target`, and Home Assistant controls the humidifier:
+The IPM module (Integrated Pest Management) rates pest pressure per plant. When the alert fires, Home Assistant sends a notification:
 
 ```yaml
-alias: "KP: VPD Control"
+alias: "KP: Pest alert"
 trigger:
-  - platform: template
-    value_template: >
-      {{ states('sensor.growzelt_vpd') | float(0) >
-         (states('sensor.kp_northern_lights_vpd_target') | float(1.0) + 0.2) }}
-    id: vpd_too_high
-  - platform: template
-    value_template: >
-      {{ states('sensor.growzelt_vpd') | float(0) <
-         (states('sensor.kp_northern_lights_vpd_target') | float(1.0) - 0.1) }}
-    id: vpd_ok
+  - platform: state
+    entity_id: binary_sensor.kp_northern_lights_pest_alert
+    to: "on"
 action:
-  - choose:
-      - conditions:
-          - condition: trigger
-            id: vpd_too_high
-        sequence:
-          - service: switch.turn_on
-            target:
-              entity_id: switch.humidifier_tent_1
-      - conditions:
-          - condition: trigger
-            id: vpd_ok
-        sequence:
-          - service: switch.turn_off
-            target:
-              entity_id: switch.humidifier_tent_1
+  - service: notify.mobile_app_phone
+    data:
+      title: "Pest pressure detected"
+      message: >
+        Northern Lights: pest pressure
+        {{ states('sensor.kp_northern_lights_pest_pressure') }}.
+        Last inspection
+        {{ states('sensor.kp_northern_lights_last_inspection_days') }} days ago.
 ```
 
-!!! tip "VPD and EC targets"
-    Besides `vpd_target`, Kamerplanter also provides `ec_target` per plant. Use it to control fertilizer pumps or trigger alerts on deviations.
+!!! tip "Check harvest safety"
+    `binary_sensor.kp_{key}_harvest_safe` shows whether the pre-harvest interval has elapsed. `sensor.kp_{key}_karenz_remaining` reports the remaining days.
 
 ---
 
-## Low Tank: Refill Reminder
+## Refill tank
 
 ```yaml
-alias: "KP: Tank refill"
+alias: "KP: Refill tank"
 trigger:
   - platform: numeric_state
-    entity_id: sensor.kp_main_tank_fill_level
-    below: 20
+    entity_id: sensor.kp_main_tank_volume
+    below: 10
 action:
   - service: notify.mobile_app_phone
     data:
       title: "Tank almost empty!"
       message: >
-        Fill level: {{ states('sensor.kp_main_tank_fill_level') }}%.
-        EC: {{ states('sensor.kp_main_tank_ec') }} mS/cm,
-        pH: {{ states('sensor.kp_main_tank_ph') }}
+        Remaining volume: {{ states('sensor.kp_main_tank_volume') }} L.
+        Refill now and record the fill event.
 ```
+
+!!! tip "Record the fill event"
+    Record the refill with the [`kamerplanter.fill_tank`](services.md#kamerplanterfill_tank) service — Kamerplanter then updates EC, pH, and solution age.
 
 ---
 
@@ -142,7 +138,7 @@ action:
 
 ## Accessing Phase Attributes via Jinja2 Templates
 
-The `phase_timeline` and `phase` sensors provide structured attributes that can be combined in Jinja2 templates.
+The `phase_timeline` and `phase` sensors provide structured attributes that Jinja2 templates can combine.
 
 ### Retrieve Current Phase Details
 
@@ -185,4 +181,8 @@ content: >
 ```
 
 !!! tip "General attribute access pattern"
-    The pattern `state_attr('sensor.kp_{id}_phase_timeline', states('sensor.kp_{id}_phase'))` works for all Kamerplanter plants and planting runs. For runs, additional attributes like `phase_week`, `phase_progress_pct`, and `remaining_days` are available.
+    The pattern `state_attr('sensor.kp_{id}_phase_timeline', states('sensor.kp_{id}_phase'))` works for all Kamerplanter plants and planting runs. Runs expose extra attributes:
+
+    - `phase_week`
+    - `phase_progress_pct`
+    - `remaining_days`

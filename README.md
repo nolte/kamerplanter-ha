@@ -13,7 +13,7 @@ Custom Integration for [Home Assistant](https://www.home-assistant.io/) to conne
 
 - **Plant monitoring** — growth phases, days in phase, next phase predictions, nutrient plan assignments
 - **Nutrient dosages** — per-channel mixing ratios (ml/L) as sensor attributes, ready for dashboard cards
-- **Tank management** — fill events, solution age, EC/pH tracking via HA services
+- **Tank management** — fill events, solution age, EC (electrical conductivity)/pH tracking via HA services
 - **Location overview** — active runs and plant counts per tent, room, or bed
 - **Task tracking** — todo list entity, overdue counts, calendar events for phases and tasks
 - **Care reminders** — binary sensors for overdue care, events for actionable notifications
@@ -39,7 +39,7 @@ Custom Integration for [Home Assistant](https://www.home-assistant.io/) to conne
 ## Setup
 
 1. Go to **Settings > Devices & Services > Add Integration > Kamerplanter**
-2. Enter the URL of your Kamerplanter instance (e.g. `http://kamerplanter-backend:8000`)
+2. Enter the URL of your Kamerplanter instance (for example `http://kamerplanter-backend:8000`)
 3. Enter your API key (format `kp_...`) — optional in Light Mode
 4. Select your tenant (auto-selected if only one exists)
 
@@ -49,17 +49,18 @@ Configurable under **Settings > Devices & Services > Kamerplanter > Configure**:
 
 | Option | Default | Minimum | Description |
 |--------|---------|---------|-------------|
-| Plants | 300s | 120s | Plant instances, phases, dosages |
+| Plants | 300s | 120s | Plant instances, phases, dosages (also drives the run coordinator) |
 | Locations | 300s | 120s | Sites, tanks, runs |
 | Alerts | 60s | 30s | Overdue tasks, sensor offline |
 | Tasks | 300s | 120s | Pending tasks |
+| IPM (Integrated Pest Management) | 120s | 60s | Pest pressure, harvest waiting period, inspection |
 
 ## Entities
 
 ### Sensors
 
 **Per plant instance:**
-`sensor.kp_{key}_phase`, `_days_in_phase`, `_nutrient_plan`, `_phase_timeline`, `_next_phase`, `_active_channels`, `_{channel}_mix`
+`sensor.kp_{key}_phase`, `_days_in_phase`, `_nutrient_plan`, `_phase_timeline`, `_next_phase`, `_active_channels`, `_{channel}_mix`, `_pest_pressure`, `_karenz_remaining`, `_last_inspection_days`
 
 **Per planting run:**
 `sensor.kp_{key}_status`, `_plant_count`, `_nutrient_plan`, `_phase_timeline`, `_next_phase`, `_{channel}_mix`
@@ -81,6 +82,8 @@ Configurable under **Settings > Devices & Services > Kamerplanter > Configure**:
 | `binary_sensor.kp_loc_{key}_needs_attention` | Location has overdue tasks |
 | `binary_sensor.kp_sensor_offline` | At least one sensor is offline |
 | `binary_sensor.kp_care_overdue` | Care tasks overdue (attribute: `overdue_count`) |
+| `binary_sensor.kp_{key}_harvest_safe` | Harvest waiting period elapsed — safe to harvest |
+| `binary_sensor.kp_{key}_pest_alert` | Pest/disease pressure detected |
 
 ### Calendar, Todo, Button
 
@@ -139,8 +142,8 @@ Force re-poll or clear coordinator cache.
 automation:
   trigger:
     - platform: numeric_state
-      entity_id: sensor.kp_90639_fill_level
-      below: 20
+      entity_id: sensor.kp_90639_volume
+      below: 10
   action:
     - service: kamerplanter.fill_tank
       data:

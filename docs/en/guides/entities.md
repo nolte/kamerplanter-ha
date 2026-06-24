@@ -1,8 +1,15 @@
+---
+title: Entities
+audience:
+  - ha-end-users
+  - self-hosting-admin
+content_mode: reference
+track: user-docs
+last_updated: 2026-06-24
+---
 # Entities
 
-The integration automatically creates entities for all selected plants, locations, and tanks. Each entity belongs to one of the [5 coordinators](../development/architecture.md#coordinators-coordinatorpy). It refreshes on the coordinator's polling schedule.
-
-Two recurring measurements appear in the tables below: VPD — Vapor Pressure Deficit; EC — Electrical Conductivity.
+The integration creates entities for you. You get one set per selected plant, location, and tank. Each entity belongs to one of the [6 coordinators](../development/architecture.md#coordinators-coordinatorpy). It refreshes on that coordinator's polling schedule.
 
 ---
 
@@ -17,15 +24,30 @@ Two recurring measurements appear in the tables below: VPD — Vapor Pressure De
 | `sensor.kp_{key}_nutrient_plan` | Assigned nutrient plan | `Bloom Week 3` |
 | `sensor.kp_{key}_phase_timeline` | Phase progression with attributes | see [Templates](automations.md#accessing-phase-attributes-via-jinja2-templates) |
 | `sensor.kp_{key}_next_phase` | Next planned phase | `ripening` |
-| `sensor.kp_{key}_vpd_target` | VPD target for current phase (kPa) | `1.2` |
-| `sensor.kp_{key}_ec_target` | EC target for current phase (mS/cm) | `1.8` |
 | `sensor.kp_{key}_days_until_watering` | Days until next watering | `2` |
 | `sensor.kp_{key}_next_watering` | Next watering date | `2026-04-16` |
 | `sensor.kp_{key}_active_channels` | Active nutrient channels | `2` |
 | `sensor.kp_{key}_{channel}_mix` | Mixing ratio per channel (ml/L) | Attributes: fertilizer amounts |
 
 !!! info "Phase enum values"
-    Possible values for `_phase`: `germination`, `seedling`, `vegetative`, `flowering`, `ripening`, `harvest`, `dormancy`, `flushing`, `drying`, `curing`, `juvenile`, `climbing`, `mature`, `senescence`, `leaf_phase`, `short_day_induction`
+    Possible values for `_phase`:
+
+    - `germination`
+    - `seedling`
+    - `vegetative`
+    - `flowering`
+    - `ripening`
+    - `harvest`
+    - `dormancy`
+    - `flushing`
+    - `drying`
+    - `curing`
+    - `juvenile`
+    - `climbing`
+    - `mature`
+    - `senescence`
+    - `leaf_phase`
+    - `short_day_induction`
 
 ---
 
@@ -43,7 +65,11 @@ Two recurring measurements appear in the tables below: VPD — Vapor Pressure De
 | `sensor.kp_{key}_{channel}_mix` | Mixing ratio per channel | Attributes: fertilizer amounts |
 
 !!! tip "Run-specific attributes"
-    Runs provide additional attributes on the `phase_timeline` sensor: `phase_week`, `phase_progress_pct`, and `remaining_days`.
+    Runs provide additional attributes on the `phase_timeline` sensor:
+
+    - `phase_week`
+    - `phase_progress_pct`
+    - `remaining_days`
 
 ---
 
@@ -74,7 +100,18 @@ Two recurring measurements appear in the tables below: VPD — Vapor Pressure De
 |--------|------------|---------|
 | `sensor.kp_{key}_info` | Tank info (name, type) | `Main Tank` |
 | `sensor.kp_{key}_volume` | Current volume (L) | `45.0` |
-| `sensor.kp_{key}_fill_level` | Fill level in percent | `75` |
+
+---
+
+## IPM Sensors (Integrated Pest Management)
+
+**Per plant** (IPM Coordinator):
+
+| Entity | Description | Example |
+|--------|------------|---------|
+| `sensor.kp_{key}_pest_pressure` | Pest pressure (enum: `none`, `low`, `medium`, `high`, `critical`) | `low` |
+| `sensor.kp_{key}_karenz_remaining` | Remaining waiting period until harvest (days) | `3` |
+| `sensor.kp_{key}_last_inspection_days` | Days since last inspection | `5` |
 
 ---
 
@@ -96,6 +133,8 @@ Two recurring measurements appear in the tables below: VPD — Vapor Pressure De
 | `binary_sensor.kp_loc_{key}_needs_attention` | Location has overdue tasks | Alert |
 | `binary_sensor.kp_sensor_offline` | At least one sensor is offline | Alert |
 | `binary_sensor.kp_care_overdue` | Care tasks overdue | Alert |
+| `binary_sensor.kp_{key}_harvest_safe` | Harvest safe (waiting period elapsed) | IPM |
+| `binary_sensor.kp_{key}_pest_alert` | Pest infestation detected | IPM |
 
 !!! example "Use in automations"
     ```yaml
@@ -122,7 +161,7 @@ Two recurring measurements appear in the tables below: VPD — Vapor Pressure De
 | `button.kp_refresh_all` | Manual refresh of all coordinators | — |
 
 !!! tip "Todo sync"
-    When you check off a task in the HA todo list, it's automatically marked as done in the Kamerplanter backend. This also fires a `kamerplanter_task_completed` event.
+    When you check off a task in the HA todo list, the integration marks it as done in the Kamerplanter backend. This also fires a `kamerplanter_task_completed` event.
 
 ---
 

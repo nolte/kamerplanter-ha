@@ -1,3 +1,12 @@
+---
+title: Setup
+audience:
+  - self-hosting-admin
+  - ha-end-users
+content_mode: how-to
+track: user-docs
+last_updated: 2026-06-24
+---
 # Setup
 
 !!! note "Before you start"
@@ -22,7 +31,7 @@ flowchart LR
 | **Kamerplanter → HA** | HA Long-Lived Access Token | Kamerplanter reads sensor data, controls actuators | Home Assistant: **Profile** > **Long-Lived Access Tokens** |
 
 !!! warning "Both tokens required"
-    Without the **Kamerplanter API key**, the HA integration cannot query data. Without the **HA Access Token**, Kamerplanter cannot read sensor data from Home Assistant or control actuators. For read-only use (HA dashboard only), the Kamerplanter API key alone is sufficient.
+    The HA integration needs the **Kamerplanter API key** to query data. Kamerplanter needs the **HA Access Token** to read sensor data from Home Assistant. It also uses this token to control actuators. For read-only use (HA dashboard only), the Kamerplanter API key alone is enough.
 
 ### Setting Up Tokens
 
@@ -42,39 +51,29 @@ flowchart LR
 
 ## Config Flow
 
-After installation, a 4-step wizard guides you through configuration:
+After installation, a 2-step wizard guides you through configuration:
 
-### Step 1: Kamerplanter URL
+### Step 1: Kamerplanter URL and API Key
 
-Enter the URL of your Kamerplanter instance:
+Enter the URL of your Kamerplanter instance and the API key together:
 
 | Example | URL |
 |---------|-----|
 | Local | `http://raspberry:8000` or `http://192.168.1.50:8000` |
 | External | `https://kamerplanter.example.com` |
 
-!!! info "Automatic health check"
-    The integration automatically checks reachability via `/api/health`.
+Enter the API key (`kp_` prefix) in the same step. In Light mode the key is optional.
 
-### Step 2: Authentication
+!!! info "Automatic health check & mode detection"
+    The integration automatically checks reachability via `/api/health`. It also detects whether the backend runs in Light or Full mode. There is no separate authentication step.
 
-| Mode | Description |
-|------|------------|
-| **Light mode** | No authentication required |
-| **API key** | API key with `kp_` prefix (recommended) |
-| **Login** | Username and password as fallback |
+### Step 2: Select Tenant
 
-### Step 3: Select Tenant
-
-For multi-tenant setups (e.g. community gardens), select the desired tenant from the list. For single users, this step is skipped.
-
-### Step 4: Configure Entities
-
-Choose which plants, locations, and tanks should be created as HA entities. By default, all available entities are created.
+For multi-tenant setups (for example community gardens), select the desired tenant from the list. For single users, HA skips this step.
 
 ---
 
-## Reauth & Reconfigure
+## Reauthentication & Reconfigure
 
 The integration supports two correction flows, accessible via **Settings** > **Integrations** > **Kamerplanter**:
 
@@ -87,7 +86,7 @@ The integration supports two correction flows, accessible via **Settings** > **I
 
 === "Reconfigure"
 
-    Change the server URL, e.g. after moving the backend to a new address. Click **Configure** > **Change server URL**.
+    Change the server URL, for example after moving the backend to a new address. Click **Configure** > **Change server URL**.
 
 ---
 
@@ -97,11 +96,11 @@ Configurable under **Settings** > **Integrations** > **Kamerplanter** > **Config
 
 | Coordinator | Default | Minimum | Data |
 |-------------|---------|---------|------|
-| **Plant** | 300s | 120s | Plants, phases, dosages, VPD (Vapor Pressure Deficit) / EC (Electrical Conductivity) targets |
+| **Plant** | 300s | 120s | Plants, phases, dosages (also drives the Run coordinator) |
 | **Location** | 300s | 120s | Locations, tanks, fill levels |
-| **Run** | 300s | 120s | Planting runs, run status, plant counts |
 | **Alert** | 60s | 30s | Overdue tasks, sensor offline |
 | **Task** | 300s | 120s | Pending tasks |
+| **IPM** | 120s | 60s | Pest pressure, waiting period, harvest safety |
 
 !!! tip "Faster alert polling"
     The Alert coordinator intentionally has a shorter default interval (60s) so time-critical notifications arrive faster.

@@ -1,3 +1,12 @@
+---
+title: Kamerplanter Home Assistant Integration
+audience:
+  - ha-end-users
+  - self-hosting-admin
+content_mode: meta
+track: user-docs
+last_updated: 2026-06-24
+---
 # Kamerplanter Home Assistant Integration
 
 Kamerplanter lässt sich über eine **Custom Integration** in Home Assistant einbinden. Alle Pflanzendaten, Tankwerte, Aufgaben und Kalendereinträge erscheinen als native HA-Entities und können in Dashboards, Automationen und Benachrichtigungen genutzt werden.
@@ -20,22 +29,22 @@ flowchart LR
 
 ## Features
 
-- :seedling: **Pflanzen-Monitoring** — Wachstumsphasen, Tage in Phase, VPD/EC-Sollwerte, nächste Phase, Nährplanprofil
+- :seedling: **Pflanzen-Monitoring** — Wachstumsphasen, Tage in Phase, nächste Phase, Nährplanprofil
 - :test_tube: **Nährstoff-Dosierungen** — pro Kanal als Sensor-Attribute (ml/L), direkt für Dashboards nutzbar
-- :potable_water: **Tank-Management** — Füllstand, Lösungsalter, EC/pH via HA-Services
+- :potable_water: **Tank-Management** — Volumen, Lösungsalter, EC/pH via HA-Services
 - :house: **Standort-Übersicht** — aktive Runs und Pflanzenanzahl pro Zelt/Raum/Beet
 - :ballot_box_with_check: **Aufgaben-Tracking** — Todo-Entity, überfällige Aufgaben, Kalender-Events
 - :bell: **Pflege-Erinnerungen** — Binary Sensors für überfällige Pflege, Events für Benachrichtigungen
 - :art: **5 Custom Lovelace Cards** — Plant, Mix, Tank, Care, Houseplant Card (auto-registriert)
 - :gear: **5 Services** — Tank füllen, Kanal gießen, Pflege bestätigen, Daten aktualisieren, Cache leeren
 
-!!! info "5 unabhängige Polling-Zeitpläne"
-    Die Integration nutzt **5 separate Polling-Zeitpläne** (Plant, Location, Run, Alert, Task) — jeder einzeln konfigurierbar. Zeitkritische Alerts kommen so schneller an als Stammdaten.
+!!! info "6 unabhängige Coordinators"
+    Die Integration nutzt **6 separate Coordinators** (Plant, Location, Run, Alert, Task, IPM) mit unabhängigen Polling-Intervallen. Zeitkritische Alerts kommen so schneller an als Stammdaten.
 
 ## Weiter
 
 - [Installation](guides/installation.md) — HACS oder manuell installieren
-- [Einrichtung](guides/setup.md) — Config Flow, Token-Austausch, Reauth & Reconfigure
+- [Einrichtung](guides/setup.md) — Config Flow, Token-Austausch, erneute Authentifizierung & Neukonfiguration
 - [Entities](guides/entities.md) — Alle verfügbaren Sensoren und Entities
 - [Automationen](guides/automations.md) — Beispiel-Automationen und Jinja2-Templates
 - [Lovelace Cards](guides/lovelace-cards.md) — Custom Cards konfigurieren

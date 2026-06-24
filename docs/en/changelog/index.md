@@ -1,3 +1,13 @@
+---
+title: Changelog
+audience:
+  - ha-end-users
+  - self-hosting-admin
+  - maintainers
+content_mode: meta
+track: user-docs
+last_updated: 2026-06-24
+---
 # Changelog
 
 ## 0.1.0 (Initial Release)
@@ -10,7 +20,7 @@
 
 ### Entities
 
-- Sensors for plants (phase, days in phase, VPD/EC targets, nutrient plan, watering)
+- Sensors for plants (phase, days in phase, nutrient plan, watering)
 - Sensors for runs (status, plant count, phase progression)
 - Sensors for locations (type, active runs/plants, run phase)
 - Sensors for tanks (info, volume, fill level)
