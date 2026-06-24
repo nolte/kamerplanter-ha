@@ -37,6 +37,15 @@ class KamerplanterConnectionError(KamerplanterApiError):
     """Connection error."""
 
 
+class KamerplanterNotFoundError(KamerplanterConnectionError):
+    """Requested resource does not exist (HTTP 404).
+
+    Subclasses ``KamerplanterConnectionError`` so existing ``except`` blocks
+    keep treating a 404 as a (recoverable) connection-class error, while
+    callers that care about the distinction can catch it specifically.
+    """
+
+
 @dataclass
 class KamerplanterApi:
     """Client for the Kamerplanter REST API."""
@@ -91,6 +100,8 @@ class KamerplanterApi:
                     raise KamerplanterAuthError("API key invalid or revoked")
                 if resp.status == 403:
                     raise KamerplanterAuthError("Insufficient permissions")
+                if resp.status == 404:
+                    raise KamerplanterNotFoundError(f"Not found: {url}")
                 resp.raise_for_status()
                 return await resp.json()
         except KamerplanterApiError:
@@ -508,3 +519,69 @@ class KamerplanterApi:
             f"{self._tenant_prefix}/notifications/{notification_key}/read",
             json={},
         )
+
+    # --- IPM / Integrated Pest Management (REQ-010) ---
+
+    async def async_get_pest_inspections(self, plant_key: str) -> list[dict[str, Any]]:
+        """Fetch pest/disease inspections recorded for a plant instance.
+
+        Each item carries ``pressure_level`` (none/low/medium/high),
+        ``inspected_at``, ``detected_pest_keys`` and ``symptoms_observed``.
+        """
+        try:
+            return await self._request(
+                "GET",
+                f"{self._tenant_prefix}/ipm/plants/{plant_key}/inspections",
+            )
+        except KamerplanterApiError:
+            return []
+
+    async def async_get_karenz(self, plant_key: str) -> dict[str, Any] | None:
+        """Fetch the harvest safety interval (Karenz) for a plant instance.
+
+        Returns ``active_ingredient``, ``treatment_name``, ``applied_at``,
+        ``safety_interval_days`` and ``safe_date`` (or ``None`` when no
+        treatment imposes a waiting period).
+        """
+        try:
+            return await self._request(
+                "GET",
+                f"{self._tenant_prefix}/ipm/plants/{plant_key}/karenz",
+            )
+        except KamerplanterApiError:
+            return None
+
+    async def async_get_harvest_safety(self, plant_key: str) -> dict[str, Any] | None:
+        """Fetch whether a plant may be harvested given active Karenz periods.
+
+        Returns ``can_harvest`` (bool) and ``blocking_treatments`` (list).
+        """
+        try:
+            return await self._request(
+                "GET",
+                f"{self._tenant_prefix}/ipm/plants/{plant_key}/harvest-safety",
+            )
+        except KamerplanterApiError:
+            return None
+
+    # --- Home Assistant publishing (opt-in exposure selection) ---
+
+    async def async_get_ha_published_keys(self, entity_type: str) -> list[str] | None:
+        """Return the entity keys the tenant marked as HA-published, or None.
+
+        ``entity_type`` is one of ``plant`` / ``tank`` / ``location``. The
+        backend exposes HA publishing as opt-in: only keys explicitly enabled
+        in Kamerplanter are returned (an empty list means "nothing published
+        yet"). ``None`` is returned only when the backend predates the
+        ha-publish feature (HTTP 404); callers then fall back to publishing
+        everything for backwards compatibility. Genuine connection/auth errors
+        propagate so the coordinator can surface them.
+        """
+        try:
+            result = await self._request(
+                "GET",
+                f"{self._tenant_prefix}/ha-publish/enabled-keys/{entity_type}",
+            )
+        except KamerplanterNotFoundError:
+            return None
+        return result.get("entity_keys", []) if result else []

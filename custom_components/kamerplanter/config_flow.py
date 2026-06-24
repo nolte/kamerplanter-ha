@@ -28,17 +28,20 @@ from .const import (
     CONF_INSTANCE_ID,
     CONF_LIGHT_MODE,
     CONF_POLL_ALERTS,
+    CONF_POLL_IPM,
     CONF_POLL_LOCATIONS,
     CONF_POLL_PLANTS,
     CONF_POLL_TASKS,
     CONF_TENANT_SLUG,
     DEFAULT_API_PATH,
     DEFAULT_POLL_ALERTS,
+    DEFAULT_POLL_IPM,
     DEFAULT_POLL_LOCATIONS,
     DEFAULT_POLL_PLANTS,
     DEFAULT_POLL_TASKS,
     DOMAIN,
     MIN_POLL_ALERTS,
+    MIN_POLL_IPM,
     MIN_POLL_LOCATIONS,
     MIN_POLL_PLANTS,
     MIN_POLL_TASKS,
@@ -64,6 +67,10 @@ OPTIONS_SCHEMA = vol.Schema(
             CONF_POLL_TASKS,
             default=DEFAULT_POLL_TASKS,
         ): vol.All(int, vol.Range(min=MIN_POLL_TASKS)),
+        vol.Optional(
+            CONF_POLL_IPM,
+            default=DEFAULT_POLL_IPM,
+        ): vol.All(int, vol.Range(min=MIN_POLL_IPM)),
     }
 )
 
@@ -382,9 +389,9 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             new_url = user_input[CONF_URL].rstrip("/")
-            new_api_path = (
-                user_input.get(CONF_API_PATH) or DEFAULT_API_PATH
-            ).rstrip("/")
+            new_api_path = (user_input.get(CONF_API_PATH) or DEFAULT_API_PATH).rstrip(
+                "/"
+            )
             existing_api_key = reconfigure_entry.data.get(CONF_API_KEY)
             session = async_get_clientsession(self.hass)
             api = KamerplanterApi(
@@ -397,9 +404,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                 await api.async_get_health()
                 # Re-validate the stored API key against the new endpoint so
                 # the bearer token never gets reused against a foreign instance.
-                if existing_api_key and not reconfigure_entry.data.get(
-                    CONF_LIGHT_MODE
-                ):
+                if existing_api_key and not reconfigure_entry.data.get(CONF_LIGHT_MODE):
                     await api.async_get_current_user()
             except KamerplanterAuthError:
                 errors["base"] = "invalid_auth"
@@ -448,9 +453,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     @staticmethod
-    def _build_url(
-        discovery_info: ZeroconfServiceInfo, scheme: str = "http"
-    ) -> str:
+    def _build_url(discovery_info: ZeroconfServiceInfo, scheme: str = "http") -> str:
         """Build base URL (scheme://host:port) from Zeroconf discovery info.
 
         Scheme defaults to ``http`` and is overridden by the ``scheme`` TXT
