@@ -19,7 +19,7 @@ tests/                            — pytest tests (pytest-homeassistant-custom-
 spec/ha-integration/              — HA integration specifications
 spec/style-guides/                — HA integration style guide
 .claude/agents/                   — Claude Code agents
-.claude/skills/                   — Claude Code skills (deploy-ha, verify-ha)
+# HA deploy/verify/provision tooling ships via the claude-home-assistant plugin, not as project skills
 .github/workflows/                — CI (lint, test, hassfest, release)
 ```
 
@@ -53,9 +53,12 @@ All code MUST follow:
 ## Development Workflow
 
 - **Deploy to local Kind cluster** via `kubectl cp` + container restart (NOT pod delete)
-- Use `/deploy-ha` skill for quick deploy-verify cycles
-- Use `/verify-ha` skill to check running integration status
-- **NEVER** `kubectl delete pod homeassistant-0` — the InitContainer would overwrite copied files
+- Provision a dev HA instance with the `claude-home-assistant:ha-dev-instance-provision` agent
+- Deploy / verify the integration with the `claude-home-assistant:ha-integration-deploy` and
+  `claude-home-assistant:ha-integration-verify` agents (provided by the plugin, not project skills)
+- The `Taskfile.yml` `deploy-ha` / `verify-ha` targets remain as manual entry points
+- **NEVER** `kubectl delete pod homeassistant-0` to refresh code — use `kill 1` (container restart);
+  deleting the pod re-runs the init container and overwrites the copied files
 
 ## Backend Reference
 
