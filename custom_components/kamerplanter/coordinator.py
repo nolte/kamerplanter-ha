@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -49,6 +50,22 @@ async def _fetch_published_keys(
     """
     keys = await api.async_get_ha_published_keys(entity_type)
     return None if keys is None else set(keys)
+
+
+def _filter_published(
+    items: list[dict[str, Any]],
+    published: set[str] | None,
+    key: Callable[[dict[str, Any]], str] = lambda i: i.get("key", ""),
+) -> list[dict[str, Any]]:
+    """Keep only HA-published items.
+
+    ``published is None`` (feature unavailable on the backend) keeps everything;
+    an empty set keeps nothing (strict opt-in). The single chokepoint for the
+    opt-in semantics shared by the plant/location/tank/IPM coordinators.
+    """
+    if published is None:
+        return items
+    return [item for item in items if key(item) in published]
 
 
 def _normalize_phase_name(name: str) -> str:
@@ -154,11 +171,9 @@ class KamerplanterPlantCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             async with asyncio.timeout(30):
                 plants = await self.api.async_get_plants()
                 published = await _fetch_published_keys(self.api, "plant")
-                active_plants = [p for p in plants if not p.get("removed_on")]
-                if published is not None:
-                    active_plants = [
-                        p for p in active_plants if p.get("key") in published
-                    ]
+                active_plants = _filter_published(
+                    [p for p in plants if not p.get("removed_on")], published
+                )
 
                 # Parallel enrichment instead of sequential
                 enrichment_tasks = [
@@ -304,12 +319,11 @@ class KamerplanterLocationCoordinator(DataUpdateCoordinator[list[dict[str, Any]]
                 locations = await self.api.async_get_all_locations()
                 published_loc = await _fetch_published_keys(self.api, "location")
                 published_tank = await _fetch_published_keys(self.api, "tank")
-                if published_loc is not None:
-                    locations = [
-                        loc
-                        for loc in locations
-                        if (loc.get("key") or loc.get("_key", "")) in published_loc
-                    ]
+                locations = _filter_published(
+                    locations,
+                    published_loc,
+                    key=lambda loc: loc.get("key") or loc.get("_key", ""),
+                )
 
                 for loc in locations:
                     loc_key = loc.get("key") or loc.get("_key", "")
@@ -398,12 +412,7 @@ class KamerplanterLocationCoordinator(DataUpdateCoordinator[list[dict[str, Any]]
 
                 # Enrich locations with tank data (use cached tank list, only poll fill status)
                 tanks_by_loc: dict[str, list[dict[str, Any]]] = {}
-                for tank in self._all_tanks:
-                    if (
-                        published_tank is not None
-                        and tank.get("key") not in published_tank
-                    ):
-                        continue
+                for tank in _filter_published(self._all_tanks, published_tank):
                     tlk = tank.get("location_key")
                     if tlk:
                         tanks_by_loc.setdefault(tlk, []).append(tank)
@@ -641,11 +650,9 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             async with asyncio.timeout(30):
                 plants = await self.api.async_get_plants()
                 published = await _fetch_published_keys(self.api, "plant")
-                active_plants = [p for p in plants if not p.get("removed_on")]
-                if published is not None:
-                    active_plants = [
-                        p for p in active_plants if p.get("key") in published
-                    ]
+                active_plants = _filter_published(
+                    [p for p in plants if not p.get("removed_on")], published
+                )
 
                 records = await asyncio.gather(
                     *(self._build_ipm_record(plant) for plant in active_plants),

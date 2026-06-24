@@ -23,6 +23,7 @@ from .coordinator import (
 from .entity import (
     KamerplanterEntity,
     _slugify_key,
+    find_by_key,
     location_device_info,
     plant_device_info,
     server_device_info,
@@ -283,12 +284,7 @@ class _IpmPlantBinarySensor(KamerplanterEntity, RestoreEntity, BinarySensorEntit
         self._plant_key = plant_key
 
     def _find_record(self) -> dict[str, Any] | None:
-        if not self.coordinator.data:
-            return None
-        for record in self.coordinator.data:
-            if record.get("key") == self._plant_key:
-                return record
-        return None
+        return find_by_key(self.coordinator.data, self._plant_key)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

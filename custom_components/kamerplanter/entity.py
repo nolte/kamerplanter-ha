@@ -111,3 +111,17 @@ def tank_device_info(
 def _slugify_key(key: str) -> str:
     """Convert ArangoDB key to entity-id-safe slug."""
     return key.replace("-", "_").lower()
+
+
+def find_by_key(data: list[dict[str, Any]] | None, key: str) -> dict[str, Any] | None:
+    """Return the coordinator-data item whose ``key`` (or ``_key``) matches.
+
+    The ``or _key`` fallback covers location records that only carry ``_key``;
+    for plant/run/IPM records ``key`` is always set, so the fallback is inert.
+    """
+    if not data:
+        return None
+    for item in data:
+        if (item.get("key") or item.get("_key", "")) == key:
+            return item
+    return None
