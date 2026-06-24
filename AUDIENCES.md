@@ -43,8 +43,20 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
   operator→developer-docs baseline: this integration's operator is the same
   self-hosting person as the end user and consumes the same guides) ·
   _status_: `assumed` · _criticality_: primary
-  - Open questions: is there a distinct operator who runs the backend but not
-    the HA instance? Recorded as cross-cutting question below.
+  - Open questions: none (the "is the backend operator distinct?" question is
+    resolved — see the dedicated Backend operator entry below).
+
+- **Backend-only operator** — _category_: operator · _surface_: the REST API
+  contract this integration consumes (endpoints, API-key auth, tenant model)
+  plus the backend connection/config values surfaced in the config flow
+  (backend URL, API key, tenant) · _expects_: a reachable Kamerplanter backend
+  that exposes the endpoints, authentication, and tenant scheme this
+  integration polls; awareness that this integration is a downstream consumer
+  of backend API changes · _track_: `developer-docs` (portfolio baseline:
+  a genuine operator who is not also the end user) · _status_: `assumed` ·
+  _criticality_: secondary
+  - Open questions: which concrete backend versions / API revisions this
+    integration is validated against (currently untracked here).
 
 ### Contributors / maintainers
 
@@ -76,9 +88,10 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
 
 ## Open questions (cross-cutting)
 
-- Is the person operating the Kamerplanter backend ever distinct from the person
-  running the Home Assistant instance? If so, a separate "backend operator"
-  audience may need its own deliverable. Currently assumed to be the same person.
+- _Resolved (assumed):_ the Kamerplanter backend operator can be a distinct
+  role from the Home Assistant operator. A dedicated "Backend-only operator"
+  audience now captures this case under Operators above. Tagged `assumed` —
+  not yet validated with a real representative.
 
 ## Revisit triggers
 
