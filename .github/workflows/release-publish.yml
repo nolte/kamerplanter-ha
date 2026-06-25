@@ -1,28 +1,11 @@
-# Release Publish — Draft -> Published transition.
-#
-# Operationalises spec/project/release-automation/ (nolte-shared) for this repo.
-# This is a TEMPORARY LOCAL implementation: the canonical reusable workflow
-# nolte/gh-plumbing/.github/workflows/reusable-release-publish.yml does not yet
-# exist. Migrate this workflow to that reusable on its first availability.
-# Migration tracking issue: https://github.com/nolte/kamerplanter-ha/issues/30
-#
-# Operative path today is the fallback (GITHUB_TOKEN only, develop fully
-# protected): this workflow VERIFIES that every version-bearing file is already
-# aligned to the target tag via a prior `chore(release): <tag>` PR merge, then
-# flips draft -> published. It never creates the alignment commit itself.
-#
-# Known platform constraint: a `release: published` event emitted under
-# GITHUB_TOKEN does not cascade to release-cd-refresh-master.yml as a new run.
-# Until the portfolio App/PAT ships via nolte/gh-plumbing, `main` must be
-# fast-forwarded manually after publish (or refresh-master dispatched).
 name: Release Publish
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Draft release tag to publish (e.g. v0.1.4). Required when more than one draft is open."
-        required: false
+        description: "Tag to publish (must match an open release-drafter draft)."
+        required: true
         type: string
       dry_run:
         description: "Validate every gate but do not flip draft -> published."
@@ -30,130 +13,33 @@ on:
         type: boolean
         default: false
 
-concurrency:
-  group: release-publish
-  cancel-in-progress: false
-
-permissions:
-  contents: write
+# Thin caller for the canonical reusable in nolte/gh-plumbing. The reusable
+# resolves the draft, verifies version-bearing-file alignment + the
+# `chore(release): <tag>` commit, builds and attaches the HACS asset, then
+# flips draft -> published. See spec/project/release-automation/ and
+# spec/project/release-skill-layer/.
+#
+# When `vars.PORTFOLIO_APP_ID` is set, the reusable mints a short-lived
+# GitHub-App installation token from `secrets.PORTFOLIO_APP_PRIVATE_KEY` and
+# uses it for `gh release edit --draft=false`. App-authored release:published
+# events cascade to release.yml / release-cd-refresh-master.yml /
+# release-cd-deliver-docs.yml; GITHUB_TOKEN-authored ones don't (the cascade
+# gap, spec/project/workflow-health/ §Known platform constraints).
+#
+# HACS asset note: the reusable builds a contents-at-root `<domain>.zip`, while
+# hacs.json currently declares no `filename` (git-source installs). Reconciling
+# the asset strategy and removing the now-redundant release.yml packaging job
+# is tracked in #35.
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout develop
-        uses: actions/checkout@v7
-        with:
-          ref: develop
-          fetch-depth: 0
-
-      - name: Validate pre-publish gates
-        id: validate
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_TAG: ${{ inputs.tag }}
-          MANIFEST: custom_components/kamerplanter/manifest.json
-        run: |
-          set -euo pipefail
-          REPO="${GITHUB_REPOSITORY}"
-
-          # --- Gate 1: resolve the open release-drafter draft(s) ---
-          mapfile -t DRAFTS < <(gh api "repos/${REPO}/releases" \
-            --jq '.[] | select(.draft==true) | "\(.tag_name)\t\(.target_commitish)"')
-
-          if [ "${#DRAFTS[@]}" -eq 0 ]; then
-            echo "::error::No release-drafter draft is open. Run release-drafter.yml first."
-            exit 1
-          fi
-
-          TAG=""
-          TARGET=""
-          if [ -n "${INPUT_TAG:-}" ]; then
-            for d in "${DRAFTS[@]}"; do
-              if [ "${d%%$'\t'*}" = "${INPUT_TAG}" ]; then
-                TAG="${d%%$'\t'*}"
-                TARGET="${d#*$'\t'}"
-              fi
-            done
-            if [ -z "${TAG}" ]; then
-              echo "::error::No open draft matches tag '${INPUT_TAG}'. Open drafts:"
-              printf '  %s\n' "${DRAFTS[@]}"
-              exit 1
-            fi
-          elif [ "${#DRAFTS[@]}" -gt 1 ]; then
-            echo "::error::Multiple open drafts; pass the 'tag' input (no newest-wins heuristic). Open drafts:"
-            printf '  %s\n' "${DRAFTS[@]}"
-            exit 1
-          else
-            TAG="${DRAFTS[0]%%$'\t'*}"
-            TARGET="${DRAFTS[0]#*$'\t'}"
-          fi
-          echo "Selected draft: ${TAG} (target_commitish=${TARGET})"
-
-          # --- Gate 2: draft target reachable from develop ---
-          git fetch origin develop --quiet
-          TARGET_SHA="$(git rev-parse "origin/${TARGET#refs/heads/}" 2>/dev/null || git rev-parse "${TARGET}")"
-          if ! git merge-base --is-ancestor "${TARGET_SHA}" origin/develop; then
-            echo "::error::Draft target ${TARGET_SHA} is not reachable from develop. Re-run release-drafter.yml."
-            exit 1
-          fi
-
-          # --- Gate 3: version-bearing file aligned (HACS: manifest.json $.version, strip leading v) ---
-          EXPECTED="${TAG#v}"
-          ACTUAL="$(git show "${TARGET_SHA}:${MANIFEST}" | jq -r '.version')"
-          if [ "${ACTUAL}" != "${EXPECTED}" ]; then
-            echo "::error::${MANIFEST} version '${ACTUAL}' != expected '${EXPECTED}' at target SHA. Land a 'chore(release): ${TAG}' PR first (fallback path)."
-            exit 1
-          fi
-
-          # --- Gate 4: alignment commit subject prefix on develop ---
-          SUBJECT="$(git log -1 --pretty=%s -- "${MANIFEST}")"
-          case "${SUBJECT}" in
-            "chore(release): ${TAG}"*) : ;;
-            *)
-              echo "::error::Last commit touching ${MANIFEST} is '${SUBJECT}', expected prefix 'chore(release): ${TAG}'. Forbidden manual bump or missing alignment PR."
-              exit 1
-              ;;
-          esac
-
-          # --- Gate 5: downstream refresh workflow present ---
-          if [ ! -f ".github/workflows/release-cd-refresh-master.yml" ]; then
-            echo "::error::release-cd-refresh-master.yml absent; publishing would leave main out of sync."
-            exit 1
-          fi
-
-          # --- Audit + run summary ---
-          TITLE="$(gh api "repos/${REPO}/releases" --jq ".[] | select(.tag_name==\"${TAG}\") | .name")"
-          CREATED="$(gh api "repos/${REPO}/releases" --jq ".[] | select(.tag_name==\"${TAG}\") | .created_at")"
-          {
-            echo "## Release publish — validation passed"
-            echo ""
-            echo "| Field | Value |"
-            echo "|---|---|"
-            echo "| Tag | \`${TAG}\` |"
-            echo "| Title | ${TITLE} |"
-            echo "| Target SHA | \`${TARGET_SHA}\` |"
-            echo "| ${MANIFEST} | \`${ACTUAL}\` (aligned) |"
-            echo "| Triggered by | @${GITHUB_ACTOR} |"
-            echo "| Draft created_at | ${CREATED} |"
-            echo "| Run | ${GITHUB_SERVER_URL}/${REPO}/actions/runs/${GITHUB_RUN_ID} |"
-            echo ""
-            echo "> Reminder: under GITHUB_TOKEN the \`release: published\` event does not"
-            echo "> auto-trigger release-cd-refresh-master.yml — fast-forward \`main\` manually."
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
-
-      - name: Publish release (flip draft -> published)
-        if: ${{ inputs.dry_run != true }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.validate.outputs.tag }}
-        run: |
-          set -euo pipefail
-          gh release edit "${TAG}" --draft=false
-          echo "Published ${TAG}." >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Dry-run notice
-        if: ${{ inputs.dry_run == true }}
-        run: echo "dry_run=true — all gates passed, draft left unpublished." >> "${GITHUB_STEP_SUMMARY}"
+    uses: nolte/gh-plumbing/.github/workflows/reusable-release-publish.yml@v1.1.24
+    with:
+      tag: ${{ inputs.tag }}
+      dry_run: ${{ inputs.dry_run }}
+      app-id: ${{ vars.PORTFOLIO_APP_ID }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+      app-private-key: ${{ secrets.PORTFOLIO_APP_PRIVATE_KEY }}
+    permissions:
+      contents: write
