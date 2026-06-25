@@ -9,7 +9,7 @@
   "integration_type": "hub",
   "loggers": ["custom_components.kamerplanter"],
   "requirements": [],
-  "version": "0.1.4",
+  "version": "0.1.5",
   "preload_platforms": false,
   "zeroconf": ["_kamerplanter._tcp.local."]
 }
