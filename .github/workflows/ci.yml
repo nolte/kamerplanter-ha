@@ -1,8 +1,12 @@
 name: static
 
+# Single trigger on purpose: GitHub appends the event name to a check's context
+# (e.g. "static / Static CI Tests (pull_request)") whenever a workflow declares
+# more than one `on:` event. The branch ruleset requires the suffix-free context
+# "static / Static CI Tests", so this workflow must stay pull_request-only for
+# the required check to match. See spec/project/quality-gate and the
+# terraform-github-bootstrap ruleset for kamerplanter-ha.
 on:
-  push:
-    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
