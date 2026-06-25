@@ -41,3 +41,5 @@ jobs:
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
       app-private-key: ${{ secrets.PORTFOLIO_APP_PRIVATE_KEY }}
+    permissions:
+      contents: write
