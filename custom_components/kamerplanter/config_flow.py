@@ -8,6 +8,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
+    ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlowWithReload,
@@ -507,7 +508,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: ConfigFlow) -> KamerplanterOptionsFlow:
+    def async_get_options_flow(config_entry: ConfigEntry) -> KamerplanterOptionsFlow:
         """Get the options flow handler."""
         return KamerplanterOptionsFlow()
 

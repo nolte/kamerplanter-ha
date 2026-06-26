@@ -50,15 +50,7 @@ EVENT_TASK_COMPLETED: Final = f"{DOMAIN}_task_completed"
 EVENT_DATA_REFRESHED: Final = f"{DOMAIN}_data_refreshed"
 
 # Notification event types (REQ-030)
-EVENT_CARE_DUE: Final = f"{DOMAIN}_care_due"
-EVENT_SEASONAL: Final = f"{DOMAIN}_seasonal"
-EVENT_SENSOR_ALERT: Final = f"{DOMAIN}_sensor_alert"
 EVENT_IPM_ALERT: Final = f"{DOMAIN}_ipm_alert"
-EVENT_TANK_ALERT: Final = f"{DOMAIN}_tank_alert"
-EVENT_HARVEST: Final = f"{DOMAIN}_harvest"
-EVENT_TASK_DUE: Final = f"{DOMAIN}_task_due"
-EVENT_WEATHER_ALERT: Final = f"{DOMAIN}_weather_alert"
-EVENT_PHASE: Final = f"{DOMAIN}_phase"
 
 # Services
 SERVICE_REFRESH: Final = "refresh_data"

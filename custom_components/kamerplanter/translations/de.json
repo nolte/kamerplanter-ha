@@ -89,6 +89,8 @@
         }
       },
       "days_in_phase": { "name": "Tage in Phase" },
+      "vpd_target": { "name": "VPD-Zielwert" },
+      "ec_target": { "name": "EC-Zielwert" },
       "nutrient_plan": { "name": "Naehrstoffplan" },
       "active_channels": { "name": "Aktive Kanaele" },
       "phase_timeline": { "name": "Phasen-Zeitstrahl" },
@@ -101,6 +103,7 @@
       "active_plants": { "name": "Aktive Pflanzen" },
       "tank_info": { "name": "Tank-Info" },
       "tank_volume": { "name": "Volumen" },
+      "fill_level": { "name": "Fuellstand" },
       "tasks_due_today": { "name": "Aufgaben heute faellig" },
       "tasks_overdue": { "name": "Ueberfaellige Aufgaben" },
       "days_until_watering": { "name": "Tage bis Giessen" },
@@ -134,6 +137,43 @@
     },
     "todo": {
       "tasks": { "name": "Aufgaben" }
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "Daten aktualisieren",
+      "description": "Alle Coordinatoren neu abfragen.",
+      "fields": { "entry_id": { "name": "Konfigurationseintrag-ID", "description": "Ziel-Instanz." } }
+    },
+    "clear_cache": {
+      "name": "Cache leeren",
+      "description": "Lokalen Coordinator-Cache leeren und alle Daten neu laden.",
+      "fields": { "entry_id": { "name": "Konfigurationseintrag-ID", "description": "Ziel-Instanz." } }
+    },
+    "fill_tank": {
+      "name": "Tank befuellen",
+      "description": "Einen Tank-Befuellvorgang erfassen.",
+      "fields": {
+        "entity_id": { "name": "Tank-Entitaet", "description": "Beliebige Tank-Entitaet." },
+        "fill_type": { "name": "Befuelltyp", "description": "Art des Befuellvorgangs." },
+        "volume_liters": { "name": "Volumen", "description": "Volumen in Litern." }
+      }
+    },
+    "water_channel": {
+      "name": "Kanal giessen",
+      "description": "Einen Giessvorgang fuer einen Lieferkanal erfassen.",
+      "fields": {
+        "entity_id": { "name": "Kanal-Entitaet", "description": "Kanal-Mix-Entitaet." },
+        "volume_liters": { "name": "Volumen", "description": "Volumen in Litern." }
+      }
+    },
+    "confirm_care": {
+      "name": "Pflege bestaetigen",
+      "description": "Eine Pflegeerinnerung als erledigt bestaetigen.",
+      "fields": {
+        "notification_key": { "name": "Benachrichtigungsschluessel", "description": "Schluessel der Benachrichtigung." },
+        "action": { "name": "Aktion", "description": "confirmed oder skipped." }
+      }
     }
   }
 }

@@ -145,6 +145,11 @@
       "description": "Re-poll all coordinators.",
       "fields": { "entry_id": { "name": "Config Entry ID", "description": "Target instance." } }
     },
+    "clear_cache": {
+      "name": "Clear Cache",
+      "description": "Clear local coordinator cache and reload all data.",
+      "fields": { "entry_id": { "name": "Config Entry ID", "description": "Target instance." } }
+    },
     "fill_tank": {
       "name": "Fill Tank",
       "description": "Record a tank fill event.",
