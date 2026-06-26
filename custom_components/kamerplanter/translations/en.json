@@ -89,6 +89,8 @@
         }
       },
       "days_in_phase": { "name": "Days in Phase" },
+      "vpd_target": { "name": "VPD Target" },
+      "ec_target": { "name": "EC Target" },
       "nutrient_plan": { "name": "Nutrient Plan" },
       "active_channels": { "name": "Active Channels" },
       "phase_timeline": { "name": "Phase Timeline" },
@@ -101,6 +103,7 @@
       "active_plants": { "name": "Active Plants" },
       "tank_info": { "name": "Tank Info" },
       "tank_volume": { "name": "Volume" },
+      "fill_level": { "name": "Fill Level" },
       "tasks_due_today": { "name": "Tasks Due Today" },
       "tasks_overdue": { "name": "Tasks Overdue" },
       "days_until_watering": { "name": "Days Until Watering" },
@@ -134,6 +137,43 @@
     },
     "todo": {
       "tasks": { "name": "Tasks" }
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "Refresh Data",
+      "description": "Re-poll all coordinators.",
+      "fields": { "entry_id": { "name": "Config Entry ID", "description": "Target instance." } }
+    },
+    "clear_cache": {
+      "name": "Clear Cache",
+      "description": "Clear local coordinator cache and reload all data.",
+      "fields": { "entry_id": { "name": "Config Entry ID", "description": "Target instance." } }
+    },
+    "fill_tank": {
+      "name": "Fill Tank",
+      "description": "Record a tank fill event.",
+      "fields": {
+        "entity_id": { "name": "Tank Entity", "description": "Any tank entity." },
+        "fill_type": { "name": "Fill Type", "description": "Type of fill operation." },
+        "volume_liters": { "name": "Volume", "description": "Volume in liters." }
+      }
+    },
+    "water_channel": {
+      "name": "Water Channel",
+      "description": "Record a watering event for a delivery channel.",
+      "fields": {
+        "entity_id": { "name": "Channel Entity", "description": "Channel mix entity." },
+        "volume_liters": { "name": "Volume", "description": "Volume in liters." }
+      }
+    },
+    "confirm_care": {
+      "name": "Confirm Care",
+      "description": "Confirm a care reminder as completed.",
+      "fields": {
+        "notification_key": { "name": "Notification Key", "description": "Key of the notification." },
+        "action": { "name": "Action", "description": "confirmed or skipped." }
+      }
     }
   }
 }

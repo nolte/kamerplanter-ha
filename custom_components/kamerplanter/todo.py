@@ -93,7 +93,7 @@ class KamerplanterTodoList(CoordinatorEntity, TodoListEntity):
             await self._api.async_complete_task(item.uid)
 
             # Fire event for cross-platform communication (HA-NFR-005)
-            self.hass.bus.fire(
+            self.hass.bus.async_fire(
                 EVENT_TASK_COMPLETED,
                 {
                     "entry_id": self._entry.entry_id,

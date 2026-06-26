@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,9 +80,15 @@ async def async_setup_entry(
         "ipm": KamerplanterIpmCoordinator(hass, entry, api),
     }
 
-    # First refresh all coordinators
-    for coordinator in coordinators.values():
-        await coordinator.async_config_entry_first_refresh()
+    # First refresh all coordinators in parallel. The first coordinator to
+    # raise (ConfigEntryNotReady / ConfigEntryAuthFailed) propagates and aborts
+    # setup, exactly as the previous sequential loop did — only faster.
+    await asyncio.gather(
+        *(
+            coordinator.async_config_entry_first_refresh()
+            for coordinator in coordinators.values()
+        )
+    )
 
     # Store runtime_data on the config entry (HA best practice)
     entry.runtime_data = KamerplanterRuntimeData(api=api, coordinators=coordinators)
