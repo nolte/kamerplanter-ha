@@ -175,5 +175,11 @@
         "action": { "name": "Action", "description": "confirmed or skipped." }
       }
     }
+  },
+  "issues": {
+    "lovelace_yaml_mode": {
+      "title": "Kamerplanter cards need manual registration",
+      "description": "Home Assistant runs Lovelace in YAML resource mode, so the Kamerplanter integration cannot register its custom cards automatically. Add the following entries to the `lovelace: resources:` list in your `configuration.yaml` and restart Home Assistant:\n\n```yaml\n{resources}\n```"
+    }
   }
 }
