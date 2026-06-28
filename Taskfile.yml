@@ -1,6 +1,11 @@
 ---
 version: "3"
 
+includes:
+  # Zentrale mkdocs-Tasks (identisch zu claude-shared): `task mkdocs:start`
+  # Port via CLI überschreibbar, z.B. `task mkdocs:start MKDOCS_PORT=8123`
+  mkdocs: https://raw.githubusercontent.com/nolte/taskfiles/develop/src/taskfile-include-mkdocs.yaml
+
 vars:
   NAMESPACE: default
   POD_SELECTOR: app.kubernetes.io/name=homeassistant
