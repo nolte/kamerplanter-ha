@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .ruff_cache/
 .audits/
+.task/
 site/
 
 # Vale — style packages fetched by `vale sync` (keep repo-local vocab only)
