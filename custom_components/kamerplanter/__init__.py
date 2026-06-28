@@ -45,6 +45,14 @@ from .helpers import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Repairs issue raised when Lovelace runs in YAML resource mode and the cards
+# therefore cannot be auto-registered.
+ISSUE_LOVELACE_YAML_MODE = "lovelace_yaml_mode"
+LOVELACE_DOCS_URL = (
+    "https://github.com/nolte/kamerplanter-ha/blob/develop/"
+    "docs/en/guides/lovelace-cards.md"
+)
+
 
 @dataclass
 class KamerplanterRuntimeData:
@@ -211,37 +219,84 @@ def _async_cleanup_orphaned_devices(
 async def _async_register_lovelace_resources(
     hass: HomeAssistant, js_files: list[Path]
 ) -> None:
-    """Register JS files as Lovelace resources (idempotent)."""
+    """Register JS files as Lovelace resources (idempotent).
+
+    Auto-registration only works when Lovelace runs in *storage* mode. In YAML
+    resource mode the resource list is owned by ``configuration.yaml`` and is
+    read-only from our side, so instead of failing silently we raise a Repairs
+    issue telling the user to add the cards manually.
+    """
+    from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.helpers import issue_registry as ir
+
+    expected_urls = [f"/{DOMAIN}/{js_file.name}" for js_file in js_files]
+
+    lovelace_data = hass.data.get(LOVELACE_DOMAIN)
+    if lovelace_data is None:
+        return
+    resources = getattr(lovelace_data, "resources", None)
+    if resources is None:
+        return
+
     try:
-        from homeassistant.components.lovelace import (
-            DOMAIN as LOVELACE_DOMAIN,
-        )
-        from homeassistant.components.lovelace.resources import (
-            ResourceStorageCollection,
-        )
-
-        lovelace_data = hass.data.get(LOVELACE_DOMAIN)
-        if lovelace_data is None:
-            return
-        resources: ResourceStorageCollection | None = getattr(
-            lovelace_data, "resources", None
-        )
-        if resources is None:
-            return
-
-        # Ensure storage is loaded
         if not resources.loaded:
             await resources.async_load()
 
-        existing_urls = {r["url"] for r in resources.async_items()}
+        # The YAML resource collection is read-only: it has no create method.
+        # That is our reliable discriminator between storage and YAML mode.
+        if not hasattr(resources, "async_create_item"):
+            _async_handle_yaml_mode_resources(hass, resources, expected_urls)
+            return
 
-        for js_file in js_files:
-            url = f"/{DOMAIN}/{js_file.name}"
+        existing_urls = {r["url"] for r in resources.async_items()}
+        for url in expected_urls:
             if url not in existing_urls:
                 await resources.async_create_item({"res_type": "module", "url": url})
                 _LOGGER.info("Registered Lovelace resource: %s", url)
-    except Exception:
-        _LOGGER.debug("Could not auto-register Lovelace resources", exc_info=True)
+
+        # Storage mode succeeded — a stale YAML-mode repair no longer applies.
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_LOVELACE_YAML_MODE)
+    except (HomeAssistantError, KeyError, AttributeError) as err:
+        _LOGGER.warning("Could not auto-register Lovelace resources: %s", err)
+
+
+@callback
+def _async_handle_yaml_mode_resources(
+    hass: HomeAssistant, resources: object, expected_urls: list[str]
+) -> None:
+    """Raise (or clear) a Repairs issue for Lovelace YAML resource mode.
+
+    In YAML mode we cannot register the cards ourselves; we can only check
+    whether the user has already listed them and, if not, surface an
+    actionable issue with the exact ``resources:`` snippet to add.
+    """
+    from homeassistant.helpers import issue_registry as ir
+
+    listed = {r["url"] for r in resources.async_items()}  # type: ignore[attr-defined]
+    missing = [url for url in expected_urls if url not in listed]
+
+    if not missing:
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_LOVELACE_YAML_MODE)
+        return
+
+    snippet = "\n".join(f"    - url: {url}\n      type: module" for url in missing)
+    _LOGGER.warning(
+        "Lovelace runs in YAML resource mode; the Kamerplanter cards are not "
+        "registered. Add them to the `lovelace: resources:` list in "
+        "configuration.yaml and restart Home Assistant:\n%s",
+        snippet,
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_LOVELACE_YAML_MODE,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_LOVELACE_YAML_MODE,
+        translation_placeholders={"resources": snippet},
+        learn_more_url=LOVELACE_DOCS_URL,
+    )
 
 
 async def async_unload_entry(
