@@ -1018,7 +1018,7 @@ class KamerplanterPlantCard extends HTMLElement {
 
     /* Stats row */
     const statsEl = $("stats");
-    if (this._config.show_stats) {
+    if (this._config.show_stats !== false) {
       const overallWeek = tAttrs.overall_week;
       const phaseWeek = tAttrs.phase_week;
       const daysToHarvest = tAttrs.days_to_harvest;
@@ -1035,7 +1035,7 @@ class KamerplanterPlantCard extends HTMLElement {
 
     /* Progress bar */
     const progressEl = $("progress");
-    if (this._config.show_progress) {
+    if (this._config.show_progress !== false) {
       const progressHtml = this._renderProgress(tAttrs, currentPhase);
       if (progressHtml) {
         progressEl.innerHTML = progressHtml;
@@ -1051,7 +1051,7 @@ class KamerplanterPlantCard extends HTMLElement {
     const phases = this._buildPhases(tAttrs, currentPhase);
     const timelineEl = $("timeline");
     const wrapperEl = $("timelineWrapper");
-    if (this._config.show_timeline) {
+    if (this._config.show_timeline !== false) {
       timelineEl.innerHTML = this._renderTimeline(phases);
       wrapperEl.hidden = false;
       this._setupScrollFade(timelineEl, wrapperEl);
@@ -1062,7 +1062,7 @@ class KamerplanterPlantCard extends HTMLElement {
 
     /* Next phase hint */
     const nextEl = $("nextHint");
-    if (this._config.show_next_hint) {
+    if (this._config.show_next_hint !== false) {
       const nextHintHtml = this._renderNextHint(tAttrs, nextPhase);
       if (nextHintHtml) {
         nextEl.innerHTML = nextHintHtml;
@@ -1077,7 +1077,7 @@ class KamerplanterPlantCard extends HTMLElement {
 
     /* Detail table */
     const detailEl = $("details");
-    if (this._config.show_details) {
+    if (this._config.show_details !== false) {
       const recorded = phases.filter((p) => p.status === "completed" || p.status === "current");
       if (recorded.length > 0) {
         detailEl.innerHTML = this._renderDetails(recorded);
