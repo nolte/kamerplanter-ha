@@ -6,8 +6,8 @@
  * The "Done" button calls kamerplanter.confirm_care service.
  *
  * Data sources:
- *   - sensor.kp_tasks_due_today (today + upcoming)
- *   - sensor.kp_tasks_overdue (overdue tasks)
+ *   - sensor.kamerplanter_tasks_due_today (today + upcoming)
+ *   - sensor.kamerplanter_tasks_overdue (overdue tasks)
  *
  * Configuration (in Lovelace YAML):
  *   type: custom:kamerplanter-care-card
@@ -34,8 +34,8 @@ const _haFormReadyCare = (async () => {
 /** Care card editor schema (built per-render so the entity picker can be
  *  filtered against the live hass states). */
 function careCardSchema(hass) {
-  // The card needs the two hub task-aggregate sensors (kp_tasks_due_today /
-  // kp_tasks_overdue) -- they are the only sensors exposing a `plants` list
+  // The card needs the two hub task-aggregate sensors (kamerplanter_tasks_due_today /
+  // kamerplanter_tasks_overdue) -- they are the only sensors exposing a `plants` list
   // attribute, which the card renders as the grouped task list. Per-plant IPM
   // sensors (pest pressure, Karenz, days-since-inspection) carry a single
   // value and would leave the card empty, so we steer the entity picker to the
@@ -59,14 +59,14 @@ function careCardSchema(hass) {
       name: "entity_due",
       label: "F\u00e4llig-Heute Sensor (optional)",
       helper:
-        "Standard: sensor.kp_tasks_due_today \u2013 Hub-Sensor mit heute & demn\u00e4chst f\u00e4lligen Aufgaben. Leer lassen f\u00fcr den Standard; keine Einzelpflanzen-Sensoren w\u00e4hlen.",
+        "Standard: sensor.kamerplanter_tasks_due_today \u2013 Hub-Sensor mit heute & demn\u00e4chst f\u00e4lligen Aufgaben. Leer lassen f\u00fcr den Standard; keine Einzelpflanzen-Sensoren w\u00e4hlen.",
       selector: sensorSelector,
     },
     {
       name: "entity_overdue",
       label: "\u00dcberf\u00e4llig Sensor (optional)",
       helper:
-        "Standard: sensor.kp_tasks_overdue \u2013 Hub-Sensor mit \u00fcberf\u00e4lligen Aufgaben. Leer lassen f\u00fcr den Standard; keine Einzelpflanzen-Sensoren w\u00e4hlen.",
+        "Standard: sensor.kamerplanter_tasks_overdue \u2013 Hub-Sensor mit \u00fcberf\u00e4lligen Aufgaben. Leer lassen f\u00fcr den Standard; keine Einzelpflanzen-Sensoren w\u00e4hlen.",
       selector: sensorSelector,
     },
   ];
@@ -82,8 +82,8 @@ class KamerplanterCareCardEditor extends HTMLElement {
     this._config = {
       title: "Kamerplanter Pflege",
       upcoming_days: 3,
-      entity_due: "sensor.kp_tasks_due_today",
-      entity_overdue: "sensor.kp_tasks_overdue",
+      entity_due: "sensor.kamerplanter_tasks_due_today",
+      entity_overdue: "sensor.kamerplanter_tasks_overdue",
       ...config,
     };
     if (this._hass) this._scheduleRender();
@@ -151,8 +151,8 @@ class KamerplanterCareCard extends HTMLElement {
     this._config = {
       title: config.title || "Kamerplanter Pflege",
       upcoming_days: config.upcoming_days || 3,
-      entity_due: config.entity_due || "sensor.kp_tasks_due_today",
-      entity_overdue: config.entity_overdue || "sensor.kp_tasks_overdue",
+      entity_due: config.entity_due || "sensor.kamerplanter_tasks_due_today",
+      entity_overdue: config.entity_overdue || "sensor.kamerplanter_tasks_overdue",
     };
     this._rendered = false;
   }
