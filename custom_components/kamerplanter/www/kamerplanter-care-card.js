@@ -147,7 +147,6 @@ class KamerplanterCareCard extends HTMLElement {
   }
 
   setConfig(config) {
-    this._isPreview = !!config.__preview;
     this._config = {
       title: config.title || "Kamerplanter Pflege",
       upcoming_days: config.upcoming_days || 3,
@@ -178,8 +177,11 @@ class KamerplanterCareCard extends HTMLElement {
   }
 
   static getStubConfig() {
+    // Note: do NOT emit __preview here. HA persists getStubConfig as the
+    // card's starting config, so a __preview flag would stick and pin the card
+    // to the static mock on a real dashboard. The card-picker gallery is
+    // detected at render time via the HA-set `preview` element property.
     return {
-      __preview: true,
       title: "Kamerplanter Pflege",
       upcoming_days: 3,
     };
@@ -307,11 +309,17 @@ class KamerplanterCareCard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    if (this._isPreview) {
+    // `this.preview` is set by HA only when the card is shown in the card-picker
+    // gallery. A persisted __preview flag is intentionally ignored so cards that
+    // captured the old getStubConfig still recover to live data on reload.
+    if (this.preview) {
       this._renderPreview();
       return;
     }
     if (!this._hass || !this._config) return;
+
+    const overdueState = this._hass.states[this._config.entity_overdue];
+    const dueTodayState = this._hass.states[this._config.entity_due];
 
     const overdueTasks =
       overdueState && overdueState.attributes
