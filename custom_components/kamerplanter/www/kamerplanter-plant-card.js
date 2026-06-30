@@ -698,6 +698,7 @@ class KamerplanterPlantCard extends HTMLElement {
     }
     this._config = { ...KamerplanterPlantCard.CONFIG_DEFAULTS, ...config };
     this._monitoredEntities = [];
+    this._update();
   }
 
   set hass(hass) {
@@ -870,6 +871,34 @@ class KamerplanterPlantCard extends HTMLElement {
   /** Main update — reads sensors and patches DOM. */
   _renderPreview() {
     this._built = false;
+
+    const c = this._config || {};
+    const statsHtml = c.show_stats !== false ? `
+        <div class="kp-stats">
+          <div class="kp-stats__item"><span class="kp-stats__value">6</span><span class="kp-stats__label">Gesamtwoche</span></div>
+          <div class="kp-stats__item"><span class="kp-stats__value">4</span><span class="kp-stats__label">Phasenwoche</span></div>
+          <div class="kp-stats__item kp-stats__item--harvest"><span class="kp-stats__value">35<span class="kp-stats__unit">d</span></span><span class="kp-stats__label">bis Ernte</span></div>
+        </div>
+    ` : "";
+    const progressHtml = c.show_progress !== false ? `
+        <div class="kp-progress">
+          <div class="kp-progress__header"><span class="kp-progress__phase">Blüte</span><span class="kp-progress__info">Tag 28 / 63</span></div>
+          <div class="kp-progress__track"><div class="kp-progress__fill" style="width:44%;background:#e91e63"></div></div>
+          <div class="kp-progress__footer"><span class="kp-progress__pct">44%</span><span class="kp-progress__remain">35 Tage verbleibend</span></div>
+        </div>
+    ` : "";
+    const timelineHtml = c.show_timeline !== false ? `
+        <div class="kp-timeline-wrapper">
+          <div class="kp-timeline">
+            <div class="kp-phase-pill"><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#795548"></div><span class="kp-phase-pill__label">Keimung</span><span class="kp-phase-pill__days">5d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#8bc34a"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#8bc34a"></div><span class="kp-phase-pill__label">Setzling</span><span class="kp-phase-pill__days">10d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#4caf50"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#4caf50"></div><span class="kp-phase-pill__label">Vegetativ</span><span class="kp-phase-pill__days">14d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#e91e63"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--current" style="--dot-color:#e91e63"></div><span class="kp-phase-pill__label">Blüte</span><span class="kp-phase-pill__days">28d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#bdbdbd"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--upcoming" style="--dot-color:#bdbdbd"></div><span class="kp-phase-pill__label">Ernte</span><span class="kp-phase-pill__days">—</span></div>
+          </div>
+        </div>
+    ` : "";
+
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; }
@@ -917,25 +946,9 @@ class KamerplanterPlantCard extends HTMLElement {
           </div>
           <div class="kp-header__days">28<small>d</small></div>
         </div>
-        <div class="kp-stats">
-          <div class="kp-stats__item"><span class="kp-stats__value">6</span><span class="kp-stats__label">Gesamtwoche</span></div>
-          <div class="kp-stats__item"><span class="kp-stats__value">4</span><span class="kp-stats__label">Phasenwoche</span></div>
-          <div class="kp-stats__item kp-stats__item--harvest"><span class="kp-stats__value">35<span class="kp-stats__unit">d</span></span><span class="kp-stats__label">bis Ernte</span></div>
-        </div>
-        <div class="kp-progress">
-          <div class="kp-progress__header"><span class="kp-progress__phase">Bl\u00fcte</span><span class="kp-progress__info">Tag 28 / 63</span></div>
-          <div class="kp-progress__track"><div class="kp-progress__fill" style="width:44%;background:#e91e63"></div></div>
-          <div class="kp-progress__footer"><span class="kp-progress__pct">44%</span><span class="kp-progress__remain">35 Tage verbleibend</span></div>
-        </div>
-        <div class="kp-timeline-wrapper">
-          <div class="kp-timeline">
-            <div class="kp-phase-pill"><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#795548"></div><span class="kp-phase-pill__label">Keimung</span><span class="kp-phase-pill__days">5d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#8bc34a"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#8bc34a"></div><span class="kp-phase-pill__label">Setzling</span><span class="kp-phase-pill__days">10d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#4caf50"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#4caf50"></div><span class="kp-phase-pill__label">Vegetativ</span><span class="kp-phase-pill__days">14d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#e91e63"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--current" style="--dot-color:#e91e63"></div><span class="kp-phase-pill__label">Bl\u00fcte</span><span class="kp-phase-pill__days">28d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#bdbdbd"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--upcoming" style="--dot-color:#bdbdbd"></div><span class="kp-phase-pill__label">Ernte</span><span class="kp-phase-pill__days">\u2014</span></div>
-          </div>
-        </div>
+        ${statsHtml}
+        ${progressHtml}
+        ${timelineHtml}
       </ha-card>
     `;
   }
