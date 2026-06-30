@@ -195,6 +195,17 @@ class KamerplanterTankCard extends HTMLElement {
     </svg>`;
   }
 
+  // Build the pH / EC / Temp badge row, honouring the per-badge visibility
+  // toggles. A value of null (sensor unavailable) drops that badge; in the
+  // preview the mock values are always present, so the null guard is a no-op.
+  _buildBadges(ph, ec, temp, cfg) {
+    const badges = [];
+    if (cfg.show_ph_badge !== false && ph != null) badges.push(`<div class="badge" style="border-color:${this._phColor(ph)}"><span class="badge-label">pH</span><span class="badge-value" style="color:${this._phColor(ph)}">${ph.toFixed(1)}</span></div>`);
+    if (cfg.show_ec_badge !== false && ec != null) badges.push(`<div class="badge" style="border-color:${this._ecColor(ec)}"><span class="badge-label">EC</span><span class="badge-value" style="color:${this._ecColor(ec)}">${ec.toFixed(2)}<small> mS</small></span></div>`);
+    if (cfg.show_temp_badge !== false && temp != null) badges.push(`<div class="badge" style="border-color:${this._tempColor(temp)}"><span class="badge-label">Temp</span><span class="badge-value" style="color:${this._tempColor(temp)}">${temp.toFixed(1)}<small> \u00b0C</small></span></div>`);
+    return badges.length ? `<div class="badges">${badges.join("")}</div>` : "";
+  }
+
   _renderPreview() {
     if (!this.shadowRoot) return;
     // Build a preview tank SVG with mock values, honouring the visibility toggles.
@@ -202,11 +213,7 @@ class KamerplanterTankCard extends HTMLElement {
     const ph = 5.9, ec = 1.42, temp = 21.3, fillPct = 72;
     const tankSvg = this._buildTankSvg(ph, ec, temp, fillPct, cfg);
 
-    const badges = [];
-    if (cfg.show_ph_badge !== false) badges.push(`<div class="badge" style="border-color:${this._phColor(ph)}"><span class="badge-label">pH</span><span class="badge-value" style="color:${this._phColor(ph)}">${ph.toFixed(1)}</span></div>`);
-    if (cfg.show_ec_badge !== false) badges.push(`<div class="badge" style="border-color:${this._ecColor(ec)}"><span class="badge-label">EC</span><span class="badge-value" style="color:${this._ecColor(ec)}">${ec.toFixed(2)}<small> mS</small></span></div>`);
-    if (cfg.show_temp_badge !== false) badges.push(`<div class="badge" style="border-color:${this._tempColor(temp)}"><span class="badge-label">Temp</span><span class="badge-value" style="color:${this._tempColor(temp)}">${temp.toFixed(1)}<small> \u00b0C</small></span></div>`);
-    const badgesHtml = badges.length ? `<div class="badges">${badges.join("")}</div>` : "";
+    const badgesHtml = this._buildBadges(ph, ec, temp, cfg);
 
     this.shadowRoot.innerHTML = `<style>
       :host { display: block; overflow: hidden; box-sizing: border-box; } ha-card { padding: 0; overflow: hidden; }
@@ -272,11 +279,7 @@ class KamerplanterTankCard extends HTMLElement {
     if (volume && lastFillVolume) fillPct = Math.min(100, Math.round((lastFillVolume / volume) * 100));
     const fillTypeLabels = { full_change: "Komplettwechsel", top_up: "Nachf\u00fcllen", adjustment: "Korrektur" };
     const tankSvg = this._buildTankSvg(ph, ec, temp, fillPct, cfg);
-    const badges = [];
-    if (cfg.show_ph_badge !== false && ph != null) badges.push(`<div class="badge" style="border-color:${this._phColor(ph)}"><span class="badge-label">pH</span><span class="badge-value" style="color:${this._phColor(ph)}">${ph.toFixed(1)}</span></div>`);
-    if (cfg.show_ec_badge !== false && ec != null) badges.push(`<div class="badge" style="border-color:${this._ecColor(ec)}"><span class="badge-label">EC</span><span class="badge-value" style="color:${this._ecColor(ec)}">${ec.toFixed(2)}<small> mS</small></span></div>`);
-    if (cfg.show_temp_badge !== false && temp != null) badges.push(`<div class="badge" style="border-color:${this._tempColor(temp)}"><span class="badge-label">Temp</span><span class="badge-value" style="color:${this._tempColor(temp)}">${temp.toFixed(1)}<small> \u00b0C</small></span></div>`);
-    const badgesHtml = badges.length ? `<div class="badges">${badges.join("")}</div>` : "";
+    const badgesHtml = this._buildBadges(ph, ec, temp, cfg);
     let fillHtml = "";
     if (lastFillAt) {
       const ageLabel = daysSince === 0 ? "heute" : daysSince === 1 ? "gestern" : `vor ${daysSince} Tagen`;
