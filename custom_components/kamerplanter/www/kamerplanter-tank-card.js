@@ -130,6 +130,7 @@ class KamerplanterTankCard extends HTMLElement {
     this._isPreview = !!config.__preview;
     if (!this._isPreview && !config.tank_entity) throw new Error("Please define a tank entity");
     this._config = config;
+    this._render();
   }
 
   getCardSize() { return 5; }
@@ -196,23 +197,17 @@ class KamerplanterTankCard extends HTMLElement {
 
   _renderPreview() {
     if (!this.shadowRoot) return;
-    // Build a preview tank SVG with mock values
+    // Build a preview tank SVG with mock values, honouring the visibility toggles.
+    const cfg = this._config || {};
     const ph = 5.9, ec = 1.42, temp = 21.3, fillPct = 72;
-    const waterY = 180 - (fillPct / 100) * 140;
-    const wy = waterY;
-    const wave1 = `M 30 ${wy} Q 55 ${wy-5} 80 ${wy} Q 105 ${wy+5} 130 ${wy} Q 155 ${wy-5} 180 ${wy} L 180 200 L 30 200 Z`;
-    const wave2 = `M 30 ${wy} Q 55 ${wy+5} 80 ${wy} Q 105 ${wy-5} 130 ${wy} Q 155 ${wy+5} 180 ${wy} L 180 200 L 30 200 Z`;
-    const tankSvg = `<svg viewBox="0 0 210 210" xmlns="http://www.w3.org/2000/svg" width="140" height="140">
-      <defs><clipPath id="tc"><rect x="32" y="22" width="146" height="176" rx="10" ry="10"/></clipPath></defs>
-      <rect x="30" y="20" width="150" height="180" rx="12" ry="12" fill="none" stroke="#bdbdbd" stroke-width="3"/>
-      <path d="${wave1}" fill="rgba(76, 175, 80, 0.18)" stroke="rgba(76, 175, 80, 0.35)" stroke-width="1" clip-path="url(#tc)">
-        <animate attributeName="d" dur="3s" repeatCount="indefinite" values="${wave1};${wave2};${wave1}"/>
-      </path>
-      <rect x="60" y="12" width="90" height="12" rx="4" ry="4" fill="#e0e0e0" stroke="#bdbdbd" stroke-width="2"/>
-      <text x="105" y="${Math.max(wy+24, 55)}" text-anchor="middle" font-size="18" font-weight="700" fill="#4caf50">pH ${ph.toFixed(1)}</text>
-      <text x="105" y="${Math.max(wy+42, 73)}" text-anchor="middle" font-size="14" font-weight="600" fill="#1976d2">EC ${ec.toFixed(2)} mS</text>
-      <text x="105" y="${Math.max(wy+58, 89)}" text-anchor="middle" font-size="13" font-weight="600" fill="#4caf50">${temp.toFixed(1)} \u00b0C</text>
-    </svg>`;
+    const tankSvg = this._buildTankSvg(ph, ec, temp, fillPct, cfg);
+
+    const badges = [];
+    if (cfg.show_ph_badge !== false) badges.push(`<div class="badge" style="border-color:${this._phColor(ph)}"><span class="badge-label">pH</span><span class="badge-value" style="color:${this._phColor(ph)}">${ph.toFixed(1)}</span></div>`);
+    if (cfg.show_ec_badge !== false) badges.push(`<div class="badge" style="border-color:${this._ecColor(ec)}"><span class="badge-label">EC</span><span class="badge-value" style="color:${this._ecColor(ec)}">${ec.toFixed(2)}<small> mS</small></span></div>`);
+    if (cfg.show_temp_badge !== false) badges.push(`<div class="badge" style="border-color:${this._tempColor(temp)}"><span class="badge-label">Temp</span><span class="badge-value" style="color:${this._tempColor(temp)}">${temp.toFixed(1)}<small> \u00b0C</small></span></div>`);
+    const badgesHtml = badges.length ? `<div class="badges">${badges.join("")}</div>` : "";
+
     this.shadowRoot.innerHTML = `<style>
       :host { display: block; overflow: hidden; box-sizing: border-box; } ha-card { padding: 0; overflow: hidden; }
       .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
@@ -239,11 +234,7 @@ class KamerplanterTankCard extends HTMLElement {
       <div class="card-header"><span class="title">N\u00e4hrstoff-Tank</span><span class="volume-badge">50 L</span></div>
       <div class="card-content">
         <div class="tank-container">${tankSvg}</div>
-        <div class="badges">
-          <div class="badge" style="border-color:#4caf50"><span class="badge-label">pH</span><span class="badge-value" style="color:#4caf50">5.9</span></div>
-          <div class="badge" style="border-color:#1976d2"><span class="badge-label">EC</span><span class="badge-value" style="color:#1976d2">1.42<small> mS</small></span></div>
-          <div class="badge" style="border-color:#4caf50"><span class="badge-label">Temp</span><span class="badge-value" style="color:#4caf50">21.3<small> \u00b0C</small></span></div>
-        </div>
+        ${badgesHtml}
         <div class="fill-section"><div class="fill-row">
           <svg class="fill-icon" width="16" height="16" viewBox="0 0 24 24" fill="#03a9f4"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2C20 10.48 17.33 6.55 12 2z"/></svg>
           <span class="fill-text"><strong>Komplettwechsel</strong><span class="fill-date">02.04.2026 14:30</span></span>

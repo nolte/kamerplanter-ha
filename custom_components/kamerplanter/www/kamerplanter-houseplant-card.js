@@ -129,24 +129,26 @@ const HP_STYLES = `
     margin-top: 2px;
   }
   .hp-header__days {
-    display: flex;
-    flex-direction: column;
+    box-sizing: border-box;
+    height: 56px;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-width: 40px;
-    padding: 4px 8px;
-    border-radius: 12px;
-    background: var(--primary-color, #4caf50);
-    color: #fff;
-    font-size: 1.1rem;
+    gap: 5px;
+    padding: 0 20px;
+    border-radius: 999px;
+    background: transparent;
+    border: 2px solid var(--primary-color, #4caf50);
+    color: var(--primary-color, #4caf50);
+    font-size: 1.7rem;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1;
+    white-space: nowrap;
     flex-shrink: 0;
   }
   .hp-header__days small {
-    font-size: 0.6rem;
-    font-weight: 400;
-    opacity: 0.85;
+    font-size: 1.2rem;
+    font-weight: 600;
+    opacity: 0.8;
   }
 
   /* --- Watering section --- */
@@ -390,6 +392,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     }
     this._config = { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, ...config };
     this._built = false;
+    this._update();
   }
 
   connectedCallback() {
@@ -481,17 +484,12 @@ class KamerplanterHouseplantCard extends HTMLElement {
   _renderPreview() {
     if (!this.shadowRoot) return;
     this._built = false;
-    this.shadowRoot.innerHTML = `
-      <style>${HP_STYLES}</style>
-      <ha-card>
-        <div class="hp-header">
-          <span class="hp-header__icon">\uD83C\uDF3F</span>
-          <div class="hp-header__text">
-            <span class="hp-header__name">Monstera deliciosa</span>
-            <span class="hp-header__phase">Vegetativ \u2014 Tag 45</span>
-          </div>
-          <div class="hp-header__days">45<small>d</small></div>
-        </div>
+
+    const c = this._config || {};
+    const showWatering = c.show_watering !== false;
+    const showFertilizer = c.show_fertilizer !== false;
+
+    const wateringHtml = showWatering ? `
         <div class="hp-watering hp-watering--today">
           <ha-icon icon="mdi:watering-can" class="hp-watering__icon"></ha-icon>
           <div class="hp-watering__info">
@@ -500,6 +498,9 @@ class KamerplanterHouseplantCard extends HTMLElement {
             <div class="hp-watering__detail">Intervall: 5 Tage</div>
           </div>
         </div>
+    ` : "";
+
+    const fertilizerHtml = showFertilizer ? `
         <div class="hp-fert">
           <div class="hp-fert__header">
             <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon"></ha-icon>
@@ -514,6 +515,21 @@ class KamerplanterHouseplantCard extends HTMLElement {
             </div>
           </div>
         </div>
+    ` : "";
+
+    this.shadowRoot.innerHTML = `
+      <style>${HP_STYLES}</style>
+      <ha-card>
+        <div class="hp-header">
+          <span class="hp-header__icon">\uD83C\uDF3F</span>
+          <div class="hp-header__text">
+            <span class="hp-header__name">Monstera deliciosa</span>
+            <span class="hp-header__phase">Vegetativ \u2014 Tag 45</span>
+          </div>
+          <div class="hp-header__days">45<small>d</small></div>
+        </div>
+        ${wateringHtml}
+        ${fertilizerHtml}
       </ha-card>
     `;
   }
