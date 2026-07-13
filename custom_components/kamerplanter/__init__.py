@@ -200,6 +200,9 @@ def _async_cleanup_orphaned_devices(
             loc_key = loc.get("key") or loc.get("_key", "")
             if loc_key:
                 valid.add((DOMAIN, f"{entry.entry_id}_location_{loc_key}"))
+            # ``_tanks`` also covers the synthetic keyless holder that carries
+            # published tanks without a published location (issue #59), so those
+            # tank devices are kept valid instead of being pruned as orphans.
             for tank in loc.get("_tanks", []):
                 tank_key = tank.get("key", "")
                 if tank_key:

@@ -30,6 +30,7 @@ from .const import (
     DEFAULT_POLL_TASKS,
     DOMAIN,
     EVENT_IPM_ALERT,
+    TANK_HOLDER_MARKER,
 )
 
 # Pest pressure levels that trigger an IPM alert event.
@@ -410,30 +411,59 @@ class KamerplanterLocationCoordinator(DataUpdateCoordinator[list[dict[str, Any]]
                             )
                         loc["_primary_run"] = primary
 
-                # Enrich locations with tank data (use cached tank list, only poll fill status)
+                # Expose every HA-published tank as a standalone device, decoupled
+                # from whether its parent location is published (issue #59). Tanks
+                # whose location survived the publish filter hang off that location
+                # (keeps the legacy location-tank sensors + fertigation volume
+                # lookup working); tanks whose location is unpublished or absent are
+                # collected on a synthetic holder appended to the data, so sensor.py
+                # and the device cleanup still find them without a dedicated
+                # coordinator. The opt-in semantics stay at the single
+                # ``_filter_published`` chokepoint.
+                published_tanks = _filter_published(self._all_tanks, published_tank)
+
+                # Enrich every published tank once (fill status + HA sensor map),
+                # regardless of its location's publish state.
+                for tank in published_tanks:
+                    tk = tank.get("key", "")
+                    if not tk:
+                        continue
+                    try:
+                        tank[
+                            "_latest_fill"
+                        ] = await self.api.async_get_tank_latest_fill(tk)
+                    except Exception:  # noqa: BLE001
+                        tank["_latest_fill"] = None
+                    try:
+                        tank["_ha_sensors"] = await self.api.async_get_tank_sensors(tk)
+                    except Exception:  # noqa: BLE001
+                        tank["_ha_sensors"] = []
+
                 tanks_by_loc: dict[str, list[dict[str, Any]]] = {}
-                for tank in _filter_published(self._all_tanks, published_tank):
+                for tank in published_tanks:
                     tlk = tank.get("location_key")
                     if tlk:
                         tanks_by_loc.setdefault(tlk, []).append(tank)
 
+                published_loc_keys: set[str] = set()
                 for loc in locations:
                     loc_key = loc.get("key") or loc.get("_key", "")
-                    loc_tanks = tanks_by_loc.get(loc_key, [])
-                    for tank in loc_tanks:
-                        tk = tank.get("key", "")
-                        try:
-                            latest = await self.api.async_get_tank_latest_fill(tk)
-                            tank["_latest_fill"] = latest
-                        except Exception:  # noqa: BLE001
-                            tank["_latest_fill"] = None
-                        try:
-                            tank["_ha_sensors"] = await self.api.async_get_tank_sensors(
-                                tk
-                            )
-                        except Exception:  # noqa: BLE001
-                            tank["_ha_sensors"] = []
-                    loc["_tanks"] = loc_tanks
+                    if loc_key:
+                        published_loc_keys.add(loc_key)
+                    loc["_tanks"] = tanks_by_loc.get(loc_key, [])
+
+                # Published tanks whose location is not among the published
+                # locations (or that carry no location_key) would otherwise be
+                # dropped. Attach them to a keyless synthetic holder so they still
+                # surface as standalone tank devices. Consumers that key off a
+                # location skip this entry via ``if not loc_key``.
+                orphan_tanks = [
+                    tank
+                    for tank in published_tanks
+                    if (tank.get("location_key") or "") not in published_loc_keys
+                ]
+                if orphan_tanks:
+                    locations.append({TANK_HOLDER_MARKER: True, "_tanks": orphan_tanks})
 
                 return locations
         except TimeoutError as err:

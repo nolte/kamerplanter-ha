@@ -384,6 +384,10 @@ async def async_setup_entry(
                         )
 
     # --- Standalone Tank devices ---
+    # Iterates every location entry's ``_tanks``, including the synthetic keyless
+    # holder that carries HA-published tanks whose location is not published
+    # (issue #59). ``seen_tanks`` de-duplicates tanks that could reach here via
+    # both a published location and the holder.
     seen_tanks: set[str] = set()
     if loc_coord.data:
         for loc in loc_coord.data:
