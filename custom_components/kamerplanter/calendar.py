@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import EVENT_TASK_COMPLETED
 from .coordinator import KamerplanterPlantCoordinator, KamerplanterTaskCoordinator
 from .entity import server_device_info
+from .helpers import plant_display_name
 
 PARALLEL_UPDATES = 0  # CoordinatorEntity — no own polling
 
@@ -135,11 +136,7 @@ class KamerplanterPhaseCalendar(CoordinatorEntity, CalendarEntity):
             if plant.get("removed_on"):
                 continue
 
-            plant_name = (
-                plant.get("plant_name")
-                or plant.get("instance_id")
-                or f"Plant {plant.get('key', '?')}"
-            )
+            plant_name = plant_display_name(plant)
             history = plant.get("_phase_history", [])
             current_phase = plant.get("current_phase", "")
 
@@ -265,7 +262,13 @@ class KamerplanterTaskCalendar(CalendarEntity):
             if not due_dt:
                 continue
             due_date = _to_date(due_dt)
-            raw_name = task.get("name") or task.get("title") or "Task"
+            # Prefer the coordinator-resolved readable label (issue #57).
+            raw_name = (
+                task.get("_display_name")
+                or task.get("name")
+                or task.get("title")
+                or "Task"
+            )
             category = task.get("category", "").lower()
             icon = _TASK_ICON.get(category, "\U0001f4cc")
             name = f"{icon} {raw_name}"

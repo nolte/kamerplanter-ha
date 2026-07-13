@@ -138,3 +138,41 @@ async def test_task_coordinator_success(hass) -> None:
     result = await coord._async_update_data()
     assert len(result) == 1
     assert result[0]["key"] == "task-001"
+
+
+async def test_task_coordinator_resolves_readable_names(hass) -> None:
+    """Task coordinator replaces the code slug with a readable plant name (#57)."""
+    tasks = [
+        {
+            "key": "task-xub",
+            "name": "SPATH-0617-XUB — watering",
+            "category": "watering",
+            "entity_key": "plant-spath",
+            "due_date": "2026-04-03T08:00:00Z",
+        }
+    ]
+    plants = [
+        {
+            "key": "plant-spath",
+            "instance_id": "SPATH-0617-XUB",
+            "plant_name": None,
+            "species": {
+                "scientific_name": "Spathiphyllum wallisii",
+                "common_names": ["Einblatt"],
+            },
+        }
+    ]
+    api = MagicMock(spec=KamerplanterApi)
+    api.async_get_pending_tasks = AsyncMock(return_value=tasks)
+    api.async_get_plants = AsyncMock(return_value=plants)
+
+    entry = MagicMock()
+    entry.options = {}
+    entry.entry_id = "test"
+
+    coord = KamerplanterTaskCoordinator(hass, entry, api)
+    result = await coord._async_update_data()
+
+    assert result[0]["plant_name"] == "Einblatt"
+    assert result[0]["_display_name"] == "Einblatt — watering"
+    assert "SPATH-0617-XUB" not in result[0]["_display_name"]

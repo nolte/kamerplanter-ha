@@ -12,6 +12,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import DOMAIN
+from .helpers import plant_display_name, plant_instance_code
 
 
 class KamerplanterEntity(CoordinatorEntity):
@@ -45,14 +46,20 @@ def server_device_info(entry: ConfigEntry) -> DeviceInfo:
 
 
 def plant_device_info(entry: ConfigEntry, plant: dict[str, Any]) -> DeviceInfo:
-    """Create DeviceInfo for a plant instance (child device)."""
+    """Create DeviceInfo for a plant instance (child device).
+
+    The device ``name`` is the human-readable plant label (issue #57); the code
+    slug is retained in ``model`` for disambiguation.
+    """
     key = plant["key"]
-    name = plant.get("plant_name") or plant.get("instance_id", key)
+    name = plant_display_name(plant)
+    code = plant_instance_code(plant)
+    model = f"Plant Instance ({code})" if code else "Plant Instance"
     return DeviceInfo(
         identifiers={(DOMAIN, f"{entry.entry_id}_plant_{key}")},
         name=name,
         manufacturer="Kamerplanter",
-        model="Plant Instance",
+        model=model,
         via_device=(DOMAIN, entry.entry_id),
     )
 
