@@ -91,6 +91,28 @@ def resolve_tank_key(hass: HomeAssistant, call_data: dict[str, Any]) -> str | No
     return None
 
 
+def resolve_task_key(hass: HomeAssistant, call_data: dict[str, Any]) -> str | None:
+    """Resolve a task key from service call data.
+
+    Strategy 1: a directly supplied ``task_key`` (the primary path used by the
+    care card, which reads the key straight from the sensor ``plants`` items).
+    Strategy 2: read a ``task_key`` attribute from the state of the supplied
+    ``entity_id`` (so automations can target a task-carrying entity).
+    """
+    if call_data.get("task_key"):
+        return str(call_data["task_key"])
+
+    entity_id = call_data.get("entity_id")
+    if entity_id:
+        state = hass.states.get(str(entity_id))
+        if state and state.attributes.get("task_key"):
+            _LOGGER.debug("Resolved task_key from state attributes")
+            return str(state.attributes["task_key"])
+        _LOGGER.error("Could not resolve task_key from entity_id %s", entity_id)
+
+    return None
+
+
 def resolve_plant_channel(
     hass: HomeAssistant, call_data: dict[str, Any]
 ) -> tuple[str | None, str | None]:

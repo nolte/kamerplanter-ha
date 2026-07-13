@@ -24,9 +24,12 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     SERVICE_CLEAR_CACHE,
+    SERVICE_COMPLETE_TASK,
     SERVICE_CONFIRM_CARE,
     SERVICE_FILL_TANK,
     SERVICE_REFRESH,
+    SERVICE_SKIP_TASK,
+    SERVICE_START_TASK,
     SERVICE_WATER_CHANNEL,
 )
 from .coordinator import (
@@ -41,6 +44,7 @@ from .helpers import (
     resolve_entry_id,
     resolve_plant_channel,
     resolve_tank_key,
+    resolve_task_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -646,8 +650,63 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         except Exception:
             _LOGGER.exception("Failed to confirm care reminder %s", notification_key)
 
+    async def _handle_task_action(
+        call: ServiceCall, action: str, api_method: str
+    ) -> None:
+        """Run a task queue action (start/complete/skip) via the API.
+
+        Shared body for the three first-class task services. Resolves the
+        target task by ``task_key`` (primary, used by the care card) or by an
+        ``entity_id`` that carries a ``task_key`` attribute, then refreshes all
+        coordinators so the new task status surfaces without waiting for the
+        next poll.
+        """
+        task_key = resolve_task_key(hass, dict(call.data))
+        if not task_key:
+            _LOGGER.error(
+                "No task_key or entity_id provided for %s_task. Received keys: %s",
+                action,
+                list(call.data.keys()),
+            )
+            return
+
+        runtime_data = _resolve_runtime_data(call, ambiguity_hint="a task entity_id")
+        if not runtime_data:
+            return
+
+        api = runtime_data.api
+        _LOGGER.info("%s task %s", action.capitalize(), task_key)
+
+        try:
+            result = await getattr(api, api_method)(task_key)
+            _LOGGER.info(
+                "Task %s %sed: status=%s",
+                task_key,
+                action,
+                result.get("status", "unknown") if isinstance(result, dict) else "",
+            )
+            for coordinator in runtime_data.coordinators.values():
+                await coordinator.async_request_refresh()
+        except Exception:
+            _LOGGER.exception("Failed to %s task %s", action, task_key)
+
+    async def handle_start_task(call: ServiceCall) -> None:
+        """Handle the start_task service call."""
+        await _handle_task_action(call, "start", "async_start_task")
+
+    async def handle_complete_task(call: ServiceCall) -> None:
+        """Handle the complete_task service call."""
+        await _handle_task_action(call, "complete", "async_complete_task")
+
+    async def handle_skip_task(call: ServiceCall) -> None:
+        """Handle the skip_task service call."""
+        await _handle_task_action(call, "skip", "async_skip_task")
+
     hass.services.async_register(DOMAIN, SERVICE_REFRESH, handle_refresh)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_CACHE, handle_clear_cache)
     hass.services.async_register(DOMAIN, SERVICE_FILL_TANK, handle_fill_tank)
     hass.services.async_register(DOMAIN, SERVICE_WATER_CHANNEL, handle_water_channel)
     hass.services.async_register(DOMAIN, SERVICE_CONFIRM_CARE, handle_confirm_care)
+    hass.services.async_register(DOMAIN, SERVICE_START_TASK, handle_start_task)
+    hass.services.async_register(DOMAIN, SERVICE_COMPLETE_TASK, handle_complete_task)
+    hass.services.async_register(DOMAIN, SERVICE_SKIP_TASK, handle_skip_task)

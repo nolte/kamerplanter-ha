@@ -66,6 +66,9 @@ SERVICE_CLEAR_CACHE: Final = "clear_cache"
 SERVICE_FILL_TANK: Final = "fill_tank"
 SERVICE_WATER_CHANNEL: Final = "water_channel"
 SERVICE_CONFIRM_CARE: Final = "confirm_care"
+SERVICE_START_TASK: Final = "start_task"
+SERVICE_COMPLETE_TASK: Final = "complete_task"
+SERVICE_SKIP_TASK: Final = "skip_task"
 
 # Storage (HA-NFR-004)
 STORAGE_VERSION: Final = 1
