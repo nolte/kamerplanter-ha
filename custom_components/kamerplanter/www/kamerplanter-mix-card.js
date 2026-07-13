@@ -107,17 +107,18 @@ class KamerplanterMixCard extends HTMLElement {
   }
 
   setConfig(config) {
+    // Do NOT gate on a persisted __preview flag: HA stores getStubConfig() as
+    // the card's starting config, so a flag would stick and pin the card to the
+    // static mock on a real dashboard. Missing entities are handled at render
+    // time (config hint) instead of throwing, so the card-picker gallery — which
+    // sets `this.preview` only AFTER setConfig — is never broken.
     this._config = config;
-    this._isPreview = !!config.__preview;
-    if (!this._isPreview && (!config.entities || !config.entities.length)) {
-      throw new Error("Please define at least one entity");
-    }
   }
 
   getCardSize() { return 3; }
   getGridOptions() { return { columns: 6, min_columns: 6, rows: 2, min_rows: 1 }; }
   static getConfigElement() { return document.createElement("kamerplanter-mix-card-editor"); }
-  static getStubConfig() { return { __preview: true, entities: [], title: "Mix Rezept" }; }
+  static getStubConfig() { return { entities: [], title: "Mix Rezept" }; }
 
   _updateDosages(entityId, vol) {
     const stateObj = this._hass.states[entityId];
@@ -214,8 +215,15 @@ class KamerplanterMixCard extends HTMLElement {
 
   _render() {
     if (!this._config) return;
-    if (this._isPreview) {
+    // `this.preview` is set by HA only when the card is shown in the card-picker
+    // gallery. A persisted __preview flag is intentionally ignored so cards that
+    // captured the old getStubConfig still recover to live data on reload.
+    if (this.preview) {
       this._renderPreview();
+      return;
+    }
+    if (!this._config.entities || !this._config.entities.length) {
+      this.shadowRoot.innerHTML = `<ha-card><div style="padding:16px;color:#f44336">Keine Einträge konfiguriert</div></ha-card>`;
       return;
     }
     if (!this._hass) return;

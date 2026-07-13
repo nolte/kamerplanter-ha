@@ -127,8 +127,11 @@ class KamerplanterTankCard extends HTMLElement {
   }
 
   setConfig(config) {
-    this._isPreview = !!config.__preview;
-    if (!this._isPreview && !config.tank_entity) throw new Error("Please define a tank entity");
+    // Do NOT gate on a persisted __preview flag: HA stores getStubConfig() as
+    // the card's starting config, so a flag would stick and pin the card to the
+    // static mock on a real dashboard. A missing tank_entity is handled at render
+    // time (config hint) instead of throwing, so the card-picker gallery — which
+    // sets `this.preview` only AFTER setConfig — is never broken.
     this._config = config;
     this._render();
   }
@@ -137,7 +140,7 @@ class KamerplanterTankCard extends HTMLElement {
   getGridOptions() { return { columns: 6, min_columns: 6, rows: 3, min_rows: 2 }; }
   static getConfigElement() { return document.createElement("kamerplanter-tank-card-editor"); }
   static getStubConfig() {
-    return { __preview: true, tank_entity: "", title: "", ph_entity: "", ec_entity: "", temp_entity: "",
+    return { tank_entity: "", title: "", ph_entity: "", ec_entity: "", temp_entity: "",
       show_ph_tank: true, show_ph_badge: true, show_ec_tank: true, show_ec_badge: true,
       show_temp_tank: true, show_temp_badge: true };
   }
@@ -252,11 +255,18 @@ class KamerplanterTankCard extends HTMLElement {
   }
 
   _render() {
-    if (this._isPreview) {
+    // `this.preview` is set by HA only when the card is shown in the card-picker
+    // gallery. A persisted __preview flag is intentionally ignored so cards that
+    // captured the old getStubConfig still recover to live data on reload.
+    if (this.preview) {
       this._renderPreview();
       return;
     }
-    if (!this._hass || !this._config) return;
+    if (!this._config || !this._config.tank_entity) {
+      this.shadowRoot.innerHTML = `<ha-card><div style="padding:16px;color:#f44336">Kein Tank konfiguriert</div></ha-card>`;
+      return;
+    }
+    if (!this._hass) return;
     const cfg = this._config;
     const tankState = this._hass.states[cfg.tank_entity];
     if (!tankState) {

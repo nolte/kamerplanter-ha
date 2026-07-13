@@ -386,10 +386,11 @@ class KamerplanterHouseplantCard extends HTMLElement {
   }
 
   setConfig(config) {
-    this._isPreview = !!config.__preview;
-    if (!this._isPreview && !config.device_id) {
-      throw new Error("device_id is required");
-    }
+    // Do NOT gate on a persisted __preview flag: HA stores getStubConfig() as
+    // the card's starting config, so a flag would stick and pin the card to the
+    // static mock on a real dashboard. A missing device_id is handled at render
+    // time (config hint) instead of throwing, so the card-picker gallery — which
+    // sets `this.preview` only AFTER setConfig — is never broken.
     this._config = { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, ...config };
     this._built = false;
     this._update();
@@ -422,7 +423,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, __preview: true, device_id: "" };
+    return { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, device_id: "" };
   }
 
   /* ---- Data helpers --------------------------------------------- */
@@ -536,11 +537,22 @@ class KamerplanterHouseplantCard extends HTMLElement {
 
   _update() {
     if (!this.shadowRoot) return;
-    if (this._isPreview) {
+    // `this.preview` is set by HA only when the card is shown in the card-picker
+    // gallery. A persisted __preview flag is intentionally ignored so cards that
+    // captured the old getStubConfig still recover to live data on reload.
+    if (this.preview) {
       this._renderPreview();
       return;
     }
-    if (!this._hass || !this._config || !this._config.device_id) return;
+    if (!this._config || !this._config.device_id) {
+      this.shadowRoot.innerHTML = `
+        <style>${HP_STYLES}</style>
+        <ha-card><div class="hp-error">Kein Gerät konfiguriert</div></ha-card>
+      `;
+      this._built = false;
+      return;
+    }
+    if (!this._hass) return;
 
     const ents = this._getEntityMap();
 
