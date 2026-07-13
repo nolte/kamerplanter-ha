@@ -15,6 +15,14 @@ CONF_API_PATH: Final = "api_path"
 MDNS_SERVICE_TYPE: Final = "_kamerplanter._tcp.local."
 DEFAULT_API_PATH: Final = "/api"
 
+# Sentinel flag for the synthetic location entry that carries HA-published tanks
+# whose parent location is not published (issue #59). Consumers that iterate the
+# location coordinator data by location key skip this entry via ``if not
+# loc_key``; the standalone-tank and device-cleanup paths still find its
+# ``_tanks`` list, so a published tank surfaces as a device even without a
+# published location.
+TANK_HOLDER_MARKER: Final = "_tank_holder"
+
 # Default polling intervals (seconds)
 DEFAULT_POLL_PLANTS: Final = 300
 DEFAULT_POLL_LOCATIONS: Final = 300

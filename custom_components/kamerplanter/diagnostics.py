@@ -24,7 +24,13 @@ async def async_get_config_entry_diagnostics(
         "entry_data": async_redact_data(dict(config_entry.data), TO_REDACT),
         "entry_options": dict(config_entry.options),
         "plant_count": len(coordinators["plants"].data or []),
-        "location_count": len(coordinators["locations"].data or []),
+        "location_count": len(
+            [
+                loc
+                for loc in (coordinators["locations"].data or [])
+                if loc.get("key") or loc.get("_key")
+            ]
+        ),
         "run_count": len(coordinators["runs"].data or []),
         "active_alerts": len(coordinators["alerts"].data or []),
         "pending_tasks": len(coordinators["tasks"].data or []),
