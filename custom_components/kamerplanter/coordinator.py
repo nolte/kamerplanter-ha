@@ -32,11 +32,27 @@ from .const import (
     EVENT_IPM_ALERT,
     TANK_HOLDER_MARKER,
 )
+from .helpers import annotate_tasks_with_names, plant_display_name
 
 # Pest pressure levels that trigger an IPM alert event.
 IPM_ALERT_LEVELS: frozenset[str] = frozenset({"high", "critical"})
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _annotate_tasks(api: KamerplanterApi, tasks: list[dict[str, Any]]) -> None:
+    """Attach readable plant/display names to a task list in place (issue #57).
+
+    Loads the plant instances once to resolve each task's referenced plant into
+    a human-readable label. Plant loading failures are non-fatal — tasks keep
+    their raw backend name so the coordinator update never aborts over naming.
+    """
+    try:
+        plants = await api.async_get_plants()
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("Could not load plants for task name resolution")
+        plants = []
+    annotate_tasks_with_names(tasks, plants)
 
 
 async def _fetch_published_keys(
@@ -494,7 +510,9 @@ class KamerplanterAlertCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
             async with asyncio.timeout(10):
-                return await self.api.async_get_overdue_tasks()
+                tasks = await self.api.async_get_overdue_tasks()
+                await _annotate_tasks(self.api, tasks)
+                return tasks
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
         except KamerplanterAuthError as err:
@@ -617,7 +635,9 @@ class KamerplanterTaskCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
             async with asyncio.timeout(10):
-                return await self.api.async_get_pending_tasks()
+                tasks = await self.api.async_get_pending_tasks()
+                await _annotate_tasks(self.api, tasks)
+                return tasks
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
         except KamerplanterAuthError as err:
@@ -722,7 +742,7 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
         record: dict[str, Any] = {
             "key": key,
-            "plant_name": plant.get("plant_name") or plant.get("instance_id", key),
+            "plant_name": plant_display_name(plant),
             "pressure_level": (latest or {}).get("pressure_level", "none"),
             "detected_pest_keys": (latest or {}).get("detected_pest_keys", []),
             "last_inspection_at": (latest or {}).get("inspected_at"),

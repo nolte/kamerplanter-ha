@@ -36,6 +36,7 @@ from .entity import (
     server_device_info,
     tank_device_info,
 )
+from .helpers import plant_display_name
 
 PARALLEL_UPDATES = 0  # CoordinatorEntity — no own polling
 
@@ -1477,10 +1478,7 @@ class LocationActivePlantCountSensor(_LocationSensorBase):
             plants = resource.get("_active_plants", [])
             runs = resource.get("_active_runs", [])
             self._attr_extra_state_attributes = {
-                "plant_names": [
-                    p.get("plant_name") or p.get("instance_id", p.get("key", ""))
-                    for p in plants
-                ],
+                "plant_names": [plant_display_name(p) for p in plants],
                 "from_runs": resource.get("_run_plant_count", 0),
                 "run_names": [r.get("name", "") for r in runs],
             }

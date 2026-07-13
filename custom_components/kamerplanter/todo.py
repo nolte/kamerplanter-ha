@@ -63,7 +63,14 @@ class KamerplanterTodoList(CoordinatorEntity, TodoListEntity):
             return []
         items: list[TodoItem] = []
         for task in self.coordinator.data:
-            summary = task.get("name") or task.get("title") or "Untitled Task"
+            # ``_display_name`` is the coordinator-resolved readable label
+            # ("<plant> — <activity>", issue #57); fall back to the raw name.
+            summary = (
+                task.get("_display_name")
+                or task.get("name")
+                or task.get("title")
+                or "Untitled Task"
+            )
 
             # Build plain-text description
             desc_parts: list[str] = []
