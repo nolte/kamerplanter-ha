@@ -384,11 +384,27 @@ class KamerplanterApi:
         """Fetch overdue tasks."""
         return await self._request("GET", f"{self._tenant_prefix}/tasks/overdue")
 
+    async def async_start_task(self, task_key: str) -> dict[str, Any]:
+        """Mark a task as started via the start endpoint."""
+        return await self._request(
+            "POST",
+            f"{self._tenant_prefix}/tasks/{task_key}/start",
+            json={},
+        )
+
     async def async_complete_task(self, task_key: str) -> dict[str, Any]:
         """Mark a task as completed via the complete endpoint."""
         return await self._request(
             "POST",
             f"{self._tenant_prefix}/tasks/{task_key}/complete",
+            json={},
+        )
+
+    async def async_skip_task(self, task_key: str) -> dict[str, Any]:
+        """Mark a task as skipped via the skip endpoint."""
+        return await self._request(
+            "POST",
+            f"{self._tenant_prefix}/tasks/{task_key}/skip",
             json={},
         )
 

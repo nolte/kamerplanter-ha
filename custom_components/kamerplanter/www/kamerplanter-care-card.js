@@ -2,8 +2,10 @@
  * Kamerplanter Care Card — Custom Lovelace Card (REQ-030)
  *
  * Displays overdue, today, and upcoming care tasks grouped by urgency.
- * Each row shows plant name + task type + "Done" button.
- * The "Done" button calls kamerplanter.confirm_care service.
+ * Each row shows plant name + task type. With `interactive: true` every row
+ * also renders state-dependent action buttons (▶ start / ✓ complete / ⏭ skip)
+ * wired to the kamerplanter.start_task / complete_task / skip_task services.
+ * With `interactive: false` (default) the card is read-only (no buttons).
  *
  * Data sources:
  *   - sensor.kamerplanter_tasks_due_today (today + upcoming)
@@ -13,9 +15,10 @@
  *   type: custom:kamerplanter-care-card
  *   title: Pflege-Dashboard         # optional
  *   upcoming_days: 3                # optional, default 3
+ *   interactive: true               # optional, default false (read-only)
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
 
 /**
  * ha-form ready singleton (UI-NFR-015 §2.2).
@@ -56,6 +59,13 @@ function careCardSchema(hass) {
     { name: "title",         label: "Titel",         selector: { text: {} } },
     { name: "upcoming_days", label: "Vorschau Tage", selector: { number: { min: 1, max: 14, step: 1 } } },
     {
+      name: "interactive",
+      label: "Interaktiv (Aktions-Buttons)",
+      helper:
+        "Aktiviert pro Aufgabe Start-/Erledigt-/Überspringen-Buttons. Aus (Standard): schreibgeschützte Ansicht ohne Buttons.",
+      selector: { boolean: {} },
+    },
+    {
       name: "entity_due",
       label: "F\u00e4llig-Heute Sensor (optional)",
       helper:
@@ -82,6 +92,7 @@ class KamerplanterCareCardEditor extends HTMLElement {
     this._config = {
       title: "Kamerplanter Pflege",
       upcoming_days: 3,
+      interactive: false,
       entity_due: "sensor.kamerplanter_tasks_due_today",
       entity_overdue: "sensor.kamerplanter_tasks_overdue",
       ...config,
@@ -150,6 +161,9 @@ class KamerplanterCareCard extends HTMLElement {
     this._config = {
       title: config.title || "Kamerplanter Pflege",
       upcoming_days: config.upcoming_days || 3,
+      // Read-only by default so existing dashboards keep the glanceable view.
+      // interactive: true opts into per-task start/complete/skip buttons.
+      interactive: config.interactive === true,
       entity_due: config.entity_due || "sensor.kamerplanter_tasks_due_today",
       entity_overdue: config.entity_overdue || "sensor.kamerplanter_tasks_overdue",
     };
@@ -184,6 +198,7 @@ class KamerplanterCareCard extends HTMLElement {
     return {
       title: "Kamerplanter Pflege",
       upcoming_days: 3,
+      interactive: false,
     };
   }
 
@@ -222,15 +237,50 @@ class KamerplanterCareCard extends HTMLElement {
           <span class="plant-name">${this._escapeHtml(task.name || "Unknown")}</span>
           <span class="task-type">${this._escapeHtml(task.category || "Pflege")}</span>
         </div>
-        <button class="done-btn ${colorClass}-btn"
-                data-task-key="${this._escapeAttr(task.task_key || "")}"
-                data-notification-key="${this._escapeAttr(task.notification_key || task.task_key || "")}">
-          <ha-icon icon="mdi:check" class="btn-icon"></ha-icon>
-        </button>
+        ${this._config.interactive ? this._buildActionButtons(task) : ""}
       </div>
     `
       )
       .join("");
+  }
+
+  /**
+   * Derive whether a task has already been started. The backend flags a
+   * started task via ``started_at`` (a timestamp) or an in-progress status,
+   * so the ▶ start button is hidden once either is present.
+   */
+  _isTaskStarted(task) {
+    if (task.started_at) return true;
+    const status = String(task.status || "").toLowerCase();
+    return status === "in_progress" || status === "started" || status === "active";
+  }
+
+  /**
+   * State-dependent action buttons for a task row (interactive mode only):
+   *   ▶ start   — only while the task has not been started yet
+   *   ✓ complete — for not-started and started tasks
+   *   ⏭ skip     — for not-started and started tasks (two-tap confirm)
+   */
+  _buildActionButtons(task) {
+    const taskKey = this._escapeAttr(task.task_key || "");
+    if (!taskKey) return "";
+    const started = this._isTaskStarted(task);
+    const startBtn = started
+      ? ""
+      : `<button class="action-btn start-btn" data-action="start" data-task-key="${taskKey}" title="Starten">
+           <ha-icon icon="mdi:play" class="btn-icon"></ha-icon>
+         </button>`;
+    return `
+      <div class="task-actions">
+        ${startBtn}
+        <button class="action-btn complete-btn" data-action="complete" data-task-key="${taskKey}" title="Erledigt">
+          <ha-icon icon="mdi:check" class="btn-icon"></ha-icon>
+        </button>
+        <button class="action-btn skip-btn" data-action="skip" data-task-key="${taskKey}" title="Überspringen">
+          <ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon>
+        </button>
+      </div>
+    `;
   }
 
   _escapeHtml(str) {
@@ -265,7 +315,11 @@ class KamerplanterCareCard extends HTMLElement {
         .task-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         .plant-name { font-size: 0.9rem; font-weight: 500; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .task-type { font-size: 0.75rem; color: var(--secondary-text-color); text-transform: capitalize; }
-        .done-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; min-width: 36px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0; background-color: var(--success-color, #4caf50); color: #fff; }
+        .task-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .action-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; min-width: 34px; border-radius: 50%; border: none; cursor: pointer; color: #fff; }
+        .start-btn { background-color: var(--primary-color, #03a9f4); }
+        .complete-btn { background-color: var(--success-color, #4caf50); }
+        .skip-btn { background-color: var(--secondary-text-color, #9e9e9e); }
         .btn-icon { --mdc-icon-size: 18px; color: #fff; }
       </style>
       <ha-card>
@@ -281,7 +335,11 @@ class KamerplanterCareCard extends HTMLElement {
               <span class="plant-name">Monstera deliciosa</span>
               <span class="task-type">Giessen</span>
             </div>
-            <button class="done-btn"><ha-icon icon="mdi:check" class="btn-icon"></ha-icon></button>
+            <div class="task-actions">
+              <button class="action-btn start-btn"><ha-icon icon="mdi:play" class="btn-icon"></ha-icon></button>
+              <button class="action-btn complete-btn"><ha-icon icon="mdi:check" class="btn-icon"></ha-icon></button>
+              <button class="action-btn skip-btn"><ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon></button>
+            </div>
           </div>
         </div>
         <div class="section-today">
@@ -292,7 +350,10 @@ class KamerplanterCareCard extends HTMLElement {
               <span class="plant-name">Basil 'Genovese'</span>
               <span class="task-type">Duengen</span>
             </div>
-            <button class="done-btn"><ha-icon icon="mdi:check" class="btn-icon"></ha-icon></button>
+            <div class="task-actions">
+              <button class="action-btn complete-btn"><ha-icon icon="mdi:check" class="btn-icon"></ha-icon></button>
+              <button class="action-btn skip-btn"><ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon></button>
+            </div>
           </div>
           <div class="task-row today">
             <ha-icon icon="mdi:bug" class="task-icon"></ha-icon>
@@ -300,7 +361,10 @@ class KamerplanterCareCard extends HTMLElement {
               <span class="plant-name">Tomate 'San Marzano'</span>
               <span class="task-type">Schaedlingskontrolle</span>
             </div>
-            <button class="done-btn"><ha-icon icon="mdi:check" class="btn-icon"></ha-icon></button>
+            <div class="task-actions">
+              <button class="action-btn complete-btn"><ha-icon icon="mdi:check" class="btn-icon"></ha-icon></button>
+              <button class="action-btn skip-btn"><ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon></button>
+            </div>
           </div>
         </div>
       </ha-card>
@@ -329,12 +393,23 @@ class KamerplanterCareCard extends HTMLElement {
       dueTodayState && dueTodayState.attributes
         ? dueTodayState.attributes.plants || []
         : [];
-    const urgencyCounts =
+    const allUpcoming =
       dueTodayState && dueTodayState.attributes
-        ? dueTodayState.attributes.urgency_counts || {}
-        : {};
+        ? dueTodayState.attributes.upcoming || []
+        : [];
 
-    const totalCount = overdueTasks.length + dueTodayTasks.length;
+    // Limit the "upcoming" list to the configured preview window (by due date).
+    const upcomingLimitDate = new Date();
+    upcomingLimitDate.setDate(
+      upcomingLimitDate.getDate() + (this._config.upcoming_days || 3),
+    );
+    const upcomingCutoff = upcomingLimitDate.toISOString().slice(0, 10);
+    const upcomingTasks = allUpcoming.filter(
+      (t) => !t.due_date || t.due_date <= upcomingCutoff,
+    );
+
+    const totalCount =
+      overdueTasks.length + dueTodayTasks.length + upcomingTasks.length;
     const overdueCount = overdueTasks.length;
     const dueCount = dueTodayTasks.length;
 
@@ -394,6 +469,9 @@ class KamerplanterCareCard extends HTMLElement {
         .section-today .section-label {
           color: var(--warning-color, #ff9800);
         }
+        .section-upcoming .section-label {
+          color: var(--info-color, var(--primary-color, #03a9f4));
+        }
         .task-row {
           display: flex;
           align-items: center;
@@ -434,30 +512,46 @@ class KamerplanterCareCard extends HTMLElement {
           color: var(--secondary-text-color);
           text-transform: capitalize;
         }
-        .done-btn {
+        .task-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-shrink: 0;
+        }
+        .action-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 36px;
-          height: 36px;
-          min-width: 36px;
+          width: 34px;
+          height: 34px;
+          min-width: 34px;
           border-radius: 50%;
           border: none;
           cursor: pointer;
           transition: background-color 0.2s, opacity 0.2s;
-          flex-shrink: 0;
-          background-color: var(--success-color, #4caf50);
           color: #fff;
         }
-        .done-btn:hover {
+        .action-btn:hover {
           opacity: 0.85;
         }
-        .done-btn:active {
+        .action-btn:active {
           opacity: 0.7;
         }
-        .done-btn:disabled {
+        .action-btn:disabled {
           opacity: 0.4;
           cursor: not-allowed;
+        }
+        .start-btn {
+          background-color: var(--primary-color, #03a9f4);
+        }
+        .complete-btn {
+          background-color: var(--success-color, #4caf50);
+        }
+        .skip-btn {
+          background-color: var(--secondary-text-color, #9e9e9e);
+        }
+        .skip-btn.confirm {
+          background-color: var(--warning-color, #ff9800);
         }
         .btn-icon {
           --mdc-icon-size: 18px;
@@ -526,33 +620,82 @@ class KamerplanterCareCard extends HTMLElement {
           `
               : ""
           }
+          ${
+            upcomingTasks.length > 0
+              ? `
+            <div class="section-upcoming">
+              <div class="section-label">Anstehend (${upcomingTasks.length})</div>
+              ${this._buildTaskRows(upcomingTasks, "upcoming")}
+            </div>
+          `
+              : ""
+          }
         `
         }
       </ha-card>
     `;
 
-    // Attach click handlers to done buttons
-    this.shadowRoot.querySelectorAll(".done-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => this._handleDoneClick(e));
-    });
+    // Interactive mode: wire the per-task start/complete/skip buttons.
+    // Read-only mode renders no action buttons, so there is nothing to bind.
+    if (this._config.interactive) {
+      this.shadowRoot.querySelectorAll(".action-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => this._handleActionClick(e));
+      });
+    }
   }
 
-  _handleDoneClick(event) {
+  _handleActionClick(event) {
     const btn = event.currentTarget;
-    const notificationKey = btn.dataset.notificationKey;
-    if (!notificationKey || !this._hass) return;
+    const action = btn.dataset.action;
+    const taskKey = btn.dataset.taskKey;
+    if (!action || !taskKey || !this._hass) return;
 
-    // Disable button immediately to prevent double-clicks
-    btn.disabled = true;
+    // Skip is destructive on a touch dashboard, so require a two-tap confirm:
+    // the first tap arms the button (icon + colour change), a second tap within
+    // the timeout actually skips. start/complete execute on the first tap.
+    if (action === "skip" && btn.dataset.confirm !== "1") {
+      this._armSkipConfirm(btn);
+      return;
+    }
 
-    this._hass.callService("kamerplanter", "confirm_care", {
-      notification_key: notificationKey,
-      action: "confirmed",
-    });
+    this._executeAction(btn, action, taskKey);
+  }
 
-    // Visual feedback: replace icon with checkmark
+  _armSkipConfirm(btn) {
+    btn.dataset.confirm = "1";
+    btn.classList.add("confirm");
+    btn.title = "Zum Bestätigen erneut tippen";
+    btn.innerHTML = '<ha-icon icon="mdi:skip-next-circle" class="btn-icon"></ha-icon>';
+    this._skipTimers = this._skipTimers || new WeakMap();
+    clearTimeout(this._skipTimers.get(btn));
+    this._skipTimers.set(
+      btn,
+      setTimeout(() => this._resetSkipConfirm(btn), 3000),
+    );
+  }
+
+  _resetSkipConfirm(btn) {
+    if (!btn.isConnected) return;
+    btn.dataset.confirm = "";
+    btn.classList.remove("confirm");
+    btn.title = "Überspringen";
+    btn.innerHTML = '<ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon>';
+  }
+
+  _executeAction(btn, action, taskKey) {
+    // Optimistic UI: disable every button in the row so the task cannot be
+    // double-actioned while the coordinator refresh is in flight. The card
+    // re-renders from live sensor data once the status changes.
+    const row = btn.closest(".task-row");
+    if (row) {
+      row.querySelectorAll(".action-btn").forEach((b) => {
+        b.disabled = true;
+      });
+    }
     btn.innerHTML = '<ha-icon icon="mdi:check-all" class="btn-icon"></ha-icon>';
-    btn.style.backgroundColor = "var(--secondary-text-color, #9e9e9e)";
+
+    const service = `${action}_task`;
+    this._hass.callService("kamerplanter", service, { task_key: taskKey });
   }
 }
 
@@ -563,7 +706,8 @@ window.customCards.push({
   type: "kamerplanter-care-card",
   name: "Kamerplanter Care Card",
   description:
-    "Displays overdue and upcoming plant care tasks with actionable buttons.",
+    "Displays overdue, today and upcoming plant care tasks grouped by urgency. " +
+    "Optional interactive mode adds per-task start/complete/skip buttons.",
   preview: true,
 });
 

@@ -88,26 +88,66 @@
           "short_day_induction": "Short Day Induction"
         }
       },
-      "days_in_phase": { "name": "Days in Phase" },
-      "vpd_target": { "name": "VPD Target" },
-      "ec_target": { "name": "EC Target" },
-      "nutrient_plan": { "name": "Nutrient Plan" },
-      "active_channels": { "name": "Active Channels" },
-      "phase_timeline": { "name": "Phase Timeline" },
-      "next_phase": { "name": "Next Phase" },
-      "channel_mix": { "name": "Channel Mix" },
-      "run_status": { "name": "Status" },
-      "plant_count": { "name": "Plant Count" },
-      "location_type": { "name": "Location Type" },
-      "active_runs": { "name": "Active Runs" },
-      "active_plants": { "name": "Active Plants" },
-      "tank_info": { "name": "Tank Info" },
-      "tank_volume": { "name": "Volume" },
-      "fill_level": { "name": "Fill Level" },
-      "tasks_due_today": { "name": "Tasks Due Today" },
-      "tasks_overdue": { "name": "Tasks Overdue" },
-      "days_until_watering": { "name": "Days Until Watering" },
-      "next_watering": { "name": "Next Watering" },
+      "days_in_phase": {
+        "name": "Days in Phase"
+      },
+      "vpd_target": {
+        "name": "VPD Target"
+      },
+      "ec_target": {
+        "name": "EC Target"
+      },
+      "nutrient_plan": {
+        "name": "Nutrient Plan"
+      },
+      "active_channels": {
+        "name": "Active Channels"
+      },
+      "phase_timeline": {
+        "name": "Phase Timeline"
+      },
+      "next_phase": {
+        "name": "Next Phase"
+      },
+      "channel_mix": {
+        "name": "Channel Mix"
+      },
+      "run_status": {
+        "name": "Status"
+      },
+      "plant_count": {
+        "name": "Plant Count"
+      },
+      "location_type": {
+        "name": "Location Type"
+      },
+      "active_runs": {
+        "name": "Active Runs"
+      },
+      "active_plants": {
+        "name": "Active Plants"
+      },
+      "tank_info": {
+        "name": "Tank Info"
+      },
+      "tank_volume": {
+        "name": "Volume"
+      },
+      "fill_level": {
+        "name": "Fill Level"
+      },
+      "tasks_due_today": {
+        "name": "Tasks Due Today"
+      },
+      "tasks_overdue": {
+        "name": "Tasks Overdue"
+      },
+      "days_until_watering": {
+        "name": "Days Until Watering"
+      },
+      "next_watering": {
+        "name": "Next Watering"
+      },
       "pest_pressure": {
         "name": "Pest Pressure",
         "state": {
@@ -118,61 +158,168 @@
           "critical": "Critical"
         }
       },
-      "karenz_remaining": { "name": "Harvest Waiting Period" },
-      "last_inspection_days": { "name": "Days Since Inspection" }
+      "karenz_remaining": {
+        "name": "Harvest Waiting Period"
+      },
+      "last_inspection_days": {
+        "name": "Days Since Inspection"
+      }
     },
     "binary_sensor": {
-      "needs_attention": { "name": "Needs Attention" },
-      "sensor_offline": { "name": "Sensor Offline" },
-      "care_overdue": { "name": "Care Overdue" },
-      "harvest_safe": { "name": "Safe to Harvest" },
-      "pest_alert": { "name": "Pest Alert" }
+      "needs_attention": {
+        "name": "Needs Attention"
+      },
+      "sensor_offline": {
+        "name": "Sensor Offline"
+      },
+      "care_overdue": {
+        "name": "Care Overdue"
+      },
+      "harvest_safe": {
+        "name": "Safe to Harvest"
+      },
+      "pest_alert": {
+        "name": "Pest Alert"
+      }
     },
     "button": {
-      "refresh_all": { "name": "Refresh All Data" }
+      "refresh_all": {
+        "name": "Refresh All Data"
+      }
     },
     "calendar": {
-      "phases": { "name": "Growth Phases" },
-      "tasks": { "name": "Tasks" }
+      "phases": {
+        "name": "Growth Phases"
+      },
+      "tasks": {
+        "name": "Tasks"
+      }
     },
     "todo": {
-      "tasks": { "name": "Tasks" }
+      "tasks": {
+        "name": "Tasks"
+      }
     }
   },
   "services": {
     "refresh_data": {
       "name": "Refresh Data",
       "description": "Re-poll all coordinators.",
-      "fields": { "entry_id": { "name": "Config Entry ID", "description": "Target instance." } }
+      "fields": {
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target instance."
+        }
+      }
     },
     "clear_cache": {
       "name": "Clear Cache",
       "description": "Clear local coordinator cache and reload all data.",
-      "fields": { "entry_id": { "name": "Config Entry ID", "description": "Target instance." } }
+      "fields": {
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target instance."
+        }
+      }
     },
     "fill_tank": {
       "name": "Fill Tank",
       "description": "Record a tank fill event.",
       "fields": {
-        "entity_id": { "name": "Tank Entity", "description": "Any tank entity." },
-        "fill_type": { "name": "Fill Type", "description": "Type of fill operation." },
-        "volume_liters": { "name": "Volume", "description": "Volume in liters." }
+        "entity_id": {
+          "name": "Tank Entity",
+          "description": "Any tank entity."
+        },
+        "fill_type": {
+          "name": "Fill Type",
+          "description": "Type of fill operation."
+        },
+        "volume_liters": {
+          "name": "Volume",
+          "description": "Volume in liters."
+        }
       }
     },
     "water_channel": {
       "name": "Water Channel",
       "description": "Record a watering event for a delivery channel.",
       "fields": {
-        "entity_id": { "name": "Channel Entity", "description": "Channel mix entity." },
-        "volume_liters": { "name": "Volume", "description": "Volume in liters." }
+        "entity_id": {
+          "name": "Channel Entity",
+          "description": "Channel mix entity."
+        },
+        "volume_liters": {
+          "name": "Volume",
+          "description": "Volume in liters."
+        }
       }
     },
     "confirm_care": {
       "name": "Confirm Care",
       "description": "Confirm a care reminder as completed.",
       "fields": {
-        "notification_key": { "name": "Notification Key", "description": "Key of the notification." },
-        "action": { "name": "Action", "description": "confirmed or skipped." }
+        "notification_key": {
+          "name": "Notification Key",
+          "description": "Key of the notification."
+        },
+        "action": {
+          "name": "Action",
+          "description": "confirmed or skipped."
+        }
+      }
+    },
+    "start_task": {
+      "name": "Start Task",
+      "description": "Mark a Kamerplanter task as started.",
+      "fields": {
+        "task_key": {
+          "name": "Task Key",
+          "description": "Direct key of the task."
+        },
+        "entity_id": {
+          "name": "Task Entity",
+          "description": "An entity that carries a task_key attribute."
+        },
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target a specific Kamerplanter instance."
+        }
+      }
+    },
+    "complete_task": {
+      "name": "Complete Task",
+      "description": "Mark a Kamerplanter task as completed.",
+      "fields": {
+        "task_key": {
+          "name": "Task Key",
+          "description": "Direct key of the task."
+        },
+        "entity_id": {
+          "name": "Task Entity",
+          "description": "An entity that carries a task_key attribute."
+        },
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target a specific Kamerplanter instance."
+        }
+      }
+    },
+    "skip_task": {
+      "name": "Skip Task",
+      "description": "Mark a Kamerplanter task as skipped.",
+      "fields": {
+        "task_key": {
+          "name": "Task Key",
+          "description": "Direct key of the task."
+        },
+        "entity_id": {
+          "name": "Task Entity",
+          "description": "An entity that carries a task_key attribute."
+        },
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target a specific Kamerplanter instance."
+        }
       }
     }
   },

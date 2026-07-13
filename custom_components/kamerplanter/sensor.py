@@ -1990,8 +1990,8 @@ class TasksDueTodaySensor(KamerplanterEntity, RestoreEntity, SensorEntity):
     def _handle_coordinator_update(self) -> None:
         today = date.today().isoformat()
         due_today: list[dict[str, Any]] = []
+        upcoming: list[dict[str, Any]] = []
         overdue_count = 0
-        upcoming_count = 0
 
         if self.coordinator.data:
             for task in self.coordinator.data:
@@ -2001,7 +2001,7 @@ class TasksDueTodaySensor(KamerplanterEntity, RestoreEntity, SensorEntity):
                 elif due and due < today:
                     overdue_count += 1
                 elif due and due > today:
-                    upcoming_count += 1
+                    upcoming.append(task)
 
         # Also count overdue from alert coordinator
         if self._alert_coordinator.data:
@@ -2011,32 +2011,44 @@ class TasksDueTodaySensor(KamerplanterEntity, RestoreEntity, SensorEntity):
 
         # Build summary and plant list
         plant_names: list[str] = []
-        plants_detail: list[dict[str, str]] = []
-        for task in due_today:
-            name = task.get("plant_name") or task.get("name", "")
-            category = task.get("category", "")
-            if name:
-                plant_names.append(name)
-            plants_detail.append(
-                {
-                    "name": name,
-                    "task_key": task.get("key", ""),
-                    "category": category,
-                    "plant_key": task.get("plant_key", ""),
-                }
-            )
+        plants_detail = [self._task_detail(task) for task in due_today]
+        for detail in plants_detail:
+            if detail["name"]:
+                plant_names.append(detail["name"])
+
+        # Sort upcoming by due date so the nearest tasks surface first.
+        upcoming_sorted = sorted(upcoming, key=lambda t: t.get("due_date", ""))
+        upcoming_detail = [self._task_detail(task) for task in upcoming_sorted]
 
         summary = ", ".join(plant_names) if plant_names else "Keine Aufgaben heute"
         self._attr_extra_state_attributes = {
             "summary": summary,
             "plants": plants_detail,
+            "upcoming": upcoming_detail,
             "urgency_counts": {
                 "overdue": overdue_count,
                 "due_today": len(due_today),
-                "upcoming": upcoming_count,
+                "upcoming": len(upcoming_detail),
             },
         }
         self.async_write_ha_state()
+
+    @staticmethod
+    def _task_detail(task: dict[str, Any]) -> dict[str, str]:
+        """Build the per-task detail dict consumed by the care card.
+
+        Carries ``status`` + ``started_at`` so the interactive card can derive
+        which action buttons (start / complete / skip) to render for the task.
+        """
+        return {
+            "name": task.get("plant_name") or task.get("name", ""),
+            "task_key": task.get("key", ""),
+            "category": task.get("category", ""),
+            "plant_key": task.get("plant_key", ""),
+            "due_date": task.get("due_date", ""),
+            "status": task.get("status", ""),
+            "started_at": task.get("started_at") or "",
+        }
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -2091,6 +2103,9 @@ class TasksOverdueSensor(KamerplanterEntity, RestoreEntity, SensorEntity):
                     "plant_key": plant_key,
                     "due_date": due,
                     "task_key": alert.get("key", ""),
+                    "category": alert.get("category", ""),
+                    "status": alert.get("status", ""),
+                    "started_at": alert.get("started_at") or "",
                 }
             )
             if due:

@@ -1,4 +1,5 @@
 """Unit tests for the KamerplanterApi HTTP client."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -123,6 +124,57 @@ async def test_tenants_url_uses_custom_api_path() -> None:
 
     _, url = session.request.call_args.args[:2]
     assert url == "http://host:8000/proxy/api/v1/tenants/"
+
+
+@pytest.mark.asyncio
+async def test_start_task_hits_start_endpoint() -> None:
+    """async_start_task POSTs to {tenant}/tasks/{key}/start."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_start_task("task-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "POST"
+    assert url == "http://host:8000/api/v1/t/garden/tasks/task-1/start"
+
+
+@pytest.mark.asyncio
+async def test_complete_task_hits_complete_endpoint() -> None:
+    """async_complete_task POSTs to {tenant}/tasks/{key}/complete."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_complete_task("task-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "POST"
+    assert url == "http://host:8000/api/v1/t/garden/tasks/task-1/complete"
+
+
+@pytest.mark.asyncio
+async def test_skip_task_hits_skip_endpoint() -> None:
+    """async_skip_task POSTs to {tenant}/tasks/{key}/skip."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_skip_task("task-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "POST"
+    assert url == "http://host:8000/api/v1/t/garden/tasks/task-1/skip"
 
 
 @pytest.mark.asyncio
