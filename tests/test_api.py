@@ -177,6 +177,51 @@ async def test_skip_task_hits_skip_endpoint() -> None:
     assert url == "http://host:8000/api/v1/t/garden/tasks/task-1/skip"
 
 
+def _make_session_with_status(status: int, *, json_side_effect=None) -> MagicMock:
+    """Build a session mock whose response carries a specific status code."""
+    session = MagicMock()
+    response = MagicMock()
+    response.status = status
+    response.raise_for_status = MagicMock()
+    if json_side_effect is not None:
+        response.json = AsyncMock(side_effect=json_side_effect)
+    else:
+        response.json = AsyncMock(return_value={"ok": True})
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=response)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    session.request = MagicMock(return_value=cm)
+    return session
+
+
+@pytest.mark.asyncio
+async def test_request_tolerates_204_no_content() -> None:
+    """A 204 response (task actions) returns None instead of failing on json()."""
+    session = _make_session_with_status(
+        204, json_side_effect=AssertionError("json() must not be called on 204")
+    )
+    api = KamerplanterApi(
+        base_url="http://host:8000", session=session, tenant_slug="garden"
+    )
+
+    result = await api.async_complete_task("task-1")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_request_tolerates_non_json_body() -> None:
+    """A 200 with an empty/non-JSON body decodes to None, not a connection error."""
+    session = _make_session_with_status(200, json_side_effect=ValueError("no json"))
+    api = KamerplanterApi(
+        base_url="http://host:8000", session=session, tenant_slug="garden"
+    )
+
+    result = await api.async_start_task("task-1")
+
+    assert result is None
+
+
 @pytest.mark.asyncio
 async def test_request_disables_redirects_by_default() -> None:
     """Bearer-token leaks via cross-host redirects are blocked at the client level."""

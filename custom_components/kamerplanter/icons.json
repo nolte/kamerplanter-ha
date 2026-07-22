@@ -56,6 +56,9 @@
     "clear_cache": { "service": "mdi:cached" },
     "fill_tank": { "service": "mdi:water-plus" },
     "water_channel": { "service": "mdi:watering-can" },
-    "confirm_care": { "service": "mdi:check-circle" }
+    "confirm_care": { "service": "mdi:check-circle" },
+    "start_task": { "service": "mdi:play-circle-outline" },
+    "complete_task": { "service": "mdi:check-circle-outline" },
+    "skip_task": { "service": "mdi:skip-next-circle-outline" }
   }
 }

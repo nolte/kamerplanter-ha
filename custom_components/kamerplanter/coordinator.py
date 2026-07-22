@@ -96,8 +96,15 @@ def _phase_names_match(a: str, b: str) -> bool:
 
 
 def _calc_current_week(started_at_iso: str) -> int:
-    """Calculate current week number from phase start date (1-based)."""
-    started = datetime.fromisoformat(started_at_iso)
+    """Calculate current week number from phase start date (1-based).
+
+    Falls back to week 1 when the timestamp is missing or malformed, so a bad
+    ``current_phase_started_at`` never aborts a coordinator update.
+    """
+    try:
+        started = datetime.fromisoformat(started_at_iso)
+    except (ValueError, TypeError):
+        return 1
     if started.tzinfo is None:
         started = started.replace(tzinfo=timezone.utc)
     delta = datetime.now(tz=timezone.utc) - started
@@ -556,55 +563,14 @@ class KamerplanterRunCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             async with asyncio.timeout(30):
                 runs = await self.api.async_get_planting_runs()
 
-                for run in runs:
-                    if run.get("status") in ("completed", "cancelled"):
-                        continue
-                    plan = await self.api.async_get_run_nutrient_plan(run["key"])
-                    run["_nutrient_plan"] = plan
-                    if plan and plan.get("key"):
-                        entries = await self.api.async_get_plan_phase_entries(
-                            plan["key"]
-                        )
-                        for entry in entries:
-                            for channel in entry.get("delivery_channels", []):
-                                for dosage in channel.get("fertilizer_dosages", []):
-                                    fk = dosage.get("fertilizer_key", "")
-                                    if (
-                                        fk
-                                        and fk in self._fert_lookup
-                                        and "product_name" not in dosage
-                                    ):
-                                        dosage["product_name"] = self._fert_lookup[fk]
-                        run["_phase_entries"] = entries
-                    timeline = await self.api.async_get_run_phase_timeline(run["key"])
-                    run["_timeline"] = timeline
-                    all_entries = run.get("_phase_entries", [])
-                    is_seasonal = (
-                        plan and plan.get("cycle_restart_from_sequence") is not None
-                    )
-                    if is_seasonal:
-                        eff_week = date.today().isocalendar().week
-                    else:
-                        eff_week = _calc_effective_plan_week(timeline, all_entries)
-                    if eff_week is not None:
-                        run["_current_week"] = eff_week
-                        run["_current_phase_entries"] = _filter_current_phase_entries(
-                            all_entries, eff_week
-                        )
-                    try:
-                        channels = await self.api.async_get_run_active_channels(
-                            run["key"], eff_week
-                        )
-                        run["_active_channels"] = channels
-                    except Exception:  # noqa: BLE001
-                        run["_active_channels"] = []
-
-                    # Watering schedule (next watering dates)
-                    try:
-                        ws = await self.api.async_get_run_watering_schedule(run["key"])
-                        run["_watering_schedule"] = ws
-                    except Exception:  # noqa: BLE001
-                        run["_watering_schedule"] = None
+                # Enrich each run in parallel. Isolating enrichment per run
+                # (return_exceptions=True) keeps a single run's failure from
+                # dropping the whole update, and cuts poll latency for setups
+                # with several active runs.
+                await asyncio.gather(
+                    *(self._enrich_run(run) for run in runs),
+                    return_exceptions=True,
+                )
 
                 return runs
         except TimeoutError as err:
@@ -613,6 +579,58 @@ class KamerplanterRunCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             raise ConfigEntryAuthFailed(str(err)) from err
         except KamerplanterConnectionError as err:
             raise UpdateFailed(str(err)) from err
+
+    async def _enrich_run(self, run: dict[str, Any]) -> None:
+        """Enrich a single planting run with plan, timeline, channels, schedule."""
+        if run.get("status") in ("completed", "cancelled"):
+            return
+        key = run.get("key")
+        if not key:
+            # A run without a key cannot be enriched; surface a graceful
+            # UpdateFailed instead of a raw KeyError. Isolated by the caller's
+            # gather(return_exceptions=True), so only this run is skipped.
+            raise UpdateFailed("Planting run is missing its key")
+
+        plan = await self.api.async_get_run_nutrient_plan(key)
+        run["_nutrient_plan"] = plan
+        if plan and plan.get("key"):
+            entries = await self.api.async_get_plan_phase_entries(plan["key"])
+            for entry in entries:
+                for channel in entry.get("delivery_channels", []):
+                    for dosage in channel.get("fertilizer_dosages", []):
+                        fk = dosage.get("fertilizer_key", "")
+                        if (
+                            fk
+                            and fk in self._fert_lookup
+                            and "product_name" not in dosage
+                        ):
+                            dosage["product_name"] = self._fert_lookup[fk]
+            run["_phase_entries"] = entries
+        timeline = await self.api.async_get_run_phase_timeline(key)
+        run["_timeline"] = timeline
+        all_entries = run.get("_phase_entries", [])
+        is_seasonal = plan and plan.get("cycle_restart_from_sequence") is not None
+        if is_seasonal:
+            eff_week = date.today().isocalendar().week
+        else:
+            eff_week = _calc_effective_plan_week(timeline, all_entries)
+        if eff_week is not None:
+            run["_current_week"] = eff_week
+            run["_current_phase_entries"] = _filter_current_phase_entries(
+                all_entries, eff_week
+            )
+        try:
+            channels = await self.api.async_get_run_active_channels(key, eff_week)
+            run["_active_channels"] = channels
+        except Exception:  # noqa: BLE001
+            run["_active_channels"] = []
+
+        # Watering schedule (next watering dates)
+        try:
+            ws = await self.api.async_get_run_watering_schedule(key)
+            run["_watering_schedule"] = ws
+        except Exception:  # noqa: BLE001
+            run["_watering_schedule"] = None
 
 
 class KamerplanterTaskCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
@@ -720,7 +738,12 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _build_ipm_record(self, plant: dict[str, Any]) -> dict[str, Any]:
         """Aggregate the per-plant IPM endpoints into a single record."""
-        key = plant["key"]
+        key = plant.get("key")
+        if not key:
+            # Guard against malformed plant records: a graceful UpdateFailed
+            # instead of a raw KeyError. The caller's gather isolates it, so
+            # only this plant is skipped (filtered out by the dict check).
+            raise UpdateFailed("Plant instance is missing its key")
         inspections, karenz, harvest = await asyncio.gather(
             self.api.async_get_pest_inspections(key),
             self.api.async_get_karenz(key),

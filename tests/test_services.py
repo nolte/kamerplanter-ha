@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.kamerplanter import (
@@ -105,4 +106,18 @@ async def test_task_service_without_target_is_noop(hass) -> None:
     await hass.services.async_call(DOMAIN, SERVICE_START_TASK, {}, blocking=True)
 
     api.async_start_task.assert_not_awaited()
+    coordinator.async_request_refresh.assert_not_awaited()
+
+
+async def test_task_service_raises_on_api_error(hass) -> None:
+    """An API failure propagates as HomeAssistantError instead of a silent log."""
+    _entry, api, coordinator = await _setup_entry(hass)
+    api.async_complete_task = AsyncMock(side_effect=RuntimeError("backend down"))
+
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_COMPLETE_TASK, {"task_key": "task-1"}, blocking=True
+        )
+
+    # The refresh must not run when the action itself failed.
     coordinator.async_request_refresh.assert_not_awaited()

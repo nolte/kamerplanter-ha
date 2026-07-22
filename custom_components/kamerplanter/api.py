@@ -103,7 +103,17 @@ class KamerplanterApi:
                 if resp.status == 404:
                     raise KamerplanterNotFoundError(f"Not found: {url}")
                 resp.raise_for_status()
-                return await resp.json()
+                # POST actions (task start/complete/skip, fills) may answer with
+                # 204 No Content or a body lacking a JSON content-type. Treat
+                # those as success instead of a connection error. ``content_type=
+                # None`` skips aiohttp's mimetype assertion; an empty/non-JSON
+                # body then raises ValueError, which we map to ``None``.
+                if resp.status == 204:
+                    return None
+                try:
+                    return await resp.json(content_type=None)
+                except ValueError:
+                    return None
         except KamerplanterApiError:
             raise
         except ClientResponseError as err:
