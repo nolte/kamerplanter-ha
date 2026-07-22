@@ -19,6 +19,7 @@ from .coordinator import (
     KamerplanterAlertCoordinator,
     KamerplanterIpmCoordinator,
     KamerplanterLocationCoordinator,
+    KamerplanterWeatherCoordinator,
 )
 from .entity import (
     KamerplanterEntity,
@@ -27,6 +28,7 @@ from .entity import (
     location_device_info,
     plant_device_info,
     server_device_info,
+    site_device_info,
 )
 
 PARALLEL_UPDATES = 0  # CoordinatorEntity — no own polling
@@ -43,6 +45,9 @@ async def async_setup_entry(
     plant_coordinator = coordinators["plants"]
     loc_coordinator: KamerplanterLocationCoordinator = coordinators["locations"]
     ipm_coordinator: KamerplanterIpmCoordinator | None = coordinators.get("ipm")
+    weather_coordinator: KamerplanterWeatherCoordinator | None = coordinators.get(
+        "weather"
+    )
 
     entities: list[BinarySensorEntity] = []
 
@@ -95,6 +100,17 @@ async def async_setup_entry(
                         alert_coordinator, loc_coordinator, entry, loc_key, dev
                     )
                 )
+
+    # Per-site proactive frost-forecast sensors (issue #53)
+    if weather_coordinator is not None and weather_coordinator.data:
+        for site in weather_coordinator.data:
+            site_key = site.get("key") or site.get("_key", "")
+            if not site_key:
+                continue
+            dev = site_device_info(entry, site)
+            entities.append(
+                SiteFrostForecastSensor(weather_coordinator, entry, site_key, dev)
+            )
 
     # Global sensor offline — under server device
     srv_dev = server_device_info(entry)
@@ -360,3 +376,55 @@ class PlantPestAlertSensor(_IpmPlantBinarySensor):
         else:
             self._attr_is_on = False
         self.async_write_ha_state()
+
+
+class SiteFrostForecastSensor(KamerplanterEntity, RestoreEntity, BinarySensorEntity):
+    """Proactive frost early-warning per site, from the weather forecast (issue #53).
+
+    ``on`` = frost forecast within the horizon. State is ``unknown`` (``is_on``
+    is ``None``) when the backend has no forecast source for the site (no
+    coordinates / weather disabled), mirroring the backend's graceful ``None``
+    semantics rather than reporting a misleading "no frost".
+    """
+
+    _attr_translation_key = "frost_forecast"
+    _attr_device_class = BinarySensorDeviceClass.COLD
+
+    def __init__(
+        self,
+        coordinator: KamerplanterWeatherCoordinator,
+        entry: ConfigEntry,
+        site_key: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        super().__init__(coordinator, entry.entry_id, device_info)
+        self._site_key = site_key
+        slug = _slugify_key(site_key)
+        self._attr_unique_id = f"{entry.entry_id}_kp_site_{slug}_frost_forecast"
+
+    def _find_record(self) -> dict[str, Any] | None:
+        return find_by_key(self.coordinator.data, self._site_key)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        record = self._find_record()
+        if record is not None:
+            warning = record.get("frost_warning")
+            self._attr_is_on = None if warning is None else bool(warning)
+            self._attr_extra_state_attributes = {
+                "min_temperature": record.get("min_temperature"),
+                "expected_date": record.get("expected_date"),
+                "source": record.get("source"),
+            }
+        else:
+            self._attr_is_on = None
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last and last.state not in ("unknown", "unavailable", ""):
+            self._attr_is_on = last.state == "on"
+            self.async_write_ha_state()
+        if self.coordinator.data:
+            self._handle_coordinator_update()

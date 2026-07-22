@@ -60,6 +60,7 @@ def plant_device_info(entry: ConfigEntry, plant: dict[str, Any]) -> DeviceInfo:
         name=name,
         manufacturer="Kamerplanter",
         model=model,
+        model_id="plant_instance",
         via_device=(DOMAIN, entry.entry_id),
     )
 
@@ -73,6 +74,7 @@ def run_device_info(entry: ConfigEntry, run: dict[str, Any]) -> DeviceInfo:
         name=name,
         manufacturer="Kamerplanter",
         model=f"Planting Run ({run.get('run_type', 'unknown')})",
+        model_id="planting_run",
         via_device=(DOMAIN, entry.entry_id),
     )
 
@@ -87,6 +89,25 @@ def location_device_info(entry: ConfigEntry, loc: dict[str, Any]) -> DeviceInfo:
         name=name,
         manufacturer="Kamerplanter",
         model=f"Location ({loc_type})",
+        via_device=(DOMAIN, entry.entry_id),
+    )
+
+
+def site_device_info(entry: ConfigEntry, site: dict[str, Any]) -> DeviceInfo:
+    """Create DeviceInfo for a site (child device).
+
+    Sites group per-site entities such as the proactive frost-forecast binary
+    sensor (issue #53). A dedicated device per site keeps multi-site setups
+    cleanly separated and consistent with the other domain devices.
+    """
+    site_key = site.get("key") or site.get("_key", "")
+    name = site.get("name", site_key)
+    site_type = site.get("type", "site")
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_site_{site_key}")},
+        name=name,
+        manufacturer="Kamerplanter",
+        model=f"Site ({site_type})",
         via_device=(DOMAIN, entry.entry_id),
     )
 
