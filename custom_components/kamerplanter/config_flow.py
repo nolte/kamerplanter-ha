@@ -8,6 +8,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
+    ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlowWithReload,
@@ -32,6 +33,7 @@ from .const import (
     CONF_POLL_LOCATIONS,
     CONF_POLL_PLANTS,
     CONF_POLL_TASKS,
+    CONF_POLL_WEATHER,
     CONF_TENANT_SLUG,
     DEFAULT_API_PATH,
     DEFAULT_POLL_ALERTS,
@@ -39,12 +41,14 @@ from .const import (
     DEFAULT_POLL_LOCATIONS,
     DEFAULT_POLL_PLANTS,
     DEFAULT_POLL_TASKS,
+    DEFAULT_POLL_WEATHER,
     DOMAIN,
     MIN_POLL_ALERTS,
     MIN_POLL_IPM,
     MIN_POLL_LOCATIONS,
     MIN_POLL_PLANTS,
     MIN_POLL_TASKS,
+    MIN_POLL_WEATHER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,6 +75,10 @@ OPTIONS_SCHEMA = vol.Schema(
             CONF_POLL_IPM,
             default=DEFAULT_POLL_IPM,
         ): vol.All(int, vol.Range(min=MIN_POLL_IPM)),
+        vol.Optional(
+            CONF_POLL_WEATHER,
+            default=DEFAULT_POLL_WEATHER,
+        ): vol.All(int, vol.Range(min=MIN_POLL_WEATHER)),
     }
 )
 
@@ -107,7 +115,9 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
             self._api_key = user_input.get(CONF_API_KEY) or None
             session = async_get_clientsession(self.hass)
 
-            # Probe health endpoint (no auth needed)
+            # Probe health endpoint (no auth needed). Every API call in this
+            # flow catches both error classes plus a broad fallback so a
+            # behandelbarer Fehler never surfaces as a raw "unknown" abort.
             api_no_auth = KamerplanterApi(
                 base_url=self._base_url,
                 session=session,
@@ -118,13 +128,13 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._server_version = health.get("version", "unknown")
                 server_mode = health.get("mode", "full")
                 self._light_mode = server_mode == "light"
+            except KamerplanterAuthError:
+                errors["base"] = "invalid_auth"
             except KamerplanterConnectionError:
                 errors["base"] = "cannot_connect"
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=self._user_schema(),
-                    errors=errors,
-                )
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Unexpected error probing Kamerplanter health")
+                errors["base"] = "unknown"
 
             # Light mode (REQ-027): LightAuthProvider skips authentication
             api = KamerplanterApi(
@@ -133,52 +143,45 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                 api_key=self._api_key,
                 api_path=self._api_path,
             )
-            if not self._light_mode:
+            if not errors and not self._light_mode:
                 if not self._api_key:
                     errors["base"] = "invalid_auth"
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=self._user_schema(),
-                        errors=errors,
-                    )
-                try:
-                    await api.async_get_current_user()
-                except KamerplanterAuthError:
-                    errors["base"] = "invalid_auth"
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=self._user_schema(),
-                        errors=errors,
-                    )
+                else:
+                    try:
+                        await api.async_get_current_user()
+                    except KamerplanterAuthError:
+                        errors["base"] = "invalid_auth"
+                    except KamerplanterConnectionError:
+                        errors["base"] = "cannot_connect"
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.exception("Unexpected error validating credentials")
+                        errors["base"] = "unknown"
 
             # Fetch available tenants
-            try:
-                self._tenants = await api.async_get_tenants()
-            except KamerplanterConnectionError:
-                errors["base"] = "cannot_connect"
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=self._user_schema(),
-                    errors=errors,
-                )
+            if not errors:
+                try:
+                    self._tenants = await api.async_get_tenants()
+                except KamerplanterAuthError:
+                    errors["base"] = "invalid_auth"
+                except KamerplanterConnectionError:
+                    errors["base"] = "cannot_connect"
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Unexpected error fetching tenants")
+                    errors["base"] = "unknown"
 
-            if not self._tenants:
+            if not errors and not self._tenants:
                 errors["base"] = "no_tenants"
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=self._user_schema(),
-                    errors=errors,
-                )
 
-            # Single tenant: auto-select, skip step 2
-            if len(self._tenants) == 1:
-                tenant_slug = self._tenants[0]["slug"]
-                await self.async_set_unique_id(f"{self._base_url}_{tenant_slug}")
-                self._abort_if_unique_id_configured()
-                return self._create_entry(tenant_slug=tenant_slug)
+            if not errors:
+                # Single tenant: auto-select, skip step 2
+                if len(self._tenants) == 1:
+                    tenant_slug = self._tenants[0]["slug"]
+                    await self.async_set_unique_id(f"{self._base_url}_{tenant_slug}")
+                    self._abort_if_unique_id_configured()
+                    return self._create_entry(tenant_slug=tenant_slug)
 
-            # Multiple tenants: show selection
-            return await self.async_step_tenant()
+                # Multiple tenants: show selection
+                return await self.async_step_tenant()
 
         return self.async_show_form(
             step_id="user",
@@ -289,6 +292,12 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                     await api.async_get_current_user()
                 except KamerplanterAuthError:
                     errors["base"] = "invalid_auth"
+                except KamerplanterConnectionError:
+                    errors["base"] = "cannot_connect"
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Unexpected error validating credentials")
+                    errors["base"] = "unknown"
+                if errors:
                     return self.async_show_form(
                         step_id="discovery_confirm",
                         data_schema=self._discovery_confirm_schema(),
@@ -307,8 +316,14 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
                 try:
                     self._tenants = await api.async_get_tenants()
+                except KamerplanterAuthError:
+                    errors["base"] = "invalid_auth"
                 except KamerplanterConnectionError:
                     errors["base"] = "cannot_connect"
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Unexpected error fetching tenants")
+                    errors["base"] = "unknown"
+                if errors:
                     return self.async_show_form(
                         step_id="discovery_confirm",
                         data_schema=self._discovery_confirm_schema(),
@@ -324,7 +339,9 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
 
             tenant_slug = self._tenants[0]["slug"]
             await self.async_set_unique_id(f"{self._instance_id}_{tenant_slug}")
-            self._abort_if_unique_id_configured()
+            self._abort_if_unique_id_configured(
+                updates={CONF_URL: self._base_url, CONF_API_PATH: self._api_path}
+            )
             return self._create_entry(tenant_slug=tenant_slug)
 
         return self.async_show_form(
@@ -417,9 +434,25 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
                 elif CONF_API_PATH in reconfigure_entry.data:
                     # Caller reset to default — drop the stored override.
                     data_updates[CONF_API_PATH] = DEFAULT_API_PATH
+
+                # Keep a URL-derived unique_id in sync when the server URL
+                # changes. User-flow entries key on "{url}_{tenant}"; leave
+                # instance-based zeroconf unique_ids untouched.
+                abort_kwargs: dict[str, Any] = {"data_updates": data_updates}
+                old_url = reconfigure_entry.data.get(CONF_URL, "")
+                tenant_slug = reconfigure_entry.data.get(CONF_TENANT_SLUG)
+                if (
+                    tenant_slug
+                    and new_url != old_url
+                    and reconfigure_entry.unique_id == f"{old_url}_{tenant_slug}"
+                ):
+                    new_unique_id = f"{new_url}_{tenant_slug}"
+                    await self.async_set_unique_id(new_unique_id)
+                    abort_kwargs["unique_id"] = new_unique_id
+
                 return self.async_update_reload_and_abort(
                     reconfigure_entry,
-                    data_updates=data_updates,
+                    **abort_kwargs,
                 )
 
         return self.async_show_form(
@@ -507,7 +540,7 @@ class KamerplanterConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: ConfigFlow) -> KamerplanterOptionsFlow:
+    def async_get_options_flow(config_entry: ConfigEntry) -> KamerplanterOptionsFlow:
         """Get the options flow handler."""
         return KamerplanterOptionsFlow()
 

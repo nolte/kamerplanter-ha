@@ -103,7 +103,17 @@ class KamerplanterApi:
                 if resp.status == 404:
                     raise KamerplanterNotFoundError(f"Not found: {url}")
                 resp.raise_for_status()
-                return await resp.json()
+                # POST actions (task start/complete/skip, fills) may answer with
+                # 204 No Content or a body lacking a JSON content-type. Treat
+                # those as success instead of a connection error. ``content_type=
+                # None`` skips aiohttp's mimetype assertion; an empty/non-JSON
+                # body then raises ValueError, which we map to ``None``.
+                if resp.status == 204:
+                    return None
+                try:
+                    return await resp.json(content_type=None)
+                except ValueError:
+                    return None
         except KamerplanterApiError:
             raise
         except ClientResponseError as err:
@@ -153,6 +163,17 @@ class KamerplanterApi:
         """Fetch full location tree for a site."""
         return await self._request(
             "GET", f"{self._tenant_prefix}/sites/{site_key}/location-tree"
+        )
+
+    async def async_get_site_weather_forecast(self, site_key: str) -> dict[str, Any]:
+        """Fetch a site's weather forecast incl. the proactive frost warning.
+
+        Backs the per-site frost-forecast binary sensor (issue #53). The backend
+        is graceful: when no forecast source is configured it returns 200 with
+        the ``forecast_*`` summary fields set to ``None`` (never a 404/500).
+        """
+        return await self._request(
+            "GET", f"{self._tenant_prefix}/sites/{site_key}/weather-forecast"
         )
 
     async def async_get_all_locations(self) -> list[dict[str, Any]]:
@@ -384,11 +405,27 @@ class KamerplanterApi:
         """Fetch overdue tasks."""
         return await self._request("GET", f"{self._tenant_prefix}/tasks/overdue")
 
+    async def async_start_task(self, task_key: str) -> dict[str, Any]:
+        """Mark a task as started via the start endpoint."""
+        return await self._request(
+            "POST",
+            f"{self._tenant_prefix}/tasks/{task_key}/start",
+            json={},
+        )
+
     async def async_complete_task(self, task_key: str) -> dict[str, Any]:
         """Mark a task as completed via the complete endpoint."""
         return await self._request(
             "POST",
             f"{self._tenant_prefix}/tasks/{task_key}/complete",
+            json={},
+        )
+
+    async def async_skip_task(self, task_key: str) -> dict[str, Any]:
+        """Mark a task as skipped via the skip endpoint."""
+        return await self._request(
+            "POST",
+            f"{self._tenant_prefix}/tasks/{task_key}/skip",
             json={},
         )
 

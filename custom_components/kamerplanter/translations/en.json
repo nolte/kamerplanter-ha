@@ -42,11 +42,15 @@
     "error": {
       "cannot_connect": "Cannot connect to Kamerplanter",
       "invalid_auth": "Invalid or missing API key",
-      "no_tenants": "No tenants found for this account"
+      "no_tenants": "No tenants found for this account",
+      "unknown": "Unexpected error"
     },
     "abort": {
       "already_configured": "This Kamerplanter instance is already configured",
       "reauth_successful": "Re-authentication successful",
+      "reconfigure_successful": "Reconfiguration successful",
+      "cannot_connect": "Cannot connect to Kamerplanter",
+      "no_tenants": "No tenants found for this account",
       "missing_instance_id": "The discovered service is missing a required instance ID"
     }
   },
@@ -60,7 +64,8 @@
           "poll_interval_locations": "Locations polling interval (seconds)",
           "poll_interval_alerts": "Alerts polling interval (seconds)",
           "poll_interval_tasks": "Tasks polling interval (seconds)",
-          "poll_interval_ipm": "IPM polling interval (seconds)"
+          "poll_interval_ipm": "IPM polling interval (seconds)",
+          "poll_interval_weather": "Weather forecast polling interval (seconds)"
         }
       }
     }
@@ -88,23 +93,66 @@
           "short_day_induction": "Short Day Induction"
         }
       },
-      "days_in_phase": { "name": "Days in Phase" },
-      "nutrient_plan": { "name": "Nutrient Plan" },
-      "active_channels": { "name": "Active Channels" },
-      "phase_timeline": { "name": "Phase Timeline" },
-      "next_phase": { "name": "Next Phase" },
-      "channel_mix": { "name": "Channel Mix" },
-      "run_status": { "name": "Status" },
-      "plant_count": { "name": "Plant Count" },
-      "location_type": { "name": "Location Type" },
-      "active_runs": { "name": "Active Runs" },
-      "active_plants": { "name": "Active Plants" },
-      "tank_info": { "name": "Tank Info" },
-      "tank_volume": { "name": "Volume" },
-      "tasks_due_today": { "name": "Tasks Due Today" },
-      "tasks_overdue": { "name": "Tasks Overdue" },
-      "days_until_watering": { "name": "Days Until Watering" },
-      "next_watering": { "name": "Next Watering" },
+      "days_in_phase": {
+        "name": "Days in Phase"
+      },
+      "vpd_target": {
+        "name": "VPD Target"
+      },
+      "ec_target": {
+        "name": "EC Target"
+      },
+      "nutrient_plan": {
+        "name": "Nutrient Plan"
+      },
+      "active_channels": {
+        "name": "Active Channels"
+      },
+      "phase_timeline": {
+        "name": "Phase Timeline"
+      },
+      "next_phase": {
+        "name": "Next Phase"
+      },
+      "channel_mix": {
+        "name": "Channel Mix"
+      },
+      "run_status": {
+        "name": "Status"
+      },
+      "plant_count": {
+        "name": "Plant Count"
+      },
+      "location_type": {
+        "name": "Location Type"
+      },
+      "active_runs": {
+        "name": "Active Runs"
+      },
+      "active_plants": {
+        "name": "Active Plants"
+      },
+      "tank_info": {
+        "name": "Tank Info"
+      },
+      "tank_volume": {
+        "name": "Volume"
+      },
+      "fill_level": {
+        "name": "Fill Level"
+      },
+      "tasks_due_today": {
+        "name": "Tasks Due Today"
+      },
+      "tasks_overdue": {
+        "name": "Tasks Overdue"
+      },
+      "days_until_watering": {
+        "name": "Days Until Watering"
+      },
+      "next_watering": {
+        "name": "Next Watering"
+      },
       "pest_pressure": {
         "name": "Pest Pressure",
         "state": {
@@ -115,25 +163,218 @@
           "critical": "Critical"
         }
       },
-      "karenz_remaining": { "name": "Harvest Waiting Period" },
-      "last_inspection_days": { "name": "Days Since Inspection" }
+      "karenz_remaining": {
+        "name": "Harvest Waiting Period"
+      },
+      "last_inspection_days": {
+        "name": "Days Since Inspection"
+      }
     },
     "binary_sensor": {
-      "needs_attention": { "name": "Needs Attention" },
-      "sensor_offline": { "name": "Sensor Offline" },
-      "care_overdue": { "name": "Care Overdue" },
-      "harvest_safe": { "name": "Safe to Harvest" },
-      "pest_alert": { "name": "Pest Alert" }
+      "needs_attention": {
+        "name": "Needs Attention"
+      },
+      "sensor_offline": {
+        "name": "Sensor Offline"
+      },
+      "care_overdue": {
+        "name": "Care Overdue"
+      },
+      "harvest_safe": {
+        "name": "Safe to Harvest"
+      },
+      "pest_alert": {
+        "name": "Pest Alert"
+      },
+      "frost_forecast": {
+        "name": "Frost Forecast"
+      }
     },
     "button": {
-      "refresh_all": { "name": "Refresh All Data" }
+      "refresh_all": {
+        "name": "Refresh All Data"
+      }
     },
     "calendar": {
-      "phases": { "name": "Growth Phases" },
-      "tasks": { "name": "Tasks" }
+      "phases": {
+        "name": "Growth Phases"
+      },
+      "tasks": {
+        "name": "Tasks"
+      }
     },
     "todo": {
-      "tasks": { "name": "Tasks" }
+      "tasks": {
+        "name": "Tasks"
+      }
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "Refresh Data",
+      "description": "Re-poll all coordinators.",
+      "fields": {
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target instance."
+        }
+      }
+    },
+    "clear_cache": {
+      "name": "Clear Cache",
+      "description": "Clear local coordinator cache and reload all data.",
+      "fields": {
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target instance."
+        }
+      }
+    },
+    "fill_tank": {
+      "name": "Fill Tank",
+      "description": "Record a tank fill event.",
+      "fields": {
+        "entity_id": {
+          "name": "Tank Entity",
+          "description": "Any tank entity."
+        },
+        "tank_key": {
+          "name": "Tank Key",
+          "description": "Direct key of the tank (use when no entity ID is available)."
+        },
+        "fill_type": {
+          "name": "Fill Type",
+          "description": "Type of fill operation."
+        },
+        "volume_liters": {
+          "name": "Volume",
+          "description": "Volume in liters."
+        },
+        "measured_ec_ms": {
+          "name": "Measured EC (mS/cm)",
+          "description": "EC value after mixing (optional)."
+        },
+        "measured_ph": {
+          "name": "Measured pH",
+          "description": "pH value after mixing (optional)."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional remarks for the fill event."
+        }
+      }
+    },
+    "water_channel": {
+      "name": "Water Channel",
+      "description": "Record a watering event for a delivery channel.",
+      "fields": {
+        "entity_id": {
+          "name": "Channel Entity",
+          "description": "Channel mix entity."
+        },
+        "plant_key": {
+          "name": "Plant Key",
+          "description": "Direct key of the plant instance (use when no entity ID is available)."
+        },
+        "channel_id": {
+          "name": "Channel ID",
+          "description": "ID of the delivery channel (use together with the plant key)."
+        },
+        "volume_liters": {
+          "name": "Volume",
+          "description": "Volume in liters."
+        },
+        "application_method": {
+          "name": "Application Method",
+          "description": "How the water is applied."
+        },
+        "measured_ec_ms": {
+          "name": "Measured EC (mS/cm)",
+          "description": "EC value of the nutrient solution (optional)."
+        },
+        "measured_ph": {
+          "name": "Measured pH",
+          "description": "pH value of the nutrient solution (optional)."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional remarks."
+        }
+      }
+    },
+    "confirm_care": {
+      "name": "Confirm Care",
+      "description": "Confirm a care reminder as completed.",
+      "fields": {
+        "notification_key": {
+          "name": "Notification Key",
+          "description": "Key of the notification."
+        },
+        "action": {
+          "name": "Action",
+          "description": "confirmed or skipped."
+        }
+      }
+    },
+    "start_task": {
+      "name": "Start Task",
+      "description": "Mark a Kamerplanter task as started.",
+      "fields": {
+        "task_key": {
+          "name": "Task Key",
+          "description": "Direct key of the task."
+        },
+        "entity_id": {
+          "name": "Task Entity",
+          "description": "An entity that carries a task_key attribute."
+        },
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target a specific Kamerplanter instance."
+        }
+      }
+    },
+    "complete_task": {
+      "name": "Complete Task",
+      "description": "Mark a Kamerplanter task as completed.",
+      "fields": {
+        "task_key": {
+          "name": "Task Key",
+          "description": "Direct key of the task."
+        },
+        "entity_id": {
+          "name": "Task Entity",
+          "description": "An entity that carries a task_key attribute."
+        },
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target a specific Kamerplanter instance."
+        }
+      }
+    },
+    "skip_task": {
+      "name": "Skip Task",
+      "description": "Mark a Kamerplanter task as skipped.",
+      "fields": {
+        "task_key": {
+          "name": "Task Key",
+          "description": "Direct key of the task."
+        },
+        "entity_id": {
+          "name": "Task Entity",
+          "description": "An entity that carries a task_key attribute."
+        },
+        "entry_id": {
+          "name": "Config Entry ID",
+          "description": "Target a specific Kamerplanter instance."
+        }
+      }
+    }
+  },
+  "issues": {
+    "lovelace_yaml_mode": {
+      "title": "Kamerplanter cards need manual registration",
+      "description": "Home Assistant runs Lovelace in YAML resource mode, so the Kamerplanter integration cannot register its custom cards automatically. Add the following entries to the `lovelace: resources:` list in your `configuration.yaml` and restart Home Assistant:\n\n```yaml\n{resources}\n```"
     }
   }
 }

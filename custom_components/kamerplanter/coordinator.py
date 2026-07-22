@@ -16,26 +16,50 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .api import KamerplanterApi, KamerplanterAuthError, KamerplanterConnectionError
+from .api import (
+    KamerplanterApi,
+    KamerplanterApiError,
+    KamerplanterAuthError,
+    KamerplanterConnectionError,
+)
 from .const import (
     CONF_POLL_ALERTS,
     CONF_POLL_IPM,
     CONF_POLL_LOCATIONS,
     CONF_POLL_PLANTS,
     CONF_POLL_TASKS,
+    CONF_POLL_WEATHER,
     DEFAULT_POLL_ALERTS,
     DEFAULT_POLL_IPM,
     DEFAULT_POLL_LOCATIONS,
     DEFAULT_POLL_PLANTS,
     DEFAULT_POLL_TASKS,
+    DEFAULT_POLL_WEATHER,
     DOMAIN,
     EVENT_IPM_ALERT,
+    TANK_HOLDER_MARKER,
 )
+from .helpers import annotate_tasks_with_names, plant_display_name
 
 # Pest pressure levels that trigger an IPM alert event.
 IPM_ALERT_LEVELS: frozenset[str] = frozenset({"high", "critical"})
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _annotate_tasks(api: KamerplanterApi, tasks: list[dict[str, Any]]) -> None:
+    """Attach readable plant/display names to a task list in place (issue #57).
+
+    Loads the plant instances once to resolve each task's referenced plant into
+    a human-readable label. Plant loading failures are non-fatal — tasks keep
+    their raw backend name so the coordinator update never aborts over naming.
+    """
+    try:
+        plants = await api.async_get_plants()
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("Could not load plants for task name resolution")
+        plants = []
+    annotate_tasks_with_names(tasks, plants)
 
 
 async def _fetch_published_keys(
@@ -79,8 +103,15 @@ def _phase_names_match(a: str, b: str) -> bool:
 
 
 def _calc_current_week(started_at_iso: str) -> int:
-    """Calculate current week number from phase start date (1-based)."""
-    started = datetime.fromisoformat(started_at_iso)
+    """Calculate current week number from phase start date (1-based).
+
+    Falls back to week 1 when the timestamp is missing or malformed, so a bad
+    ``current_phase_started_at`` never aborts a coordinator update.
+    """
+    try:
+        started = datetime.fromisoformat(started_at_iso)
+    except (ValueError, TypeError):
+        return 1
     if started.tzinfo is None:
         started = started.replace(tzinfo=timezone.utc)
     delta = datetime.now(tz=timezone.utc) - started
@@ -410,30 +441,59 @@ class KamerplanterLocationCoordinator(DataUpdateCoordinator[list[dict[str, Any]]
                             )
                         loc["_primary_run"] = primary
 
-                # Enrich locations with tank data (use cached tank list, only poll fill status)
+                # Expose every HA-published tank as a standalone device, decoupled
+                # from whether its parent location is published (issue #59). Tanks
+                # whose location survived the publish filter hang off that location
+                # (keeps the legacy location-tank sensors + fertigation volume
+                # lookup working); tanks whose location is unpublished or absent are
+                # collected on a synthetic holder appended to the data, so sensor.py
+                # and the device cleanup still find them without a dedicated
+                # coordinator. The opt-in semantics stay at the single
+                # ``_filter_published`` chokepoint.
+                published_tanks = _filter_published(self._all_tanks, published_tank)
+
+                # Enrich every published tank once (fill status + HA sensor map),
+                # regardless of its location's publish state.
+                for tank in published_tanks:
+                    tk = tank.get("key", "")
+                    if not tk:
+                        continue
+                    try:
+                        tank[
+                            "_latest_fill"
+                        ] = await self.api.async_get_tank_latest_fill(tk)
+                    except Exception:  # noqa: BLE001
+                        tank["_latest_fill"] = None
+                    try:
+                        tank["_ha_sensors"] = await self.api.async_get_tank_sensors(tk)
+                    except Exception:  # noqa: BLE001
+                        tank["_ha_sensors"] = []
+
                 tanks_by_loc: dict[str, list[dict[str, Any]]] = {}
-                for tank in _filter_published(self._all_tanks, published_tank):
+                for tank in published_tanks:
                     tlk = tank.get("location_key")
                     if tlk:
                         tanks_by_loc.setdefault(tlk, []).append(tank)
 
+                published_loc_keys: set[str] = set()
                 for loc in locations:
                     loc_key = loc.get("key") or loc.get("_key", "")
-                    loc_tanks = tanks_by_loc.get(loc_key, [])
-                    for tank in loc_tanks:
-                        tk = tank.get("key", "")
-                        try:
-                            latest = await self.api.async_get_tank_latest_fill(tk)
-                            tank["_latest_fill"] = latest
-                        except Exception:  # noqa: BLE001
-                            tank["_latest_fill"] = None
-                        try:
-                            tank["_ha_sensors"] = await self.api.async_get_tank_sensors(
-                                tk
-                            )
-                        except Exception:  # noqa: BLE001
-                            tank["_ha_sensors"] = []
-                    loc["_tanks"] = loc_tanks
+                    if loc_key:
+                        published_loc_keys.add(loc_key)
+                    loc["_tanks"] = tanks_by_loc.get(loc_key, [])
+
+                # Published tanks whose location is not among the published
+                # locations (or that carry no location_key) would otherwise be
+                # dropped. Attach them to a keyless synthetic holder so they still
+                # surface as standalone tank devices. Consumers that key off a
+                # location skip this entry via ``if not loc_key``.
+                orphan_tanks = [
+                    tank
+                    for tank in published_tanks
+                    if (tank.get("location_key") or "") not in published_loc_keys
+                ]
+                if orphan_tanks:
+                    locations.append({TANK_HOLDER_MARKER: True, "_tanks": orphan_tanks})
 
                 return locations
         except TimeoutError as err:
@@ -464,7 +524,9 @@ class KamerplanterAlertCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
             async with asyncio.timeout(10):
-                return await self.api.async_get_overdue_tasks()
+                tasks = await self.api.async_get_overdue_tasks()
+                await _annotate_tasks(self.api, tasks)
+                return tasks
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
         except KamerplanterAuthError as err:
@@ -508,55 +570,14 @@ class KamerplanterRunCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             async with asyncio.timeout(30):
                 runs = await self.api.async_get_planting_runs()
 
-                for run in runs:
-                    if run.get("status") in ("completed", "cancelled"):
-                        continue
-                    plan = await self.api.async_get_run_nutrient_plan(run["key"])
-                    run["_nutrient_plan"] = plan
-                    if plan and plan.get("key"):
-                        entries = await self.api.async_get_plan_phase_entries(
-                            plan["key"]
-                        )
-                        for entry in entries:
-                            for channel in entry.get("delivery_channels", []):
-                                for dosage in channel.get("fertilizer_dosages", []):
-                                    fk = dosage.get("fertilizer_key", "")
-                                    if (
-                                        fk
-                                        and fk in self._fert_lookup
-                                        and "product_name" not in dosage
-                                    ):
-                                        dosage["product_name"] = self._fert_lookup[fk]
-                        run["_phase_entries"] = entries
-                    timeline = await self.api.async_get_run_phase_timeline(run["key"])
-                    run["_timeline"] = timeline
-                    all_entries = run.get("_phase_entries", [])
-                    is_seasonal = (
-                        plan and plan.get("cycle_restart_from_sequence") is not None
-                    )
-                    if is_seasonal:
-                        eff_week = date.today().isocalendar().week
-                    else:
-                        eff_week = _calc_effective_plan_week(timeline, all_entries)
-                    if eff_week is not None:
-                        run["_current_week"] = eff_week
-                        run["_current_phase_entries"] = _filter_current_phase_entries(
-                            all_entries, eff_week
-                        )
-                    try:
-                        channels = await self.api.async_get_run_active_channels(
-                            run["key"], eff_week
-                        )
-                        run["_active_channels"] = channels
-                    except Exception:  # noqa: BLE001
-                        run["_active_channels"] = []
-
-                    # Watering schedule (next watering dates)
-                    try:
-                        ws = await self.api.async_get_run_watering_schedule(run["key"])
-                        run["_watering_schedule"] = ws
-                    except Exception:  # noqa: BLE001
-                        run["_watering_schedule"] = None
+                # Enrich each run in parallel. Isolating enrichment per run
+                # (return_exceptions=True) keeps a single run's failure from
+                # dropping the whole update, and cuts poll latency for setups
+                # with several active runs.
+                await asyncio.gather(
+                    *(self._enrich_run(run) for run in runs),
+                    return_exceptions=True,
+                )
 
                 return runs
         except TimeoutError as err:
@@ -565,6 +586,58 @@ class KamerplanterRunCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
             raise ConfigEntryAuthFailed(str(err)) from err
         except KamerplanterConnectionError as err:
             raise UpdateFailed(str(err)) from err
+
+    async def _enrich_run(self, run: dict[str, Any]) -> None:
+        """Enrich a single planting run with plan, timeline, channels, schedule."""
+        if run.get("status") in ("completed", "cancelled"):
+            return
+        key = run.get("key")
+        if not key:
+            # A run without a key cannot be enriched; surface a graceful
+            # UpdateFailed instead of a raw KeyError. Isolated by the caller's
+            # gather(return_exceptions=True), so only this run is skipped.
+            raise UpdateFailed("Planting run is missing its key")
+
+        plan = await self.api.async_get_run_nutrient_plan(key)
+        run["_nutrient_plan"] = plan
+        if plan and plan.get("key"):
+            entries = await self.api.async_get_plan_phase_entries(plan["key"])
+            for entry in entries:
+                for channel in entry.get("delivery_channels", []):
+                    for dosage in channel.get("fertilizer_dosages", []):
+                        fk = dosage.get("fertilizer_key", "")
+                        if (
+                            fk
+                            and fk in self._fert_lookup
+                            and "product_name" not in dosage
+                        ):
+                            dosage["product_name"] = self._fert_lookup[fk]
+            run["_phase_entries"] = entries
+        timeline = await self.api.async_get_run_phase_timeline(key)
+        run["_timeline"] = timeline
+        all_entries = run.get("_phase_entries", [])
+        is_seasonal = plan and plan.get("cycle_restart_from_sequence") is not None
+        if is_seasonal:
+            eff_week = date.today().isocalendar().week
+        else:
+            eff_week = _calc_effective_plan_week(timeline, all_entries)
+        if eff_week is not None:
+            run["_current_week"] = eff_week
+            run["_current_phase_entries"] = _filter_current_phase_entries(
+                all_entries, eff_week
+            )
+        try:
+            channels = await self.api.async_get_run_active_channels(key, eff_week)
+            run["_active_channels"] = channels
+        except Exception:  # noqa: BLE001
+            run["_active_channels"] = []
+
+        # Watering schedule (next watering dates)
+        try:
+            ws = await self.api.async_get_run_watering_schedule(key)
+            run["_watering_schedule"] = ws
+        except Exception:  # noqa: BLE001
+            run["_watering_schedule"] = None
 
 
 class KamerplanterTaskCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
@@ -587,7 +660,9 @@ class KamerplanterTaskCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
     async def _async_update_data(self) -> list[dict[str, Any]]:
         try:
             async with asyncio.timeout(10):
-                return await self.api.async_get_pending_tasks()
+                tasks = await self.api.async_get_pending_tasks()
+                await _annotate_tasks(self.api, tasks)
+                return tasks
         except TimeoutError as err:
             raise UpdateFailed("API request timed out") from err
         except KamerplanterAuthError as err:
@@ -670,7 +745,12 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
     async def _build_ipm_record(self, plant: dict[str, Any]) -> dict[str, Any]:
         """Aggregate the per-plant IPM endpoints into a single record."""
-        key = plant["key"]
+        key = plant.get("key")
+        if not key:
+            # Guard against malformed plant records: a graceful UpdateFailed
+            # instead of a raw KeyError. The caller's gather isolates it, so
+            # only this plant is skipped (filtered out by the dict check).
+            raise UpdateFailed("Plant instance is missing its key")
         inspections, karenz, harvest = await asyncio.gather(
             self.api.async_get_pest_inspections(key),
             self.api.async_get_karenz(key),
@@ -692,7 +772,7 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
 
         record: dict[str, Any] = {
             "key": key,
-            "plant_name": plant.get("plant_name") or plant.get("instance_id", key),
+            "plant_name": plant_display_name(plant),
             "pressure_level": (latest or {}).get("pressure_level", "none"),
             "detected_pest_keys": (latest or {}).get("detected_pest_keys", []),
             "last_inspection_at": (latest or {}).get("inspected_at"),
@@ -742,3 +822,75 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
                     },
                 )
         self._prev_pressure = current
+
+
+class KamerplanterWeatherCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
+    """Coordinator for the per-site weather forecast + proactive frost warning.
+
+    Reads ``GET /sites/{site_key}/weather-forecast`` once per site (issue #53).
+    The per-location frost endpoint no longer carries the proactive forecast
+    fields, so a site with N locations no longer triggers N identical forecast
+    reads — reading per site is the efficiency win that backend change enabled.
+
+    Weather changes slowly, hence a much longer default poll interval than the
+    other coordinators. One record per site, keyed by ``key`` so the frost
+    sensors reuse ``find_by_key``. Sites are not subject to the HA-publish
+    opt-in gate (there is no ``site`` published-key type), so every site with a
+    reachable forecast surfaces a frost sensor.
+    """
+
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, api: KamerplanterApi
+    ) -> None:
+        interval = entry.options.get(CONF_POLL_WEATHER, DEFAULT_POLL_WEATHER)
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_weather",
+            config_entry=entry,
+            update_interval=timedelta(seconds=interval),
+            always_update=False,
+        )
+        self.api = api
+
+    async def _async_update_data(self) -> list[dict[str, Any]]:
+        try:
+            async with asyncio.timeout(30):
+                sites = await self.api.async_get_sites()
+                records = await asyncio.gather(
+                    *(self._build_site_record(site) for site in sites),
+                    return_exceptions=True,
+                )
+                return [r for r in records if isinstance(r, dict)]
+        except TimeoutError as err:
+            raise UpdateFailed("API request timed out") from err
+        except KamerplanterAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        except KamerplanterConnectionError as err:
+            raise UpdateFailed(str(err)) from err
+
+    async def _build_site_record(self, site: dict[str, Any]) -> dict[str, Any]:
+        """Read one site's forecast into a flat frost-summary record.
+
+        A per-site forecast error is non-fatal: the site still yields a record
+        with ``None`` frost fields (sensor state ``unknown``) so a transient
+        error does not make the entity disappear.
+        """
+        site_key = site.get("key") or site.get("_key", "")
+        if not site_key:
+            # Isolated by the caller's gather; only this malformed site is skipped.
+            raise UpdateFailed("Site is missing its key")
+        try:
+            forecast = await self.api.async_get_site_weather_forecast(site_key)
+        except KamerplanterApiError:
+            forecast = None
+        forecast = forecast or {}
+        return {
+            "key": site_key,
+            "name": site.get("name", site_key),
+            "type": site.get("type"),
+            "frost_warning": forecast.get("forecast_frost_warning"),
+            "min_temperature": forecast.get("forecast_min_temperature"),
+            "expected_date": forecast.get("forecast_expected_date"),
+            "source": forecast.get("forecast_source"),
+        }

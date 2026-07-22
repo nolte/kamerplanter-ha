@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,7 @@ from aiohttp import ClientSession
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_URL
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -23,9 +25,12 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     SERVICE_CLEAR_CACHE,
+    SERVICE_COMPLETE_TASK,
     SERVICE_CONFIRM_CARE,
     SERVICE_FILL_TANK,
     SERVICE_REFRESH,
+    SERVICE_SKIP_TASK,
+    SERVICE_START_TASK,
     SERVICE_WATER_CHANNEL,
 )
 from .coordinator import (
@@ -35,14 +40,30 @@ from .coordinator import (
     KamerplanterPlantCoordinator,
     KamerplanterRunCoordinator,
     KamerplanterTaskCoordinator,
+    KamerplanterWeatherCoordinator,
 )
 from .helpers import (
     resolve_entry_id,
     resolve_plant_channel,
     resolve_tank_key,
+    resolve_task_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Shared ES modules imported by the cards. They are served as static files so
+# the cards' relative imports resolve, but they are NOT cards themselves and
+# must therefore never be offered in the Lovelace card picker (i.e. never
+# registered as a Lovelace resource).
+NON_CARD_MODULES: frozenset[str] = frozenset({"kamerplanter-card-common.js"})
+
+# Repairs issue raised when Lovelace runs in YAML resource mode and the cards
+# therefore cannot be auto-registered.
+ISSUE_LOVELACE_YAML_MODE = "lovelace_yaml_mode"
+LOVELACE_DOCS_URL = (
+    "https://github.com/nolte/kamerplanter-ha/blob/develop/"
+    "docs/en/guides/lovelace-cards.md"
+)
 
 
 @dataclass
@@ -77,11 +98,18 @@ async def async_setup_entry(
         "alerts": KamerplanterAlertCoordinator(hass, entry, api),
         "tasks": KamerplanterTaskCoordinator(hass, entry, api),
         "ipm": KamerplanterIpmCoordinator(hass, entry, api),
+        "weather": KamerplanterWeatherCoordinator(hass, entry, api),
     }
 
-    # First refresh all coordinators
-    for coordinator in coordinators.values():
-        await coordinator.async_config_entry_first_refresh()
+    # First refresh all coordinators in parallel. The first coordinator to
+    # raise (ConfigEntryNotReady / ConfigEntryAuthFailed) propagates and aborts
+    # setup, exactly as the previous sequential loop did — only faster.
+    await asyncio.gather(
+        *(
+            coordinator.async_config_entry_first_refresh()
+            for coordinator in coordinators.values()
+        )
+    )
 
     # Store runtime_data on the config entry (HA best practice)
     entry.runtime_data = KamerplanterRuntimeData(api=api, coordinators=coordinators)
@@ -185,12 +213,32 @@ def _async_cleanup_orphaned_devices(
             loc_key = loc.get("key") or loc.get("_key", "")
             if loc_key:
                 valid.add((DOMAIN, f"{entry.entry_id}_location_{loc_key}"))
+            # ``_tanks`` also covers the synthetic keyless holder that carries
+            # published tanks without a published location (issue #59), so those
+            # tank devices are kept valid instead of being pruned as orphans.
             for tank in loc.get("_tanks", []):
                 tank_key = tank.get("key", "")
                 if tank_key:
                     valid.add((DOMAIN, f"{entry.entry_id}_tank_{tank_key}"))
 
     device_reg = dr.async_get(hass)
+
+    # Site (weather) devices are pruned only when the weather coordinator has a
+    # confirmed successful update; otherwise every existing site device is kept.
+    # This decouples site-device cleanup from a transient weather-backend error
+    # without blocking the plant/location/run cleanup above.
+    weather_coord = coordinators.get("weather")
+    if weather_coord and weather_coord.last_update_success and weather_coord.data:
+        for site in weather_coord.data:
+            site_key = site.get("key") or site.get("_key", "")
+            if site_key:
+                valid.add((DOMAIN, f"{entry.entry_id}_site_{site_key}"))
+    else:
+        for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
+            for domain, ident in device.identifiers:
+                if domain == DOMAIN and ident.startswith(f"{entry.entry_id}_site_"):
+                    valid.add((domain, ident))
+
     for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
         if not (device.identifiers & valid):
             _LOGGER.debug(
@@ -204,37 +252,101 @@ def _async_cleanup_orphaned_devices(
 async def _async_register_lovelace_resources(
     hass: HomeAssistant, js_files: list[Path]
 ) -> None:
-    """Register JS files as Lovelace resources (idempotent)."""
+    """Register JS files as Lovelace resources (idempotent).
+
+    Auto-registration only works when Lovelace runs in *storage* mode. In YAML
+    resource mode the resource list is owned by ``configuration.yaml`` and is
+    read-only from our side, so instead of failing silently we raise a Repairs
+    issue telling the user to add the cards manually.
+    """
+    from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+    from homeassistant.exceptions import HomeAssistantError
+    from homeassistant.helpers import issue_registry as ir
+
+    # Shared modules (e.g. kamerplanter-card-common.js) are served statically
+    # for the cards' relative imports but are not cards — exclude them from the
+    # Lovelace resource list so they never surface in the card picker.
+    card_files = [f for f in js_files if f.name not in NON_CARD_MODULES]
+    expected_urls = [f"/{DOMAIN}/{js_file.name}" for js_file in card_files]
+
+    lovelace_data = hass.data.get(LOVELACE_DOMAIN)
+    if lovelace_data is None:
+        return
+    resources = getattr(lovelace_data, "resources", None)
+    if resources is None:
+        return
+
     try:
-        from homeassistant.components.lovelace import (
-            DOMAIN as LOVELACE_DOMAIN,
-        )
-        from homeassistant.components.lovelace.resources import (
-            ResourceStorageCollection,
-        )
-
-        lovelace_data = hass.data.get(LOVELACE_DOMAIN)
-        if lovelace_data is None:
-            return
-        resources: ResourceStorageCollection | None = getattr(
-            lovelace_data, "resources", None
-        )
-        if resources is None:
-            return
-
-        # Ensure storage is loaded
         if not resources.loaded:
             await resources.async_load()
 
-        existing_urls = {r["url"] for r in resources.async_items()}
+        # The YAML resource collection is read-only: it has no create method.
+        # That is our reliable discriminator between storage and YAML mode.
+        if not hasattr(resources, "async_create_item"):
+            _async_handle_yaml_mode_resources(hass, resources, expected_urls)
+            return
 
-        for js_file in js_files:
-            url = f"/{DOMAIN}/{js_file.name}"
+        existing_urls = {r["url"] for r in resources.async_items()}
+        for url in expected_urls:
             if url not in existing_urls:
                 await resources.async_create_item({"res_type": "module", "url": url})
                 _LOGGER.info("Registered Lovelace resource: %s", url)
-    except Exception:
-        _LOGGER.debug("Could not auto-register Lovelace resources", exc_info=True)
+
+        # Storage mode succeeded — a stale YAML-mode repair no longer applies.
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_LOVELACE_YAML_MODE)
+    except (HomeAssistantError, KeyError, AttributeError) as err:
+        _LOGGER.warning("Could not auto-register Lovelace resources: %s", err)
+
+
+@callback
+def _async_handle_yaml_mode_resources(
+    hass: HomeAssistant, resources: object, expected_urls: list[str]
+) -> None:
+    """Raise (or clear) a Repairs issue for Lovelace YAML resource mode.
+
+    In YAML mode we cannot register the cards ourselves; we can only check
+    whether the user has already listed them and, if not, surface an
+    actionable issue with the exact ``resources:`` snippet to add.
+    """
+    from homeassistant.helpers import issue_registry as ir
+
+    listed = {r["url"] for r in resources.async_items()}  # type: ignore[attr-defined]
+    missing = [url for url in expected_urls if url not in listed]
+
+    if not missing:
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_LOVELACE_YAML_MODE)
+        return
+
+    snippet = "\n".join(f"    - url: {url}\n      type: module" for url in missing)
+    _LOGGER.warning(
+        "Lovelace runs in YAML resource mode; the Kamerplanter cards are not "
+        "registered. Add them to the `lovelace: resources:` list in "
+        "configuration.yaml and restart Home Assistant:\n%s",
+        snippet,
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_LOVELACE_YAML_MODE,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_LOVELACE_YAML_MODE,
+        translation_placeholders={"resources": snippet},
+        learn_more_url=LOVELACE_DOCS_URL,
+    )
+
+
+# Services registered once, globally, for the whole integration.
+_SERVICES: tuple[str, ...] = (
+    SERVICE_REFRESH,
+    SERVICE_CLEAR_CACHE,
+    SERVICE_FILL_TANK,
+    SERVICE_WATER_CHANNEL,
+    SERVICE_CONFIRM_CARE,
+    SERVICE_START_TASK,
+    SERVICE_COMPLETE_TASK,
+    SERVICE_SKIP_TASK,
+)
 
 
 async def async_unload_entry(
@@ -242,7 +354,32 @@ async def async_unload_entry(
 ) -> bool:
     """Unload a config entry."""
     # runtime_data is automatically cleaned up by HA
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        _async_remove_services_if_last(hass, entry)
+    return unload_ok
+
+
+@callback
+def _async_remove_services_if_last(
+    hass: HomeAssistant, entry: KamerplanterConfigEntry
+) -> None:
+    """Deregister the shared services once the last entry is unloaded.
+
+    The services are registered globally in ``async_setup_entry`` (idempotent
+    guard). They must be torn down when no Kamerplanter entry remains so a
+    fully removed integration leaves no dangling service handlers behind.
+    """
+    remaining = [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    ]
+    if remaining:
+        return
+    for service in _SERVICES:
+        if hass.services.has_service(DOMAIN, service):
+            hass.services.async_remove(DOMAIN, service)
 
 
 async def async_remove_entry(
@@ -438,14 +575,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         try:
             result = await api.async_fill_tank(tank_key, payload)
             _LOGGER.info(
-                "Tank fill recorded: %s", result.get("fill_event", {}).get("key")
+                "Tank fill recorded: %s",
+                (result or {}).get("fill_event", {}).get("key"),
             )
 
             # Refresh coordinators to reflect new state
             for coordinator in runtime_data.coordinators.values():
                 await coordinator.async_request_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception("Failed to fill tank %s", tank_key)
+            raise HomeAssistantError(f"Failed to fill tank {tank_key}: {err}") from err
 
     async def handle_water_channel(call: ServiceCall) -> None:
         """Handle the water_channel service call."""
@@ -531,13 +670,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
         try:
             result = await api.async_create_watering_log(payload)
-            log_data = result.get("log", result)
+            log_data = (result or {}).get("log", result) or {}
             _LOGGER.info("Watering log created: %s", log_data.get("key", "unknown"))
 
             for coordinator in runtime_data.coordinators.values():
                 await coordinator.async_request_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception("Failed to create watering log for plant %s", plant_key)
+            raise HomeAssistantError(
+                f"Failed to create watering log for plant {plant_key}: {err}"
+            ) from err
 
     async def handle_confirm_care(call: ServiceCall) -> None:
         """Handle the confirm_care service call (REQ-030)."""
@@ -578,11 +720,72 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
             for coordinator in runtime_data.coordinators.values():
                 await coordinator.async_request_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception("Failed to confirm care reminder %s", notification_key)
+            raise HomeAssistantError(
+                f"Failed to confirm care reminder {notification_key}: {err}"
+            ) from err
+
+    async def _handle_task_action(
+        call: ServiceCall, action: str, api_method: str
+    ) -> None:
+        """Run a task queue action (start/complete/skip) via the API.
+
+        Shared body for the three first-class task services. Resolves the
+        target task by ``task_key`` (primary, used by the care card) or by an
+        ``entity_id`` that carries a ``task_key`` attribute, then refreshes all
+        coordinators so the new task status surfaces without waiting for the
+        next poll.
+        """
+        task_key = resolve_task_key(hass, dict(call.data))
+        if not task_key:
+            _LOGGER.error(
+                "No task_key or entity_id provided for %s_task. Received keys: %s",
+                action,
+                list(call.data.keys()),
+            )
+            return
+
+        runtime_data = _resolve_runtime_data(call, ambiguity_hint="a task entity_id")
+        if not runtime_data:
+            return
+
+        api = runtime_data.api
+        _LOGGER.info("%s task %s", action.capitalize(), task_key)
+
+        try:
+            result = await getattr(api, api_method)(task_key)
+            _LOGGER.info(
+                "Task %s %sed: status=%s",
+                task_key,
+                action,
+                result.get("status", "unknown") if isinstance(result, dict) else "",
+            )
+            for coordinator in runtime_data.coordinators.values():
+                await coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.exception("Failed to %s task %s", action, task_key)
+            raise HomeAssistantError(
+                f"Failed to {action} task {task_key}: {err}"
+            ) from err
+
+    async def handle_start_task(call: ServiceCall) -> None:
+        """Handle the start_task service call."""
+        await _handle_task_action(call, "start", "async_start_task")
+
+    async def handle_complete_task(call: ServiceCall) -> None:
+        """Handle the complete_task service call."""
+        await _handle_task_action(call, "complete", "async_complete_task")
+
+    async def handle_skip_task(call: ServiceCall) -> None:
+        """Handle the skip_task service call."""
+        await _handle_task_action(call, "skip", "async_skip_task")
 
     hass.services.async_register(DOMAIN, SERVICE_REFRESH, handle_refresh)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_CACHE, handle_clear_cache)
     hass.services.async_register(DOMAIN, SERVICE_FILL_TANK, handle_fill_tank)
     hass.services.async_register(DOMAIN, SERVICE_WATER_CHANNEL, handle_water_channel)
     hass.services.async_register(DOMAIN, SERVICE_CONFIRM_CARE, handle_confirm_care)
+    hass.services.async_register(DOMAIN, SERVICE_START_TASK, handle_start_task)
+    hass.services.async_register(DOMAIN, SERVICE_COMPLETE_TASK, handle_complete_task)
+    hass.services.async_register(DOMAIN, SERVICE_SKIP_TASK, handle_skip_task)

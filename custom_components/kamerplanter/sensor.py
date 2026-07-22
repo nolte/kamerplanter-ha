@@ -36,6 +36,7 @@ from .entity import (
     server_device_info,
     tank_device_info,
 )
+from .helpers import plant_display_name
 
 PARALLEL_UPDATES = 0  # CoordinatorEntity — no own polling
 
@@ -384,6 +385,10 @@ async def async_setup_entry(
                         )
 
     # --- Standalone Tank devices ---
+    # Iterates every location entry's ``_tanks``, including the synthetic keyless
+    # holder that carries HA-published tanks whose location is not published
+    # (issue #59). ``seen_tanks`` de-duplicates tanks that could reach here via
+    # both a published location and the holder.
     seen_tanks: set[str] = set()
     if loc_coord.data:
         for loc in loc_coord.data:
@@ -439,6 +444,17 @@ class KpSensorBase(KamerplanterEntity, SensorEntity):
 
     def _find_resource(self) -> dict[str, Any] | None:
         return find_by_key(self.coordinator.data, self._resource_key)
+
+    @property
+    def available(self) -> bool:
+        """Return True only while the backing resource exists in coordinator data.
+
+        Resource-bound sensors (plant / run / location / tank) become
+        ``unavailable`` when their element drops out of the coordinator data —
+        e.g. a plant is archived — instead of exposing a stale last value
+        (HA-SPEC-ENTITY §6 / HA-SPEC-DEVICE §7.2).
+        """
+        return super().available and self._find_resource() is not None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -635,7 +651,6 @@ class PlantDaysUntilWateringSensor(KpSensorBase):
     _attr_translation_key = "days_until_watering"
     _attr_native_unit_of_measurement = UnitOfTime.DAYS
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:watering-can"
 
     def __init__(
         self, coordinator: Any, entry: ConfigEntry, key: str, dev: DeviceInfo
@@ -1179,7 +1194,6 @@ class RunDaysUntilWateringSensor(KpSensorBase):
     _attr_translation_key = "days_until_watering"
     _attr_native_unit_of_measurement = UnitOfTime.DAYS
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:watering-can"
 
     def __init__(
         self, coordinator: Any, entry: ConfigEntry, key: str, dev: DeviceInfo
@@ -1473,10 +1487,7 @@ class LocationActivePlantCountSensor(_LocationSensorBase):
             plants = resource.get("_active_plants", [])
             runs = resource.get("_active_runs", [])
             self._attr_extra_state_attributes = {
-                "plant_names": [
-                    p.get("plant_name") or p.get("instance_id", p.get("key", ""))
-                    for p in plants
-                ],
+                "plant_names": [plant_display_name(p) for p in plants],
                 "from_runs": resource.get("_run_plant_count", 0),
                 "run_names": [r.get("name", "") for r in runs],
             }
@@ -1720,7 +1731,7 @@ class LocationChannelSensor(_LocationSensorBase):
 class LocationTankVolumeSensor(_LocationSensorBase):
     """Tank volume sensor — exposes assigned tank capacity in liters."""
 
-    _attr_icon = "mdi:barrel"
+    _attr_device_class = SensorDeviceClass.VOLUME_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
 
@@ -1862,6 +1873,15 @@ class TankInfoSensor(KpSensorBase):
                     return tank
         return None
 
+    def _find_resource(self) -> dict[str, Any] | None:
+        """Resolve availability against the tank, not a location key.
+
+        The coordinator data is a list of locations, so the base lookup by
+        ``_resource_key`` (the tank key) would never match. Delegate to the
+        tank lookup so ``available`` reflects the tank's presence.
+        """
+        return self._find_tank()
+
     @callback
     def _handle_coordinator_update(self) -> None:
         tank = self._find_tank()
@@ -1928,7 +1948,7 @@ class TankInfoSensor(KpSensorBase):
 class TankVolumeSensor(KpSensorBase):
     """Sensor exposing the tank's total volume in liters."""
 
-    _attr_icon = "mdi:water-outline"
+    _attr_device_class = SensorDeviceClass.VOLUME_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
 
@@ -1953,6 +1973,10 @@ class TankVolumeSensor(KpSensorBase):
                 if tank.get("key") == self._tank_key:
                     return tank
         return None
+
+    def _find_resource(self) -> dict[str, Any] | None:
+        """Resolve availability against the tank (coordinator data holds locations)."""
+        return self._find_tank()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -1988,8 +2012,8 @@ class TasksDueTodaySensor(KamerplanterEntity, RestoreEntity, SensorEntity):
     def _handle_coordinator_update(self) -> None:
         today = date.today().isoformat()
         due_today: list[dict[str, Any]] = []
+        upcoming: list[dict[str, Any]] = []
         overdue_count = 0
-        upcoming_count = 0
 
         if self.coordinator.data:
             for task in self.coordinator.data:
@@ -1999,7 +2023,7 @@ class TasksDueTodaySensor(KamerplanterEntity, RestoreEntity, SensorEntity):
                 elif due and due < today:
                     overdue_count += 1
                 elif due and due > today:
-                    upcoming_count += 1
+                    upcoming.append(task)
 
         # Also count overdue from alert coordinator
         if self._alert_coordinator.data:
@@ -2009,32 +2033,47 @@ class TasksDueTodaySensor(KamerplanterEntity, RestoreEntity, SensorEntity):
 
         # Build summary and plant list
         plant_names: list[str] = []
-        plants_detail: list[dict[str, str]] = []
-        for task in due_today:
-            name = task.get("plant_name") or task.get("name", "")
-            category = task.get("category", "")
-            if name:
-                plant_names.append(name)
-            plants_detail.append(
-                {
-                    "name": name,
-                    "task_key": task.get("key", ""),
-                    "category": category,
-                    "plant_key": task.get("plant_key", ""),
-                }
-            )
+        plants_detail = [self._task_detail(task) for task in due_today]
+        for detail in plants_detail:
+            if detail["name"]:
+                plant_names.append(detail["name"])
+
+        # Sort upcoming by due date so the nearest tasks surface first.
+        upcoming_sorted = sorted(upcoming, key=lambda t: t.get("due_date", ""))
+        upcoming_detail = [self._task_detail(task) for task in upcoming_sorted]
 
         summary = ", ".join(plant_names) if plant_names else "Keine Aufgaben heute"
         self._attr_extra_state_attributes = {
             "summary": summary,
             "plants": plants_detail,
+            "upcoming": upcoming_detail,
             "urgency_counts": {
                 "overdue": overdue_count,
                 "due_today": len(due_today),
-                "upcoming": upcoming_count,
+                "upcoming": len(upcoming_detail),
             },
         }
         self.async_write_ha_state()
+
+    @staticmethod
+    def _task_detail(task: dict[str, Any]) -> dict[str, str]:
+        """Build the per-task detail dict consumed by the care card.
+
+        Carries ``status`` + ``started_at`` so the interactive card can derive
+        which action buttons (start / complete / skip) to render for the task.
+        """
+        return {
+            "name": task.get("plant_name") or task.get("name", ""),
+            "task_key": task.get("key", ""),
+            "category": task.get("category", ""),
+            # Concrete care activity ("watering", "pest_check", ...); the card
+            # labels + icons each row from this instead of the generic category.
+            "activity": task.get("_activity", ""),
+            "plant_key": task.get("plant_key", ""),
+            "due_date": task.get("due_date", ""),
+            "status": task.get("status", ""),
+            "started_at": task.get("started_at") or "",
+        }
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -2089,6 +2128,10 @@ class TasksOverdueSensor(KamerplanterEntity, RestoreEntity, SensorEntity):
                     "plant_key": plant_key,
                     "due_date": due,
                     "task_key": alert.get("key", ""),
+                    "category": alert.get("category", ""),
+                    "activity": alert.get("_activity", ""),
+                    "status": alert.get("status", ""),
+                    "started_at": alert.get("started_at") or "",
                 }
             )
             if due:

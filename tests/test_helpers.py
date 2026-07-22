@@ -1,13 +1,20 @@
 """Unit tests for the module-level service helpers."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from custom_components.kamerplanter.helpers import (
+    annotate_tasks_with_names,
+    build_plant_name_index,
+    plant_display_name,
     resolve_entry_id,
     resolve_plant_channel,
     resolve_tank_key,
+    resolve_task_activity,
+    resolve_task_display_name,
+    resolve_task_plant_name,
     slugify_label,
 )
 
@@ -49,9 +56,7 @@ def test_resolve_tank_key_from_state_attributes() -> None:
 def test_resolve_tank_key_from_entity_id_pattern() -> None:
     hass = _make_hass(states={"sensor.kp_90639_volume": _make_state(None)})
 
-    assert (
-        resolve_tank_key(hass, {"entity_id": "sensor.kp_90639_volume"}) == "90639"
-    )
+    assert resolve_tank_key(hass, {"entity_id": "sensor.kp_90639_volume"}) == "90639"
 
 
 def test_resolve_tank_key_from_entity_id_with_tank_prefix() -> None:
@@ -59,9 +64,7 @@ def test_resolve_tank_key_from_entity_id_with_tank_prefix() -> None:
     hass = _make_hass(states={"sensor.kp_tank_42_solution_age_days": _make_state(None)})
 
     assert (
-        resolve_tank_key(
-            hass, {"entity_id": "sensor.kp_tank_42_solution_age_days"}
-        )
+        resolve_tank_key(hass, {"entity_id": "sensor.kp_tank_42_solution_age_days"})
         == "42"
     )
 
@@ -82,14 +85,13 @@ def test_resolve_tank_key_unresolvable_returns_none() -> None:
 
 
 def test_resolve_plant_channel_from_state_attributes() -> None:
-    state = _make_state(
-        {"plant_key": "p-1", "channel_id": "drip_a"}
-    )
+    state = _make_state({"plant_key": "p-1", "channel_id": "drip_a"})
     hass = _make_hass(states={"sensor.kp_p_1_drip_a_mix": state})
 
-    assert resolve_plant_channel(
-        hass, {"entity_id": "sensor.kp_p_1_drip_a_mix"}
-    ) == ("p-1", "drip_a")
+    assert resolve_plant_channel(hass, {"entity_id": "sensor.kp_p_1_drip_a_mix"}) == (
+        "p-1",
+        "drip_a",
+    )
 
 
 def test_resolve_plant_channel_from_entity_id_via_coordinator() -> None:
@@ -117,17 +119,19 @@ def test_resolve_plant_channel_from_entity_id_via_coordinator() -> None:
 def test_resolve_plant_channel_falls_back_to_direct_keys() -> None:
     hass = _make_hass()
 
-    assert resolve_plant_channel(
-        hass, {"plant_key": "p", "channel_id": "drip_b"}
-    ) == ("p", "drip_b")
+    assert resolve_plant_channel(hass, {"plant_key": "p", "channel_id": "drip_b"}) == (
+        "p",
+        "drip_b",
+    )
 
 
 def test_resolve_plant_channel_unresolvable_returns_none_pair() -> None:
     hass = _make_hass(states={"sensor.kp_unknown_mix": _make_state(None)})
 
-    assert resolve_plant_channel(
-        hass, {"entity_id": "sensor.kp_unknown_mix"}
-    ) == (None, None)
+    assert resolve_plant_channel(hass, {"entity_id": "sensor.kp_unknown_mix"}) == (
+        None,
+        None,
+    )
 
 
 # --- resolve_entry_id --------------------------------------------------------
@@ -152,8 +156,7 @@ def test_resolve_entry_id_uses_entity_registry(monkeypatch) -> None:
     monkeypatch.setattr(er, "async_get", lambda _hass: registry)
 
     assert (
-        resolve_entry_id(hass, {"entity_id": "sensor.kp_x_volume"})
-        == "entry-from-reg"
+        resolve_entry_id(hass, {"entity_id": "sensor.kp_x_volume"}) == "entry-from-reg"
     )
 
 
@@ -175,3 +178,200 @@ def test_resolve_entry_id_ambiguous_returns_none() -> None:
     hass.states.get.return_value = None
 
     assert resolve_entry_id(hass, {}) is None
+
+
+# --- plant_display_name (issue #57) -----------------------------------------
+
+
+def test_plant_display_name_prefers_nickname() -> None:
+    plant = {
+        "key": "11441519",
+        "instance_id": "DRACA-0616-OWL",
+        "plant_name": "Woody",
+        "species": {
+            "scientific_name": "Dracaena reflexa",
+            "common_names": ["Drachenbaum"],
+        },
+    }
+
+    assert plant_display_name(plant) == "Woody"
+
+
+def test_plant_display_name_uses_first_common_name_when_no_nickname() -> None:
+    """Drachenbaum case: nickname=None, first common name wins; code is NOT primary."""
+    plant = {
+        "key": "11441519",
+        "instance_id": "DRACA-0616-OWL",
+        "plant_name": None,
+        "species": {
+            "scientific_name": "Dracaena reflexa",
+            "common_names": ["Drachenbaum", "Grünlilie"],
+        },
+    }
+
+    name = plant_display_name(plant)
+
+    assert name == "Drachenbaum"
+    assert name != plant["instance_id"]
+
+
+def test_plant_display_name_falls_back_to_scientific_name() -> None:
+    plant = {
+        "key": "k1",
+        "instance_id": "MONST-0101-AAA",
+        "plant_name": "   ",
+        "species": {"scientific_name": "Monstera deliciosa", "common_names": []},
+    }
+
+    assert plant_display_name(plant) == "Monstera deliciosa"
+
+
+def test_plant_display_name_falls_back_to_instance_id_when_species_none() -> None:
+    plant = {
+        "key": "k1",
+        "instance_id": "SPATH-0617-XUB",
+        "plant_name": None,
+        "species": None,
+    }
+
+    assert plant_display_name(plant) == "SPATH-0617-XUB"
+
+
+def test_plant_display_name_falls_back_to_key_as_last_resort() -> None:
+    plant = {"key": "raw-key-only"}
+
+    assert plant_display_name(plant) == "raw-key-only"
+
+
+def test_plant_display_name_skips_blank_common_names() -> None:
+    plant = {
+        "key": "k1",
+        "instance_id": "CODE-1",
+        "species": {
+            "scientific_name": "Ficus",
+            "common_names": ["", "  ", "Birkenfeige"],
+        },
+    }
+
+    assert plant_display_name(plant) == "Birkenfeige"
+
+
+# --- task name resolution (issue #57) ---------------------------------------
+
+
+def _drachenbaum() -> dict[str, object]:
+    return {
+        "key": "plant-key-1",
+        "instance_id": "DRACA-0616-OWL",
+        "plant_name": None,
+        "species": {
+            "scientific_name": "Dracaena reflexa",
+            "common_names": ["Drachenbaum"],
+        },
+    }
+
+
+def test_resolve_task_display_name_replaces_slug_via_entity_key() -> None:
+    index = build_plant_name_index(
+        [
+            {
+                "key": "plant-spath",
+                "instance_id": "SPATH-0617-XUB",
+                "plant_name": None,
+                "species": {
+                    "scientific_name": "Spathiphyllum wallisii",
+                    "common_names": ["Einblatt"],
+                },
+            }
+        ]
+    )
+    task = {
+        "key": "task-1",
+        "name": "SPATH-0617-XUB — watering",
+        "category": "watering",
+        "entity_key": "plant-spath",
+    }
+
+    label = resolve_task_display_name(task, index)
+
+    assert label == "Einblatt — watering"
+    assert "SPATH-0617-XUB" not in label
+
+
+def test_resolve_task_plant_name_via_embedded_slug_head_token() -> None:
+    """When entity_key is absent, the code slug in the name still resolves."""
+    index = build_plant_name_index([_drachenbaum()])
+    task = {"key": "t", "name": "DRACA-0616-OWL — pest_check"}
+
+    assert resolve_task_plant_name(task, index) == "Drachenbaum"
+
+
+def test_resolve_task_display_name_activity_from_category_when_no_separator() -> None:
+    index = build_plant_name_index([_drachenbaum()])
+    task = {
+        "key": "t",
+        "name": "DRACA-0616-OWL",
+        "category": "pest_check",
+        "entity_key": "plant-key-1",
+    }
+
+    assert resolve_task_display_name(task, index) == "Drachenbaum — pest check"
+
+
+def test_resolve_task_display_name_keeps_raw_when_unresolvable() -> None:
+    task = {"key": "t", "name": "UNKNOWN-9 — watering", "category": "watering"}
+
+    assert resolve_task_display_name(task, {}) == "UNKNOWN-9 — watering"
+
+
+def test_resolve_task_activity_from_name_tail_keeps_slug() -> None:
+    """Care-reminder tasks embed the activity slug at the name tail (issue: care card)."""
+    task = {"key": "t", "name": "Dahlie — pest_check", "category": "care_reminder"}
+
+    # Underscores are preserved so the card can both icon-map and localise it.
+    assert resolve_task_activity(task) == "pest_check"
+
+
+def test_resolve_task_activity_falls_back_to_activity_key_then_category() -> None:
+    assert (
+        resolve_task_activity(
+            {"key": "t", "name": "No separator", "activity_key": "watering"}
+        )
+        == "watering"
+    )
+    assert (
+        resolve_task_activity(
+            {"key": "t", "name": "No separator", "category": "repotting"}
+        )
+        == "repotting"
+    )
+    assert resolve_task_activity({"key": "t", "name": "No separator"}) == ""
+
+
+def test_annotate_tasks_with_names_enriches_in_place() -> None:
+    plants = [_drachenbaum()]
+    tasks = [
+        {
+            "key": "t1",
+            "name": "DRACA-0616-OWL — watering",
+            "category": "care_reminder",
+            "entity_key": "plant-key-1",
+        }
+    ]
+
+    annotate_tasks_with_names(tasks, plants)
+
+    assert tasks[0]["plant_name"] == "Drachenbaum"
+    assert tasks[0]["_display_name"] == "Drachenbaum — watering"
+    # Concrete activity slug is stamped from the name tail, not the generic category.
+    assert tasks[0]["_activity"] == "watering"
+
+
+def test_annotate_tasks_with_names_tolerates_empty_inputs() -> None:
+    tasks: list[dict[str, object]] = [{"key": "t", "name": "Raw name"}]
+
+    annotate_tasks_with_names(tasks, None)
+
+    # No plant match → no plant_name added, display falls back to raw name.
+    assert "plant_name" not in tasks[0]
+    assert tasks[0]["_display_name"] == "Raw name"

@@ -1,4 +1,5 @@
 """Tests for the Kamerplanter config flow."""
+
 from __future__ import annotations
 
 from ipaddress import IPv4Address
@@ -15,7 +16,6 @@ from custom_components.kamerplanter.const import (
     CONF_API_KEY,
     CONF_API_PATH,
     CONF_INSTANCE_ID,
-    CONF_POLL_PLANTS,
     CONF_TENANT_SLUG,
     DOMAIN,
 )
@@ -33,9 +33,7 @@ def _bypass_integration_setup():
     pytest-homeassistant-custom-component blocks the socket (HASocketBlockedError),
     failing the test in teardown.
     """
-    with patch(
-        "custom_components.kamerplanter.async_setup_entry", return_value=True
-    ):
+    with patch("custom_components.kamerplanter.async_setup_entry", return_value=True):
         yield
 
 
@@ -78,12 +76,12 @@ def _make_zeroconf_info(
 @pytest.fixture
 def mock_api_cls():
     """Patch the KamerplanterApi class in config_flow."""
-    with patch(
-        "custom_components.kamerplanter.config_flow.KamerplanterApi"
-    ) as cls:
+    with patch("custom_components.kamerplanter.config_flow.KamerplanterApi") as cls:
         api = cls.return_value
         api.async_get_health = AsyncMock(return_value=load_fixture("health.json"))
-        api.async_get_current_user = AsyncMock(return_value=load_fixture("user_me.json"))
+        api.async_get_current_user = AsyncMock(
+            return_value=load_fixture("user_me.json")
+        )
         api.async_get_tenants = AsyncMock(
             return_value=[{"slug": "garden", "name": "My Garden"}]
         )
@@ -112,9 +110,7 @@ async def test_user_flow_success_single_tenant(
     assert result["data"][CONF_TENANT_SLUG] == "garden"
 
 
-async def test_user_flow_multi_tenant(
-    hass: HomeAssistant, mock_api_cls
-) -> None:
+async def test_user_flow_multi_tenant(hass: HomeAssistant, mock_api_cls) -> None:
     """Test user flow with multiple tenants shows tenant step."""
     mock_api_cls.async_get_tenants.return_value = [
         {"slug": "garden-1", "name": "Garden 1"},
@@ -133,11 +129,10 @@ async def test_user_flow_multi_tenant(
     assert result["step_id"] == "tenant"
 
 
-async def test_user_flow_cannot_connect(
-    hass: HomeAssistant, mock_api_cls
-) -> None:
+async def test_user_flow_cannot_connect(hass: HomeAssistant, mock_api_cls) -> None:
     """Test user flow with connection error."""
     from custom_components.kamerplanter.api import KamerplanterConnectionError
+
     mock_api_cls.async_get_health.side_effect = KamerplanterConnectionError("fail")
 
     result = await hass.config_entries.flow.async_init(
@@ -152,11 +147,10 @@ async def test_user_flow_cannot_connect(
     assert result["errors"]["base"] == "cannot_connect"
 
 
-async def test_user_flow_invalid_auth(
-    hass: HomeAssistant, mock_api_cls
-) -> None:
+async def test_user_flow_invalid_auth(hass: HomeAssistant, mock_api_cls) -> None:
     """Test user flow with invalid API key."""
     from custom_components.kamerplanter.api import KamerplanterAuthError
+
     mock_api_cls.async_get_current_user.side_effect = KamerplanterAuthError("bad key")
 
     result = await hass.config_entries.flow.async_init(
@@ -171,9 +165,7 @@ async def test_user_flow_invalid_auth(
     assert result["errors"]["base"] == "invalid_auth"
 
 
-async def test_user_flow_no_tenants(
-    hass: HomeAssistant, mock_api_cls
-) -> None:
+async def test_user_flow_no_tenants(hass: HomeAssistant, mock_api_cls) -> None:
     """Test user flow when no tenants are available."""
     mock_api_cls.async_get_tenants.return_value = []
 
@@ -189,9 +181,7 @@ async def test_user_flow_no_tenants(
     assert result["errors"]["base"] == "no_tenants"
 
 
-async def test_user_flow_light_mode(
-    hass: HomeAssistant, mock_api_cls
-) -> None:
+async def test_user_flow_light_mode(hass: HomeAssistant, mock_api_cls) -> None:
     """Test user flow in light mode (no API key required)."""
     mock_api_cls.async_get_health.return_value = {
         "status": "healthy",
@@ -211,9 +201,7 @@ async def test_user_flow_light_mode(
     assert result["data"]["light_mode"] is True
 
 
-async def test_tenant_step(
-    hass: HomeAssistant, mock_api_cls
-) -> None:
+async def test_tenant_step(hass: HomeAssistant, mock_api_cls) -> None:
     """Test tenant selection step."""
     mock_api_cls.async_get_tenants.return_value = [
         {"slug": "garden-1", "name": "Garden 1"},
@@ -399,9 +387,7 @@ async def test_zeroconf_flow_custom_api_path_persisted(
     """A non-default api_path TXT (reverse-proxy prefix) is stored on the entry."""
     custom_path = "/kamerplanter/api"
 
-    with patch(
-        "custom_components.kamerplanter.config_flow.KamerplanterApi"
-    ) as cls:
+    with patch("custom_components.kamerplanter.config_flow.KamerplanterApi") as cls:
         instances: list[object] = []
 
         def factory(**kwargs):  # noqa: ANN001 — patch helper
@@ -550,3 +536,120 @@ async def test_reconfigure_persists_api_path_change(
 
     assert result["type"] is FlowResultType.ABORT
     assert existing.data[CONF_API_PATH] == "/proxy/api"
+
+
+# --- WP-12: hardened error handling ---
+
+
+async def test_user_flow_connection_error_on_user_check(
+    hass: HomeAssistant, mock_api_cls
+) -> None:
+    """A connection error during the credentials check maps to cannot_connect."""
+    from custom_components.kamerplanter.api import KamerplanterConnectionError
+
+    mock_api_cls.async_get_current_user.side_effect = KamerplanterConnectionError("net")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_URL: "http://localhost:8000", CONF_API_KEY: "kp_test"},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"]["base"] == "cannot_connect"
+
+
+async def test_user_flow_auth_error_on_tenants(
+    hass: HomeAssistant, mock_api_cls
+) -> None:
+    """An auth error while fetching tenants maps to invalid_auth, not unknown."""
+    from custom_components.kamerplanter.api import KamerplanterAuthError
+
+    mock_api_cls.async_get_tenants.side_effect = KamerplanterAuthError("revoked")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_URL: "http://localhost:8000", CONF_API_KEY: "kp_test"},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"]["base"] == "invalid_auth"
+
+
+async def test_user_flow_unexpected_error_maps_to_unknown(
+    hass: HomeAssistant, mock_api_cls
+) -> None:
+    """Any unexpected exception surfaces as the generic unknown error."""
+    mock_api_cls.async_get_tenants.side_effect = RuntimeError("boom")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_URL: "http://localhost:8000", CONF_API_KEY: "kp_test"},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"]["base"] == "unknown"
+
+
+async def test_reconfigure_url_change_updates_unique_id(
+    hass: HomeAssistant, mock_api_cls
+) -> None:
+    """A URL change on a URL-derived unique_id keeps the unique_id in sync."""
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="http://10.0.0.5:8000_garden",
+        data={
+            CONF_URL: "http://10.0.0.5:8000",
+            CONF_API_KEY: "kp_existing",
+            CONF_TENANT_SLUG: "garden",
+            "light_mode": False,
+        },
+    )
+    existing.add_to_hass(hass)
+
+    result = await existing.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_URL: "http://10.0.0.9:8000"},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert existing.data[CONF_URL] == "http://10.0.0.9:8000"
+    assert existing.unique_id == "http://10.0.0.9:8000_garden"
+
+
+async def test_reconfigure_url_change_keeps_instance_unique_id(
+    hass: HomeAssistant, mock_api_cls
+) -> None:
+    """An instance-based (zeroconf) unique_id is not rewritten on URL change."""
+    existing = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="kp-homelab-01",
+        data={
+            CONF_URL: "http://10.0.0.5:8000",
+            CONF_API_KEY: "kp_existing",
+            CONF_INSTANCE_ID: "kp-homelab-01",
+            CONF_TENANT_SLUG: "garden",
+            "light_mode": False,
+        },
+    )
+    existing.add_to_hass(hass)
+
+    result = await existing.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_URL: "http://10.0.0.9:8000"},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert existing.data[CONF_URL] == "http://10.0.0.9:8000"
+    assert existing.unique_id == "kp-homelab-01"

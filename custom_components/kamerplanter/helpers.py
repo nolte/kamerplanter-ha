@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+from collections.abc import Mapping, MutableMapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from .const import DOMAIN
@@ -19,6 +20,14 @@ if TYPE_CHECKING:  # pragma: no cover — imports needed only for typing
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+# Separator the backend uses between the plant slug and the activity in a task
+# name (e.g. ``"SPATH-0617-XUB — watering"``). An em dash flanked by spaces.
+TASK_NAME_SEPARATOR: str = "—"
+
+# Additional separators we tolerate when splitting the activity suffix off a
+# raw task name (en dash, spaced hyphen).
+_ACTIVITY_SEPARATORS: tuple[str, ...] = (TASK_NAME_SEPARATOR, "–", " - ")
 
 
 # Suffixes used by tank entity unique-ids; order matters because longer
@@ -78,6 +87,28 @@ def resolve_tank_key(hass: HomeAssistant, call_data: dict[str, Any]) -> str | No
 
     if "tank_key" in call_data:
         return str(call_data["tank_key"])
+
+    return None
+
+
+def resolve_task_key(hass: HomeAssistant, call_data: dict[str, Any]) -> str | None:
+    """Resolve a task key from service call data.
+
+    Strategy 1: a directly supplied ``task_key`` (the primary path used by the
+    care card, which reads the key straight from the sensor ``plants`` items).
+    Strategy 2: read a ``task_key`` attribute from the state of the supplied
+    ``entity_id`` (so automations can target a task-carrying entity).
+    """
+    if call_data.get("task_key"):
+        return str(call_data["task_key"])
+
+    entity_id = call_data.get("entity_id")
+    if entity_id:
+        state = hass.states.get(str(entity_id))
+        if state and state.attributes.get("task_key"):
+            _LOGGER.debug("Resolved task_key from state attributes")
+            return str(state.attributes["task_key"])
+        _LOGGER.error("Could not resolve task_key from entity_id %s", entity_id)
 
     return None
 
@@ -166,3 +197,194 @@ def resolve_entry_id(hass: HomeAssistant, call_data: dict[str, Any]) -> str | No
     if len(entries) == 1:
         return entries[0].entry_id
     return None
+
+
+# ---------------------------------------------------------------------------
+# Human-readable plant + task names (issue #57)
+# ---------------------------------------------------------------------------
+#
+# The backend identifies a plant instance by a machine slug (``instance_id``,
+# e.g. ``"DRACA-0616-OWL"``). These helpers turn a plant-instance record into a
+# human-readable label following the operator-confirmed priority:
+#
+#   plant_name (nickname) > species.common_names[0] > species.scientific_name
+#   > instance_id (code slug) > key
+#
+# and reconstruct task labels as ``"<readable name> — <activity>"`` so cards and
+# calendars never surface the raw slug as the primary label.
+
+
+def _first_nonempty(values: Sequence[Any] | None) -> str | None:
+    """Return the first stripped, non-empty string from a sequence."""
+    if not isinstance(values, (list, tuple)):
+        return None
+    for value in values:
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def plant_display_name(plant: Mapping[str, Any]) -> str:
+    """Return the human-readable primary label for a plant-instance record.
+
+    Priority (each step falls through to the next when empty/missing):
+    ``plant_name`` (user nickname) → ``species.common_names[0]`` (first
+    trivial name) → ``species.scientific_name`` → ``instance_id`` (code slug)
+    → ``key``. The result is never empty.
+    """
+    nickname = str(plant.get("plant_name") or "").strip()
+    if nickname:
+        return nickname
+
+    species = plant.get("species")
+    if isinstance(species, Mapping):
+        common = _first_nonempty(species.get("common_names"))
+        if common:
+            return common
+        scientific = str(species.get("scientific_name") or "").strip()
+        if scientific:
+            return scientific
+
+    # Denormalized flat fallback (e.g. in-phase / run-plant response shapes).
+    flat_common = _first_nonempty(plant.get("species_common_names"))
+    if flat_common:
+        return flat_common
+    flat_scientific = str(plant.get("species_scientific_name") or "").strip()
+    if flat_scientific:
+        return flat_scientific
+
+    instance_id = str(plant.get("instance_id") or "").strip()
+    if instance_id:
+        return instance_id
+
+    return str(plant.get("key") or "").strip() or "Plant"
+
+
+def plant_instance_code(plant: Mapping[str, Any]) -> str:
+    """Return the code slug (``instance_id``) for use as a secondary subtitle."""
+    return str(plant.get("instance_id") or plant.get("key") or "").strip()
+
+
+def build_plant_name_index(
+    plants: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, dict[str, str]]:
+    """Index plant records by both ``key`` and ``instance_id``.
+
+    Each entry maps to ``{"name": <readable>, "code": <instance_id>}`` so task
+    resolution can look a plant up regardless of whether the reference carries
+    the internal key (``entity_key``) or the embedded code slug (task name).
+    """
+    index: dict[str, dict[str, str]] = {}
+    for plant in plants or []:
+        if not isinstance(plant, Mapping):
+            continue
+        entry = {"name": plant_display_name(plant), "code": plant_instance_code(plant)}
+        for token in (plant.get("key"), plant.get("instance_id")):
+            token_str = str(token or "").strip()
+            if token_str:
+                index[token_str] = entry
+    return index
+
+
+def resolve_task_plant_name(
+    task: Mapping[str, Any], index: Mapping[str, dict[str, str]]
+) -> str | None:
+    """Resolve the readable plant name a task refers to, or ``None``.
+
+    Strategy 1: match ``entity_key`` (the plant instance key) against the index.
+    Strategy 2: match the head token of the raw task name (the embedded code
+    slug) against the index.
+    """
+    entity_key = str(task.get("entity_key") or "").strip()
+    if entity_key and entity_key in index:
+        return index[entity_key]["name"]
+
+    raw = str(task.get("name") or task.get("name_de") or "")
+    head = raw.split(TASK_NAME_SEPARATOR, 1)[0].strip()
+    if head and head in index:
+        return index[head]["name"]
+    return None
+
+
+def _task_activity(task: Mapping[str, Any], raw: str) -> str:
+    """Extract the activity portion of a task (e.g. ``"watering"``)."""
+    for sep in _ACTIVITY_SEPARATORS:
+        if sep in raw:
+            tail = raw.rsplit(sep, 1)[-1].strip()
+            if tail:
+                return tail
+    fallback = task.get("category") or task.get("activity_key") or ""
+    return str(fallback).replace("_", " ").strip()
+
+
+def resolve_task_activity(task: Mapping[str, Any]) -> str:
+    """Return the care-activity *slug* of a task (e.g. ``"watering"``, ``"pest_check"``).
+
+    Care-reminder tasks all share the generic ``category == "care_reminder"``; the
+    concrete activity lives at the tail of the backend name, which is built as
+    ``"<plant> — <ReminderType.value>"`` (see the backend ``care_reminder_service``).
+    This returns that trailing slug **verbatim** (underscores preserved), so the care
+    card can both map it to an icon and localise it. When the name carries no activity
+    separator it falls back to ``activity_key`` / ``category``. May be empty.
+
+    Unlike :func:`_task_activity` (which feeds the human ``_display_name`` and therefore
+    prettifies the fallback), this keeps the raw slug form the card's lookups expect.
+    """
+    raw = str(
+        task.get("name") or task.get("name_de") or task.get("title") or ""
+    ).strip()
+    for sep in _ACTIVITY_SEPARATORS:
+        if sep in raw:
+            tail = raw.rsplit(sep, 1)[-1].strip()
+            if tail:
+                return tail
+    fallback = task.get("activity_key") or task.get("category") or ""
+    return str(fallback).strip()
+
+
+def resolve_task_display_name(
+    task: Mapping[str, Any], index: Mapping[str, dict[str, str]]
+) -> str:
+    """Reconstruct a task label as ``"<readable plant name> — <activity>"``.
+
+    Falls back to the raw backend name (which may embed the slug) only when the
+    task cannot be linked to a known plant instance, and never returns empty.
+    """
+    raw = str(
+        task.get("name") or task.get("name_de") or task.get("title") or ""
+    ).strip()
+    plant_name = resolve_task_plant_name(task, index)
+    activity = _task_activity(task, raw)
+    if plant_name:
+        if activity:
+            return f"{plant_name} {TASK_NAME_SEPARATOR} {activity}"
+        return plant_name
+    return raw or activity or str(task.get("key") or "Task")
+
+
+def annotate_tasks_with_names(
+    tasks: Sequence[MutableMapping[str, Any]] | None,
+    plants: Sequence[Mapping[str, Any]] | None,
+) -> None:
+    """Enrich task dicts in place with readable ``plant_name`` + ``_display_name``.
+
+    ``plant_name`` carries the readable plant label alone (consumed by the
+    aggregate task sensors / care card), ``_display_name`` carries the full
+    ``"<name> — <activity>"`` label (consumed by the todo list and task
+    calendar), and ``_activity`` carries the bare care-activity slug (consumed
+    by the care card to label + icon each row). All are safe to call on any task
+    list; unresolved tasks keep their raw backend name.
+    """
+    index = build_plant_name_index(plants)
+    for task in tasks or []:
+        if not isinstance(task, MutableMapping):
+            continue
+        plant_name = resolve_task_plant_name(task, index)
+        if plant_name:
+            task["plant_name"] = plant_name
+        task["_display_name"] = resolve_task_display_name(task, index)
+        # Concrete care activity ("watering", "pest_check", ...) so the aggregate
+        # task sensors / care card can show it instead of the generic
+        # ``category == "care_reminder"`` every care task carries.
+        task["_activity"] = resolve_task_activity(task)

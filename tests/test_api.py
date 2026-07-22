@@ -1,4 +1,5 @@
 """Unit tests for the KamerplanterApi HTTP client."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -123,6 +124,119 @@ async def test_tenants_url_uses_custom_api_path() -> None:
 
     _, url = session.request.call_args.args[:2]
     assert url == "http://host:8000/proxy/api/v1/tenants/"
+
+
+@pytest.mark.asyncio
+async def test_site_weather_forecast_hits_endpoint() -> None:
+    """async_get_site_weather_forecast GETs {tenant}/sites/{key}/weather-forecast."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_get_site_weather_forecast("site-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "GET"
+    assert url == "http://host:8000/api/v1/t/garden/sites/site-1/weather-forecast"
+
+
+@pytest.mark.asyncio
+async def test_start_task_hits_start_endpoint() -> None:
+    """async_start_task POSTs to {tenant}/tasks/{key}/start."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_start_task("task-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "POST"
+    assert url == "http://host:8000/api/v1/t/garden/tasks/task-1/start"
+
+
+@pytest.mark.asyncio
+async def test_complete_task_hits_complete_endpoint() -> None:
+    """async_complete_task POSTs to {tenant}/tasks/{key}/complete."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_complete_task("task-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "POST"
+    assert url == "http://host:8000/api/v1/t/garden/tasks/task-1/complete"
+
+
+@pytest.mark.asyncio
+async def test_skip_task_hits_skip_endpoint() -> None:
+    """async_skip_task POSTs to {tenant}/tasks/{key}/skip."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_skip_task("task-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "POST"
+    assert url == "http://host:8000/api/v1/t/garden/tasks/task-1/skip"
+
+
+def _make_session_with_status(status: int, *, json_side_effect=None) -> MagicMock:
+    """Build a session mock whose response carries a specific status code."""
+    session = MagicMock()
+    response = MagicMock()
+    response.status = status
+    response.raise_for_status = MagicMock()
+    if json_side_effect is not None:
+        response.json = AsyncMock(side_effect=json_side_effect)
+    else:
+        response.json = AsyncMock(return_value={"ok": True})
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=response)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    session.request = MagicMock(return_value=cm)
+    return session
+
+
+@pytest.mark.asyncio
+async def test_request_tolerates_204_no_content() -> None:
+    """A 204 response (task actions) returns None instead of failing on json()."""
+    session = _make_session_with_status(
+        204, json_side_effect=AssertionError("json() must not be called on 204")
+    )
+    api = KamerplanterApi(
+        base_url="http://host:8000", session=session, tenant_slug="garden"
+    )
+
+    result = await api.async_complete_task("task-1")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_request_tolerates_non_json_body() -> None:
+    """A 200 with an empty/non-JSON body decodes to None, not a connection error."""
+    session = _make_session_with_status(200, json_side_effect=ValueError("no json"))
+    api = KamerplanterApi(
+        base_url="http://host:8000", session=session, tenant_slug="garden"
+    )
+
+    result = await api.async_start_task("task-1")
+
+    assert result is None
 
 
 @pytest.mark.asyncio

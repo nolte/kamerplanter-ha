@@ -15,12 +15,22 @@ CONF_API_PATH: Final = "api_path"
 MDNS_SERVICE_TYPE: Final = "_kamerplanter._tcp.local."
 DEFAULT_API_PATH: Final = "/api"
 
+# Sentinel flag for the synthetic location entry that carries HA-published tanks
+# whose parent location is not published (issue #59). Consumers that iterate the
+# location coordinator data by location key skip this entry via ``if not
+# loc_key``; the standalone-tank and device-cleanup paths still find its
+# ``_tanks`` list, so a published tank surfaces as a device even without a
+# published location.
+TANK_HOLDER_MARKER: Final = "_tank_holder"
+
 # Default polling intervals (seconds)
 DEFAULT_POLL_PLANTS: Final = 300
 DEFAULT_POLL_LOCATIONS: Final = 300
 DEFAULT_POLL_ALERTS: Final = 60
 DEFAULT_POLL_TASKS: Final = 300
 DEFAULT_POLL_IPM: Final = 120
+# Weather changes slowly; one forecast read per site every 30 min is ample.
+DEFAULT_POLL_WEATHER: Final = 1800
 
 # Minimum polling intervals (seconds)
 MIN_POLL_ALERTS: Final = 30
@@ -28,6 +38,7 @@ MIN_POLL_PLANTS: Final = 120
 MIN_POLL_LOCATIONS: Final = 120
 MIN_POLL_TASKS: Final = 120
 MIN_POLL_IPM: Final = 60
+MIN_POLL_WEATHER: Final = 600
 
 # Options keys
 CONF_POLL_PLANTS: Final = "poll_interval_plants"
@@ -35,6 +46,7 @@ CONF_POLL_LOCATIONS: Final = "poll_interval_locations"
 CONF_POLL_ALERTS: Final = "poll_interval_alerts"
 CONF_POLL_TASKS: Final = "poll_interval_tasks"
 CONF_POLL_IPM: Final = "poll_interval_ipm"
+CONF_POLL_WEATHER: Final = "poll_interval_weather"
 
 # Platforms
 PLATFORMS: Final = [
@@ -50,15 +62,7 @@ EVENT_TASK_COMPLETED: Final = f"{DOMAIN}_task_completed"
 EVENT_DATA_REFRESHED: Final = f"{DOMAIN}_data_refreshed"
 
 # Notification event types (REQ-030)
-EVENT_CARE_DUE: Final = f"{DOMAIN}_care_due"
-EVENT_SEASONAL: Final = f"{DOMAIN}_seasonal"
-EVENT_SENSOR_ALERT: Final = f"{DOMAIN}_sensor_alert"
 EVENT_IPM_ALERT: Final = f"{DOMAIN}_ipm_alert"
-EVENT_TANK_ALERT: Final = f"{DOMAIN}_tank_alert"
-EVENT_HARVEST: Final = f"{DOMAIN}_harvest"
-EVENT_TASK_DUE: Final = f"{DOMAIN}_task_due"
-EVENT_WEATHER_ALERT: Final = f"{DOMAIN}_weather_alert"
-EVENT_PHASE: Final = f"{DOMAIN}_phase"
 
 # Services
 SERVICE_REFRESH: Final = "refresh_data"
@@ -66,6 +70,9 @@ SERVICE_CLEAR_CACHE: Final = "clear_cache"
 SERVICE_FILL_TANK: Final = "fill_tank"
 SERVICE_WATER_CHANNEL: Final = "water_channel"
 SERVICE_CONFIRM_CARE: Final = "confirm_care"
+SERVICE_START_TASK: Final = "start_task"
+SERVICE_COMPLETE_TASK: Final = "complete_task"
+SERVICE_SKIP_TASK: Final = "skip_task"
 
 # Storage (HA-NFR-004)
 STORAGE_VERSION: Final = 1

@@ -42,11 +42,15 @@
     "error": {
       "cannot_connect": "Kamerplanter nicht erreichbar",
       "invalid_auth": "Ungueltiger oder fehlender API-Key",
-      "no_tenants": "Keine Mandanten fuer dieses Konto gefunden"
+      "no_tenants": "Keine Mandanten fuer dieses Konto gefunden",
+      "unknown": "Unerwarteter Fehler"
     },
     "abort": {
       "already_configured": "Diese Kamerplanter-Instanz ist bereits konfiguriert",
       "reauth_successful": "Erneute Authentifizierung erfolgreich",
+      "reconfigure_successful": "Neukonfiguration erfolgreich",
+      "cannot_connect": "Kamerplanter nicht erreichbar",
+      "no_tenants": "Keine Mandanten fuer dieses Konto gefunden",
       "missing_instance_id": "Der entdeckte Dienst hat keine erforderliche Instanz-ID"
     }
   },
@@ -60,7 +64,8 @@
           "poll_interval_locations": "Standort-Abfrageintervall (Sekunden)",
           "poll_interval_alerts": "Alarm-Abfrageintervall (Sekunden)",
           "poll_interval_tasks": "Aufgaben-Abfrageintervall (Sekunden)",
-          "poll_interval_ipm": "IPM-Abfrageintervall (Sekunden)"
+          "poll_interval_ipm": "IPM-Abfrageintervall (Sekunden)",
+          "poll_interval_weather": "Wettervorhersage-Abfrageintervall (Sekunden)"
         }
       }
     }
@@ -88,23 +93,66 @@
           "short_day_induction": "Kurztageinleitung"
         }
       },
-      "days_in_phase": { "name": "Tage in Phase" },
-      "nutrient_plan": { "name": "Naehrstoffplan" },
-      "active_channels": { "name": "Aktive Kanaele" },
-      "phase_timeline": { "name": "Phasen-Zeitstrahl" },
-      "next_phase": { "name": "Naechste Phase" },
-      "channel_mix": { "name": "Kanal-Mix" },
-      "run_status": { "name": "Status" },
-      "plant_count": { "name": "Pflanzenanzahl" },
-      "location_type": { "name": "Standorttyp" },
-      "active_runs": { "name": "Aktive Durchlaeufe" },
-      "active_plants": { "name": "Aktive Pflanzen" },
-      "tank_info": { "name": "Tank-Info" },
-      "tank_volume": { "name": "Volumen" },
-      "tasks_due_today": { "name": "Aufgaben heute faellig" },
-      "tasks_overdue": { "name": "Ueberfaellige Aufgaben" },
-      "days_until_watering": { "name": "Tage bis Giessen" },
-      "next_watering": { "name": "Naechste Bewasserung" },
+      "days_in_phase": {
+        "name": "Tage in Phase"
+      },
+      "vpd_target": {
+        "name": "VPD-Zielwert"
+      },
+      "ec_target": {
+        "name": "EC-Zielwert"
+      },
+      "nutrient_plan": {
+        "name": "Naehrstoffplan"
+      },
+      "active_channels": {
+        "name": "Aktive Kanaele"
+      },
+      "phase_timeline": {
+        "name": "Phasen-Zeitstrahl"
+      },
+      "next_phase": {
+        "name": "Naechste Phase"
+      },
+      "channel_mix": {
+        "name": "Kanal-Mix"
+      },
+      "run_status": {
+        "name": "Status"
+      },
+      "plant_count": {
+        "name": "Pflanzenanzahl"
+      },
+      "location_type": {
+        "name": "Standorttyp"
+      },
+      "active_runs": {
+        "name": "Aktive Durchlaeufe"
+      },
+      "active_plants": {
+        "name": "Aktive Pflanzen"
+      },
+      "tank_info": {
+        "name": "Tank-Info"
+      },
+      "tank_volume": {
+        "name": "Volumen"
+      },
+      "fill_level": {
+        "name": "Fuellstand"
+      },
+      "tasks_due_today": {
+        "name": "Aufgaben heute faellig"
+      },
+      "tasks_overdue": {
+        "name": "Ueberfaellige Aufgaben"
+      },
+      "days_until_watering": {
+        "name": "Tage bis Giessen"
+      },
+      "next_watering": {
+        "name": "Naechste Bewasserung"
+      },
       "pest_pressure": {
         "name": "Befallsdruck",
         "state": {
@@ -115,25 +163,218 @@
           "critical": "Kritisch"
         }
       },
-      "karenz_remaining": { "name": "Karenzzeit bis Ernte" },
-      "last_inspection_days": { "name": "Tage seit Inspektion" }
+      "karenz_remaining": {
+        "name": "Karenzzeit bis Ernte"
+      },
+      "last_inspection_days": {
+        "name": "Tage seit Inspektion"
+      }
     },
     "binary_sensor": {
-      "needs_attention": { "name": "Aufmerksamkeit erforderlich" },
-      "sensor_offline": { "name": "Sensor offline" },
-      "care_overdue": { "name": "Pflege ueberfaellig" },
-      "harvest_safe": { "name": "Erntefreigabe" },
-      "pest_alert": { "name": "Schaedlingsalarm" }
+      "needs_attention": {
+        "name": "Aufmerksamkeit erforderlich"
+      },
+      "sensor_offline": {
+        "name": "Sensor offline"
+      },
+      "care_overdue": {
+        "name": "Pflege ueberfaellig"
+      },
+      "harvest_safe": {
+        "name": "Erntefreigabe"
+      },
+      "pest_alert": {
+        "name": "Schaedlingsalarm"
+      },
+      "frost_forecast": {
+        "name": "Frostvorhersage"
+      }
     },
     "button": {
-      "refresh_all": { "name": "Alle Daten aktualisieren" }
+      "refresh_all": {
+        "name": "Alle Daten aktualisieren"
+      }
     },
     "calendar": {
-      "phases": { "name": "Wachstumsphasen" },
-      "tasks": { "name": "Aufgaben" }
+      "phases": {
+        "name": "Wachstumsphasen"
+      },
+      "tasks": {
+        "name": "Aufgaben"
+      }
     },
     "todo": {
-      "tasks": { "name": "Aufgaben" }
+      "tasks": {
+        "name": "Aufgaben"
+      }
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "Daten aktualisieren",
+      "description": "Alle Coordinatoren neu abfragen.",
+      "fields": {
+        "entry_id": {
+          "name": "Konfigurationseintrag-ID",
+          "description": "Ziel-Instanz."
+        }
+      }
+    },
+    "clear_cache": {
+      "name": "Cache leeren",
+      "description": "Lokalen Coordinator-Cache leeren und alle Daten neu laden.",
+      "fields": {
+        "entry_id": {
+          "name": "Konfigurationseintrag-ID",
+          "description": "Ziel-Instanz."
+        }
+      }
+    },
+    "fill_tank": {
+      "name": "Tank befuellen",
+      "description": "Einen Tank-Befuellvorgang erfassen.",
+      "fields": {
+        "entity_id": {
+          "name": "Tank-Entitaet",
+          "description": "Beliebige Tank-Entitaet."
+        },
+        "tank_key": {
+          "name": "Tank-Schluessel",
+          "description": "Direkter Schluessel des Tanks (falls keine Entitaets-ID verfuegbar ist)."
+        },
+        "fill_type": {
+          "name": "Befuelltyp",
+          "description": "Art des Befuellvorgangs."
+        },
+        "volume_liters": {
+          "name": "Volumen",
+          "description": "Volumen in Litern."
+        },
+        "measured_ec_ms": {
+          "name": "Gemessener EC (mS/cm)",
+          "description": "EC-Wert nach dem Mischen (optional)."
+        },
+        "measured_ph": {
+          "name": "Gemessener pH",
+          "description": "pH-Wert nach dem Mischen (optional)."
+        },
+        "notes": {
+          "name": "Notizen",
+          "description": "Optionale Anmerkungen zum Befuellvorgang."
+        }
+      }
+    },
+    "water_channel": {
+      "name": "Kanal giessen",
+      "description": "Einen Giessvorgang fuer einen Lieferkanal erfassen.",
+      "fields": {
+        "entity_id": {
+          "name": "Kanal-Entitaet",
+          "description": "Kanal-Mix-Entitaet."
+        },
+        "plant_key": {
+          "name": "Pflanzen-Schluessel",
+          "description": "Direkter Schluessel der Pflanzeninstanz (falls keine Entitaets-ID verfuegbar ist)."
+        },
+        "channel_id": {
+          "name": "Kanal-ID",
+          "description": "ID des Lieferkanals (zusammen mit dem Pflanzen-Schluessel verwenden)."
+        },
+        "volume_liters": {
+          "name": "Volumen",
+          "description": "Volumen in Litern."
+        },
+        "application_method": {
+          "name": "Ausbringungsmethode",
+          "description": "Wie das Wasser ausgebracht wird."
+        },
+        "measured_ec_ms": {
+          "name": "Gemessener EC (mS/cm)",
+          "description": "EC-Wert der Naehrloesung (optional)."
+        },
+        "measured_ph": {
+          "name": "Gemessener pH",
+          "description": "pH-Wert der Naehrloesung (optional)."
+        },
+        "notes": {
+          "name": "Notizen",
+          "description": "Optionale Anmerkungen."
+        }
+      }
+    },
+    "confirm_care": {
+      "name": "Pflege bestaetigen",
+      "description": "Eine Pflegeerinnerung als erledigt bestaetigen.",
+      "fields": {
+        "notification_key": {
+          "name": "Benachrichtigungsschluessel",
+          "description": "Schluessel der Benachrichtigung."
+        },
+        "action": {
+          "name": "Aktion",
+          "description": "confirmed oder skipped."
+        }
+      }
+    },
+    "start_task": {
+      "name": "Aufgabe starten",
+      "description": "Eine Kamerplanter-Aufgabe als gestartet markieren.",
+      "fields": {
+        "task_key": {
+          "name": "Aufgabenschluessel",
+          "description": "Direkter Schluessel der Aufgabe."
+        },
+        "entity_id": {
+          "name": "Aufgaben-Entitaet",
+          "description": "Eine Entitaet mit task_key-Attribut."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Eine bestimmte Kamerplanter-Instanz waehlen."
+        }
+      }
+    },
+    "complete_task": {
+      "name": "Aufgabe erledigen",
+      "description": "Eine Kamerplanter-Aufgabe als erledigt markieren.",
+      "fields": {
+        "task_key": {
+          "name": "Aufgabenschluessel",
+          "description": "Direkter Schluessel der Aufgabe."
+        },
+        "entity_id": {
+          "name": "Aufgaben-Entitaet",
+          "description": "Eine Entitaet mit task_key-Attribut."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Eine bestimmte Kamerplanter-Instanz waehlen."
+        }
+      }
+    },
+    "skip_task": {
+      "name": "Aufgabe ueberspringen",
+      "description": "Eine Kamerplanter-Aufgabe als uebersprungen markieren.",
+      "fields": {
+        "task_key": {
+          "name": "Aufgabenschluessel",
+          "description": "Direkter Schluessel der Aufgabe."
+        },
+        "entity_id": {
+          "name": "Aufgaben-Entitaet",
+          "description": "Eine Entitaet mit task_key-Attribut."
+        },
+        "entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Eine bestimmte Kamerplanter-Instanz waehlen."
+        }
+      }
+    }
+  },
+  "issues": {
+    "lovelace_yaml_mode": {
+      "title": "Kamerplanter-Cards muessen manuell registriert werden",
+      "description": "Home Assistant betreibt Lovelace im YAML-Resource-Modus, daher kann die Kamerplanter-Integration ihre Custom Cards nicht automatisch registrieren. Fuege die folgenden Eintraege zur Liste `lovelace: resources:` in deiner `configuration.yaml` hinzu und starte Home Assistant neu:\n\n```yaml\n{resources}\n```"
     }
   }
 }

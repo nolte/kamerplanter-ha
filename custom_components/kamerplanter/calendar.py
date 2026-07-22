@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import EVENT_TASK_COMPLETED
 from .coordinator import KamerplanterPlantCoordinator, KamerplanterTaskCoordinator
 from .entity import server_device_info
+from .helpers import plant_display_name
 
 PARALLEL_UPDATES = 0  # CoordinatorEntity — no own polling
 
@@ -135,11 +136,7 @@ class KamerplanterPhaseCalendar(CoordinatorEntity, CalendarEntity):
             if plant.get("removed_on"):
                 continue
 
-            plant_name = (
-                plant.get("plant_name")
-                or plant.get("instance_id")
-                or f"Plant {plant.get('key', '?')}"
-            )
+            plant_name = plant_display_name(plant)
             history = plant.get("_phase_history", [])
             current_phase = plant.get("current_phase", "")
 
@@ -230,8 +227,12 @@ class KamerplanterPhaseCalendar(CoordinatorEntity, CalendarEntity):
         ]
 
 
-class KamerplanterTaskCalendar(CalendarEntity):
+class KamerplanterTaskCalendar(CoordinatorEntity, CalendarEntity):
     """Calendar showing pending tasks with due dates.
+
+    Derives from ``CoordinatorEntity`` so it re-renders on every task
+    coordinator update (subscription), in addition to the immediate refresh
+    triggered by ``EVENT_TASK_COMPLETED``.
 
     Future: integrate with iCal feed (REQ-015 §4.2).
     """
@@ -245,19 +246,18 @@ class KamerplanterTaskCalendar(CalendarEntity):
         entry: ConfigEntry,
         coordinator: KamerplanterTaskCoordinator,
     ) -> None:
+        super().__init__(coordinator)
         self._entry = entry
-        self._coordinator = coordinator
-        self._unsub: Any = None
         self._attr_unique_id = f"{entry.entry_id}_kp_tasks_calendar"
         self._attr_translation_key = "tasks"
         self._attr_device_info = server_device_info(entry)
 
     def _build_events(self) -> list[CalendarEvent]:
         """Build calendar events from pending tasks."""
-        if not self._coordinator.data:
+        if not self.coordinator.data:
             return []
         events: list[CalendarEvent] = []
-        for task in self._coordinator.data:
+        for task in self.coordinator.data:
             due = task.get("due_date")
             if not due:
                 continue
@@ -265,7 +265,13 @@ class KamerplanterTaskCalendar(CalendarEntity):
             if not due_dt:
                 continue
             due_date = _to_date(due_dt)
-            raw_name = task.get("name") or task.get("title") or "Task"
+            # Prefer the coordinator-resolved readable label (issue #57).
+            raw_name = (
+                task.get("_display_name")
+                or task.get("name")
+                or task.get("title")
+                or "Task"
+            )
             category = task.get("category", "").lower()
             icon = _TASK_ICON.get(category, "\U0001f4cc")
             name = f"{icon} {raw_name}"
@@ -315,15 +321,11 @@ class KamerplanterTaskCalendar(CalendarEntity):
         ]
 
     async def async_added_to_hass(self) -> None:
-        """Register event listener (HA-NFR-005)."""
-        self._unsub = self.hass.bus.async_listen(
-            EVENT_TASK_COMPLETED, self._on_task_completed
+        """Subscribe to the coordinator and the task-completed event (HA-NFR-005)."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.hass.bus.async_listen(EVENT_TASK_COMPLETED, self._on_task_completed)
         )
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Unregister event listener."""
-        if self._unsub:
-            self._unsub()
 
     @callback
     def _on_task_completed(self, event: Any) -> None:

@@ -42,7 +42,7 @@ class KamerplanterRefreshButton(ButtonEntity):
         for coordinator in self._entry.runtime_data.coordinators.values():
             await coordinator.async_request_refresh()
 
-        self.hass.bus.fire(
+        self.hass.bus.async_fire(
             EVENT_DATA_REFRESHED,
             {
                 "entry_id": self._entry.entry_id,

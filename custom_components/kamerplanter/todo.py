@@ -63,7 +63,14 @@ class KamerplanterTodoList(CoordinatorEntity, TodoListEntity):
             return []
         items: list[TodoItem] = []
         for task in self.coordinator.data:
-            summary = task.get("name") or task.get("title") or "Untitled Task"
+            # ``_display_name`` is the coordinator-resolved readable label
+            # ("<plant> — <activity>", issue #57); fall back to the raw name.
+            summary = (
+                task.get("_display_name")
+                or task.get("name")
+                or task.get("title")
+                or "Untitled Task"
+            )
 
             # Build plain-text description
             desc_parts: list[str] = []
@@ -93,7 +100,7 @@ class KamerplanterTodoList(CoordinatorEntity, TodoListEntity):
             await self._api.async_complete_task(item.uid)
 
             # Fire event for cross-platform communication (HA-NFR-005)
-            self.hass.bus.fire(
+            self.hass.bus.async_fire(
                 EVENT_TASK_COMPLETED,
                 {
                     "entry_id": self._entry.entry_id,

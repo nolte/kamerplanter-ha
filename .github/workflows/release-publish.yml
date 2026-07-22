@@ -33,11 +33,13 @@ on:
 
 jobs:
   publish:
-    uses: nolte/gh-plumbing/.github/workflows/reusable-release-publish.yml@v1.1.24
+    uses: nolte/gh-plumbing/.github/workflows/reusable-release-publish.yml@v1.1.26
     with:
       tag: ${{ inputs.tag }}
       dry_run: ${{ inputs.dry_run }}
       app-id: ${{ vars.PORTFOLIO_APP_ID }}
+      # Build name defined here (consumer); must match hacs.json `filename`.
+      asset-filename: kamerplanter.zip
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
       app-private-key: ${{ secrets.PORTFOLIO_APP_PRIVATE_KEY }}

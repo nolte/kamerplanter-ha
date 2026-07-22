@@ -119,6 +119,93 @@ confirm_care:
             - label: "Skipped"
               value: "skipped"
 
+start_task:
+  name: Start Task
+  description: >-
+    Mark a Kamerplanter task as started (moves it out of the "not started"
+    state). Target the task by its task_key or by an entity that exposes a
+    task_key attribute. Usable from the care card and from automations.
+  fields:
+    task_key:
+      name: Task Key
+      description: Direct key of the task to start.
+      required: false
+      example: "task_20260321_abc123"
+      selector:
+        text:
+    entity_id:
+      name: Task Entity
+      description: An entity that carries a task_key attribute.
+      required: false
+      selector:
+        entity:
+          integration: kamerplanter
+    entry_id:
+      name: Config Entry ID
+      description: Target a specific Kamerplanter instance (only needed with multiple instances).
+      required: false
+      example: "abc123"
+      selector:
+        text:
+
+complete_task:
+  name: Complete Task
+  description: >-
+    Mark a Kamerplanter task as completed. Target the task by its task_key or
+    by an entity that exposes a task_key attribute. Usable from the care card
+    and from automations.
+  fields:
+    task_key:
+      name: Task Key
+      description: Direct key of the task to complete.
+      required: false
+      example: "task_20260321_abc123"
+      selector:
+        text:
+    entity_id:
+      name: Task Entity
+      description: An entity that carries a task_key attribute.
+      required: false
+      selector:
+        entity:
+          integration: kamerplanter
+    entry_id:
+      name: Config Entry ID
+      description: Target a specific Kamerplanter instance (only needed with multiple instances).
+      required: false
+      example: "abc123"
+      selector:
+        text:
+
+skip_task:
+  name: Skip Task
+  description: >-
+    Mark a Kamerplanter task as skipped. Target the task by its task_key or by
+    an entity that exposes a task_key attribute. Usable from the care card and
+    from automations.
+  fields:
+    task_key:
+      name: Task Key
+      description: Direct key of the task to skip.
+      required: false
+      example: "task_20260321_abc123"
+      selector:
+        text:
+    entity_id:
+      name: Task Entity
+      description: An entity that carries a task_key attribute.
+      required: false
+      selector:
+        entity:
+          integration: kamerplanter
+    entry_id:
+      name: Config Entry ID
+      description: Target a specific Kamerplanter instance (only needed with multiple instances).
+      required: false
+      example: "abc123"
+      selector:
+        text:
+
 water_channel:
   name: Water Channel
   description: >-

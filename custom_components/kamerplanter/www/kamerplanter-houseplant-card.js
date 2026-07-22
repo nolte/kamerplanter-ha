@@ -20,62 +20,112 @@
  *   show_fertilizer: true       # nutrient plan + dosages section
  */
 
+import {
+  KamerplanterCardEditor,
+  capitalize,
+  escapeAttr,
+  escapeHtml,
+  getDeviceName,
+  getEntityMap,
+  isUnavailableState,
+  kamiSvg,
+  phaseLabel,
+  pickLang,
+  t,
+} from "./kamerplanter-card-common.js";
+
 const CARD_VERSION_HP = "1.0.0";
 
 /* ================================================================== *
- *  Shared constants                                                   *
+ *  Localization (WP-16) — card-local de/en catalog                    *
  * ================================================================== */
 
-const KAMI_PHASE_SVG_HP = {
-  germination:         "/local/kami/timeline-kami-phase-germination.svg",
-  seedling:            "/local/kami/timeline-kami-phase-seedling.svg",
-  vegetative:          "/local/kami/timeline-kami-phase-vegetative.svg",
-  flowering:           "/local/kami/timeline-kami-phase-flowering.svg",
-  ripening:            "/local/kami/timeline-kami-phase-ripening.svg",
-  harvest:             "/local/kami/timeline-kami-phase-harvest.svg",
-  dormancy:            "/local/kami/timeline-kami-phase-dormancy.svg",
-  juvenile:            "/local/kami/timeline-kami-phase-juvenile.svg",
-  climbing:            "/local/kami/timeline-kami-phase-climbing.svg",
-  mature:              "/local/kami/timeline-kami-phase-mature.svg",
-  senescence:          "/local/kami/timeline-kami-phase-senescence.svg",
-  flushing:            "/local/kami/timeline-kami-phase-flushing.svg",
-  leaf_phase:          "/local/kami/timeline-kami-phase-leaf-phase.svg",
-  short_day_induction: "/local/kami/timeline-kami-phase-short-day-induction.svg",
+const CATALOG = {
+  de: {
+    plant: "Pflanze",
+    fertilizer: "Dünger",
+    phase_day: "Tag {0}",
+    day_short: "d",
+    watering_next: "Nächstes Giessen",
+    watering_none: "Kein Giessplan",
+    watering_today_label: "Heute giessen!",
+    watering_today_value: "Heute fällig",
+    watering_overdue_label: "Überfällig",
+    watering_overdue_value: "{0} {1} überfällig",
+    watering_tomorrow: "Morgen",
+    watering_in_days: "In {0} Tagen",
+    day_singular: "Tag",
+    day_plural: "Tage",
+    interval_detail: "Intervall: {0} Tage",
+    last_detail: "Zuletzt: {0}",
+    no_dosages: "Keine Dosierungen",
+    no_channels: "Keine aktiven Kanäle",
+    loading: "Pflanzendaten werden geladen …",
+    no_device: "Kein Gerät konfiguriert",
+    kami_alt: "Kami-Phase: {0}",
+    editor_device: "Pflanze",
+    editor_title: "Titel (optional)",
+    editor_show_watering: "Giess-Status anzeigen",
+    editor_show_fertilizer: "Dünger-Info anzeigen",
+  },
+  en: {
+    plant: "Plant",
+    fertilizer: "Fertilizer",
+    phase_day: "Day {0}",
+    day_short: "d",
+    watering_next: "Next watering",
+    watering_none: "No watering schedule",
+    watering_today_label: "Water today!",
+    watering_today_value: "Due today",
+    watering_overdue_label: "Overdue",
+    watering_overdue_value: "{0} {1} overdue",
+    watering_tomorrow: "Tomorrow",
+    watering_in_days: "In {0} days",
+    day_singular: "day",
+    day_plural: "days",
+    interval_detail: "Interval: {0} days",
+    last_detail: "Last: {0}",
+    no_dosages: "No dosages",
+    no_channels: "No active channels",
+    loading: "Loading plant data …",
+    no_device: "No device configured",
+    kami_alt: "Kami phase: {0}",
+    editor_device: "Plant",
+    editor_title: "Title (optional)",
+    editor_show_watering: "Show watering status",
+    editor_show_fertilizer: "Show fertilizer info",
+  },
 };
 
-const PHASE_LABELS_HP = {
-  germination:         "Keimung",
-  seedling:            "Saemling",
-  vegetative:          "Vegetativ",
-  flowering:           "Bluete",
-  ripening:            "Reife",
-  harvest:             "Ernte",
-  dormancy:            "Ruhephase",
-  flush:               "Spuelphase",
-  flushing:            "Spuelung",
-  drying:              "Trocknung",
-  curing:              "Curing",
-  leaf_phase:          "Blattphase",
-  short_day_induction: "Kurztageinleitung",
-  juvenile:            "Juvenil",
-  climbing:            "Kletterphase",
-  mature:              "Reifephase",
-  senescence:          "Seneszenz",
+// EN phase labels — the shared phaseLabel() returns German only, so mirror the
+// common PHASE_LABELS map in English and pick language-dependent (WP-16).
+const PHASE_LABELS_EN = {
+  germination: "Germination",
+  seedling: "Seedling",
+  vegetative: "Vegetative",
+  flowering: "Flowering",
+  ripening: "Ripening",
+  harvest: "Harvest",
+  dormancy: "Dormancy",
+  flush: "Flush",
+  flushing: "Flushing",
+  drying: "Drying",
+  curing: "Curing",
+  leaf_phase: "Leaf phase",
+  short_day_induction: "Short-day induction",
+  juvenile: "Juvenile",
+  climbing: "Climbing",
+  mature: "Mature",
+  senescence: "Senescence",
 };
 
-function _hpKamiSvg(phase) {
-  return KAMI_PHASE_SVG_HP[(phase || "").toLowerCase()] || null;
-}
-
-function _hpPhaseLabel(phase) {
-  const key = (phase || "").toLowerCase();
-  return PHASE_LABELS_HP[key] || (phase ? phase.charAt(0).toUpperCase() + phase.slice(1) : "—");
-}
-
-function _hpEscape(s) {
-  const el = document.createElement("span");
-  el.textContent = s || "";
-  return el.innerHTML;
+/** Language-dependent phase label: German via shared phaseLabel(), English via
+ *  the card-local map. Em-dash for an empty phase. */
+function localizedPhase(phase, hass) {
+  if (!phase) return "—";
+  if (pickLang(hass) === "de") return phaseLabel(phase);
+  const key = String(phase).toLowerCase();
+  return PHASE_LABELS_EN[key] || capitalize(phase);
 }
 
 /* ================================================================== *
@@ -85,10 +135,17 @@ function _hpEscape(s) {
 const HP_STYLES = `
   :host {
     display: block;
+    overflow: hidden;
+    box-sizing: border-box;
   }
   ha-card {
     padding: 16px;
     overflow: hidden;
+  }
+  /* Collapse the last section's trailing margin so the card's bottom padding
+     is not doubled — matches upstream card density (issue #64). */
+  ha-card > *:last-child {
+    margin-bottom: 0;
   }
 
   /* --- Header --- */
@@ -115,6 +172,7 @@ const HP_STYLES = `
   }
   .hp-header__name {
     display: block;
+    margin: 0;
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--primary-text-color);
@@ -129,24 +187,26 @@ const HP_STYLES = `
     margin-top: 2px;
   }
   .hp-header__days {
-    display: flex;
-    flex-direction: column;
+    box-sizing: border-box;
+    height: 56px;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-width: 40px;
-    padding: 4px 8px;
-    border-radius: 12px;
-    background: var(--primary-color, #4caf50);
-    color: #fff;
-    font-size: 1.1rem;
+    gap: 5px;
+    padding: 0 20px;
+    border-radius: 999px;
+    background: transparent;
+    border: 2px solid var(--primary-color, #4caf50);
+    color: var(--primary-color, #4caf50);
+    font-size: 1.7rem;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1;
+    white-space: nowrap;
     flex-shrink: 0;
   }
   .hp-header__days small {
-    font-size: 0.6rem;
-    font-weight: 400;
-    opacity: 0.85;
+    font-size: 1.2rem;
+    font-weight: 600;
+    opacity: 0.8;
   }
 
   /* --- Watering section --- */
@@ -156,7 +216,7 @@ const HP_STYLES = `
     gap: 12px;
     padding: 10px 12px;
     border-radius: 12px;
-    background: var(--card-background-color, var(--ha-card-background, #fff));
+    background: var(--secondary-background-color, #f5f5f5);
     border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
     margin-bottom: 10px;
   }
@@ -211,7 +271,7 @@ const HP_STYLES = `
   .hp-fert {
     padding: 10px 12px;
     border-radius: 12px;
-    background: var(--card-background-color, var(--ha-card-background, #fff));
+    background: var(--secondary-background-color, #f5f5f5);
     border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
   }
   .hp-fert__header {
@@ -294,76 +354,43 @@ const HP_STYLES = `
     color: var(--error-color, #f44336);
     font-size: 0.9rem;
   }
-`;
 
-/* ================================================================== *
- *  ha-form ready singleton                                            *
- * ================================================================== */
-
-const _haFormReadyHouseplant = (async () => {
-  if (customElements.get("ha-form")) return;
-  await customElements.whenDefined("hui-entities-card");
-  const helpers = await window.loadCardHelpers?.();
-  if (helpers) {
-    const temp = await helpers.createCardElement({ type: "entities", entities: [] });
-    if (temp?.constructor?.getConfigElement) await temp.constructor.getConfigElement();
+  /* --- Focus visibility (a11y, WP-17) --- */
+  :focus-visible {
+    outline: 2px solid var(--primary-color, #4caf50);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
-  await customElements.whenDefined("ha-form");
-})();
+`;
 
 /* ================================================================== *
  *  Editor                                                             *
  * ================================================================== */
 
-const HOUSEPLANT_CARD_SCHEMA = [
-  { name: "device_id", label: "Pflanze", required: true,
-    selector: { device: { integration: "kamerplanter" } } },
-  { name: "title",     label: "Titel (optional)",
-    selector: { text: {} } },
-  { name: "show_watering",   label: "Giess-Status anzeigen",
-    selector: { boolean: {} } },
-  { name: "show_fertilizer", label: "Duenger-Info anzeigen",
-    selector: { boolean: {} } },
-];
+function houseplantCardSchema(hass) {
+  return [
+    { name: "device_id", label: t(CATALOG, "editor_device", hass), required: true,
+      // Houseplant card renders perennial/houseplant instances only, so the
+      // picker is narrowed to Plant Instance devices via model_id (issue #63).
+      selector: { device: { filter: [
+        { integration: "kamerplanter", model_id: "plant_instance" },
+      ] } } },
+    { name: "title",     label: t(CATALOG, "editor_title", hass),
+      selector: { text: {} } },
+    { name: "show_watering",   label: t(CATALOG, "editor_show_watering", hass),
+      selector: { boolean: {} } },
+    { name: "show_fertilizer", label: t(CATALOG, "editor_show_fertilizer", hass),
+      selector: { boolean: {} } },
+  ];
+}
 
-class KamerplanterHouseplantCardEditor extends HTMLElement {
-  setConfig(config) {
-    this._config = {
-      device_id: "", title: "",
-      show_watering: true, show_fertilizer: true,
-      ...config,
-    };
-    if (this._hass) this._scheduleRender();
+class KamerplanterHouseplantCardEditor extends KamerplanterCardEditor {
+  _defaultConfig() {
+    return { device_id: "", title: "", show_watering: true, show_fertilizer: true };
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._scheduleRender();
-  }
-
-  async _scheduleRender() {
-    await _haFormReadyHouseplant;
-    this._render();
-  }
-
-  _render() {
-    if (!this._config || !this._hass) return;
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.addEventListener("value-changed", (e) => {
-        this._config = e.detail.value;
-        this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: this._config },
-          bubbles: true,
-          composed: true,
-        }));
-      });
-      this.appendChild(this._form);
-    }
-    this._form.hass = this._hass;
-    this._form.schema = HOUSEPLANT_CARD_SCHEMA;
-    this._form.data = this._config;
-    this._form.computeLabel = (schema) => schema.label || schema.name;
+  _schema(hass) {
+    return houseplantCardSchema(hass);
   }
 }
 customElements.define("kamerplanter-houseplant-card-editor", KamerplanterHouseplantCardEditor);
@@ -379,17 +406,49 @@ class KamerplanterHouseplantCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const prevHass = this._hass;
+
+    // Beim ersten Aufruf die zum konfigurierten Device gehoerenden Entity-IDs
+    // sammeln. Solange die Liste leer ist, wird erneut gesammelt, um das
+    // Timing der Entity-Registry beim HA-Start abzufangen.
+    if ((!this._monitoredEntities || this._monitoredEntities.length === 0) && hass) {
+      const deviceId = this._config?.device_id;
+      if (deviceId) {
+        this._monitoredEntities = Object.values(hass.entities || {})
+          .filter((ent) => ent.device_id === deviceId)
+          .map((ent) => ent.entity_id);
+      }
+    }
+
     this._hass = hass;
-    this._update();
+
+    // Change-Detection: nur rendern beim ersten hass, solange noch keine
+    // eigenen Entities bekannt sind (Loading-State), oder wenn sich der State
+    // einer eigenen Device-Entity geaendert hat. Fremd-State-Changes loesen
+    // damit kein Re-Render aus.
+    const changed =
+      !prevHass ||
+      !this._monitoredEntities ||
+      this._monitoredEntities.length === 0 ||
+      this._monitoredEntities.some(
+        (entId) => prevHass.states[entId] !== hass.states[entId],
+      );
+
+    if (changed) this._update();
   }
 
   setConfig(config) {
-    this._isPreview = !!config.__preview;
-    if (!this._isPreview && !config.device_id) {
-      throw new Error("device_id is required");
-    }
+    // Do NOT gate on a persisted __preview flag: HA stores getStubConfig() as
+    // the card's starting config, so a flag would stick and pin the card to the
+    // static mock on a real dashboard. A missing device_id is handled at render
+    // time (config hint) instead of throwing, so the card-picker gallery — which
+    // sets `this.preview` only AFTER setConfig — is never broken.
     this._config = { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, ...config };
     this._built = false;
+    // Monitored-Entity-Liste zuruecksetzen, damit sie fuer das (ggf. neue)
+    // device_id beim naechsten hass-Setter neu gesammelt wird.
+    this._monitoredEntities = [];
+    this._update();
   }
 
   connectedCallback() {
@@ -406,12 +465,10 @@ class KamerplanterHouseplantCard extends HTMLElement {
   }
 
   getGridOptions() {
-    let rows = 2;
-    const c = this._config || {};
-    if (c.show_watering !== false) rows += 2;
-    if (c.show_fertilizer !== false) rows += 2;
-    // 12-column grid: full width by default, never below half a section.
-    return { columns: 12, min_columns: 6, rows, min_rows: 2 };
+    // Sections-View: content-dependent height -> rows:"auto" (a fixed rows count
+    // sets .fit-rows/fixed height and the overflow pushes the edit overlays into
+    // the card). Matches hui-entities-card. getCardSize() stays as the legacy.
+    return { columns: 12, rows: "auto", min_columns: 6 };
   }
 
   static getConfigElement() {
@@ -419,61 +476,22 @@ class KamerplanterHouseplantCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, __preview: true, device_id: "" };
+    return { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, device_id: "" };
   }
 
   /* ---- Data helpers --------------------------------------------- */
 
+  /** Translate a catalog key for the current HA language (WP-16). */
+  _t(key, ...args) {
+    return t(CATALOG, key, this._hass, ...args);
+  }
+
   _getEntityMap() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return {};
-
-    const allDeviceEnts = [];
-    for (const ent of Object.values(this._hass.entities || {})) {
-      if (ent.device_id !== id) continue;
-      if (!/^(?:sensor|binary_sensor)\./.test(ent.entity_id)) continue;
-      allDeviceEnts.push(ent);
-    }
-
-    const map = {};
-    for (const ent of allDeviceEnts) {
-      const st = this._hass.states[ent.entity_id];
-      if (!st) continue;
-
-      // Try translation_key first (HA 2024.1+)
-      if (ent.translation_key) {
-        map[ent.translation_key] = st;
-        continue;
-      }
-
-      // Try unique_id (always ends with _kp_{slug}_{suffix})
-      const uid = ent.unique_id || "";
-      const parts = uid.split("_kp_");
-      if (parts.length >= 2) {
-        const rest = parts[parts.length - 1];
-        const underIdx = rest.indexOf("_");
-        if (underIdx > 0) {
-          map[rest.substring(underIdx + 1)] = st;
-          continue;
-        }
-      }
-
-      // Last resort: match entity_id against known suffixes
-      const objId = ent.entity_id.replace(/^[^.]+\./, "");
-      const KNOWN = ["phase","days_in_phase","days_until_watering","nutrient_plan",
-        "active_channels","phase_timeline","next_phase","status","plant_count","needs_attention"];
-      for (const s of KNOWN) {
-        if (objId.endsWith("_" + s)) { map[s] = st; break; }
-      }
-    }
-    return map;
+    return getEntityMap(this._hass, this._config.device_id);
   }
 
   _getDeviceName() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return null;
-    const dev = Object.values(this._hass.devices || {}).find((d) => d.id === id);
-    return dev ? dev.name_by_user || dev.name : null;
+    return getDeviceName(this._hass, this._config.device_id);
   }
 
   /* ---- DOM ------------------------------------------------------ */
@@ -481,28 +499,27 @@ class KamerplanterHouseplantCard extends HTMLElement {
   _renderPreview() {
     if (!this.shadowRoot) return;
     this._built = false;
-    this.shadowRoot.innerHTML = `
-      <style>${HP_STYLES}</style>
-      <ha-card>
-        <div class="hp-header">
-          <span class="hp-header__icon">\uD83C\uDF3F</span>
-          <div class="hp-header__text">
-            <span class="hp-header__name">Monstera deliciosa</span>
-            <span class="hp-header__phase">Vegetativ \u2014 Tag 45</span>
-          </div>
-          <div class="hp-header__days">45<small>d</small></div>
-        </div>
+
+    const c = this._config || {};
+    const showWatering = c.show_watering !== false;
+    const showFertilizer = c.show_fertilizer !== false;
+
+    const dayShort = this._t("day_short");
+    const wateringHtml = showWatering ? `
         <div class="hp-watering hp-watering--today">
-          <ha-icon icon="mdi:watering-can" class="hp-watering__icon"></ha-icon>
+          <ha-icon icon="mdi:watering-can" class="hp-watering__icon" aria-hidden="true"></ha-icon>
           <div class="hp-watering__info">
-            <div class="hp-watering__label">Heute giessen!</div>
-            <div class="hp-watering__value">Heute faellig</div>
-            <div class="hp-watering__detail">Intervall: 5 Tage</div>
+            <div class="hp-watering__label">${escapeHtml(this._t("watering_today_label"))}</div>
+            <div class="hp-watering__value">${escapeHtml(this._t("watering_today_value"))}</div>
+            <div class="hp-watering__detail">${escapeHtml(this._t("interval_detail", 5))}</div>
           </div>
         </div>
+    ` : "";
+
+    const fertilizerHtml = showFertilizer ? `
         <div class="hp-fert">
           <div class="hp-fert__header">
-            <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon"></ha-icon>
+            <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon" aria-hidden="true"></ha-icon>
             <span class="hp-fert__plan-name">Zimmerpflanzen Universal</span>
           </div>
           <div class="hp-fert__channels">
@@ -514,24 +531,60 @@ class KamerplanterHouseplantCard extends HTMLElement {
             </div>
           </div>
         </div>
+    ` : "";
+
+    const previewPhase = `${localizedPhase("vegetative", this._hass)} \u2014 ${this._t("phase_day", 45)}`;
+
+    this.shadowRoot.innerHTML = `
+      <style>${HP_STYLES}</style>
+      <ha-card>
+        <div class="hp-header">
+          <span class="hp-header__icon" aria-hidden="true">\uD83C\uDF3F</span>
+          <div class="hp-header__text">
+            <h2 class="hp-header__name">Monstera deliciosa</h2>
+            <span class="hp-header__phase">${escapeHtml(previewPhase)}</span>
+          </div>
+          <div class="hp-header__days">45<small>${escapeHtml(dayShort)}</small></div>
+        </div>
+        ${wateringHtml}
+        ${fertilizerHtml}
       </ha-card>
     `;
   }
 
   _update() {
     if (!this.shadowRoot) return;
-    if (this._isPreview) {
+    // `this.preview` is set by HA only when the card is shown in the card-picker
+    // gallery. A persisted __preview flag is intentionally ignored so cards that
+    // captured the old getStubConfig still recover to live data on reload.
+    if (this.preview) {
       this._renderPreview();
       return;
     }
-    if (!this._hass || !this._config || !this._config.device_id) return;
+    if (!this._config || !this._config.device_id) {
+      this.shadowRoot.innerHTML = `
+        <style>${HP_STYLES}</style>
+        <ha-card><div class="hp-error" role="alert">${escapeHtml(this._t("no_device"))}</div></ha-card>
+      `;
+      this._built = false;
+      return;
+    }
+    if (!this._hass) return;
 
     const ents = this._getEntityMap();
 
     if (Object.keys(ents).length === 0) {
+      // device_id ist gesetzt, aber es liegen noch keine States vor. Das ist
+      // typischerweise ein Timing-Problem der Entity-Registry beim HA-Start und
+      // kein echter Fehler -> neutraler Ladehinweis statt hp-error.
       this.shadowRoot.innerHTML = `
         <style>${HP_STYLES}</style>
-        <ha-card><div class="hp-error">Device nicht gefunden oder keine Entities</div></ha-card>
+        <ha-card>
+          <div class="hp-empty" role="status">
+            <ha-icon icon="mdi:sprout" aria-hidden="true"></ha-icon>
+            <span>${escapeHtml(this._t("loading"))}</span>
+          </div>
+        </ha-card>
       `;
       this._built = false;
       return;
@@ -543,19 +596,19 @@ class KamerplanterHouseplantCard extends HTMLElement {
     const nutrientObj  = ents["nutrient_plan"];
     const channelsObj  = ents["active_channels"];
 
-    const currentPhase = phaseObj?.state || "—";
+    const currentPhase = isUnavailableState(phaseObj?.state) ? null : phaseObj.state;
     const daysInPhase  = daysObj?.state;
-    const plantName    = this._config.title || this._getDeviceName() || "Pflanze";
+    const plantName    = this._config.title || this._getDeviceName() || this._t("plant");
 
     // Build HTML
-    const kamiUrl = _hpKamiSvg(currentPhase);
+    const phaseText = localizedPhase(currentPhase, this._hass);
+    const kamiUrl = kamiSvg(currentPhase);
     const kamiHtml = kamiUrl
-      ? `<img class="hp-header__kami" src="${kamiUrl}" alt="${_hpEscape(currentPhase)}" />`
-      : `<span class="hp-header__icon">\uD83C\uDF31</span>`;
+      ? `<img class="hp-header__kami" src="${kamiUrl}" alt="${escapeAttr(this._t("kami_alt", phaseText))}" />`
+      : `<span class="hp-header__icon" aria-hidden="true">\uD83C\uDF31</span>`;
 
-    const phaseText = _hpPhaseLabel(currentPhase);
-    const daysText = daysInPhase != null && daysInPhase !== "unknown"
-      ? ` \u2014 Tag ${_hpEscape(String(daysInPhase))}`
+    const daysText = !isUnavailableState(daysInPhase)
+      ? ` \u2014 ${escapeHtml(this._t("phase_day", String(daysInPhase)))}`
       : "";
 
     let html = `
@@ -564,16 +617,16 @@ class KamerplanterHouseplantCard extends HTMLElement {
         <div class="hp-header">
           ${kamiHtml}
           <div class="hp-header__text">
-            <span class="hp-header__name">${_hpEscape(plantName)}</span>
-            <span class="hp-header__phase">${_hpEscape(phaseText)}${daysText}</span>
+            <h2 class="hp-header__name">${escapeHtml(plantName)}</h2>
+            <span class="hp-header__phase">${escapeHtml(phaseText)}${daysText}</span>
           </div>
     `;
 
     // Days badge (days in phase)
-    if (daysInPhase != null && daysInPhase !== "unknown") {
+    if (!isUnavailableState(daysInPhase)) {
       html += `
           <div class="hp-header__days">
-            ${_hpEscape(String(daysInPhase))}<small>d</small>
+            ${escapeHtml(String(daysInPhase))}<small>${escapeHtml(this._t("day_short"))}</small>
           </div>
       `;
     }
@@ -583,7 +636,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     // --- Watering section ---
     if (this._config.show_watering !== false) {
       const rawState = waterObj?.state;
-      const daysUntil = rawState != null && rawState !== "unknown" && rawState !== "unavailable"
+      const daysUntil = !isUnavailableState(rawState)
         ? parseInt(rawState, 10) : null;
       const attrs = waterObj?.attributes || {};
       const nextDate = attrs.next_watering_date;
@@ -592,42 +645,43 @@ class KamerplanterHouseplantCard extends HTMLElement {
 
       let statusClass = "hp-watering--ok";
       let statusIcon = "mdi:watering-can";
-      let statusLabel = "Naechstes Giessen";
+      let statusLabel = this._t("watering_next");
       let statusValue = "";
       let statusDetail = "";
 
       if (daysUntil === null || isNaN(daysUntil)) {
-        statusValue = "Kein Giessplan";
+        statusValue = this._t("watering_none");
         statusClass = "";
         statusIcon = "mdi:watering-can-outline";
       } else if (daysUntil < 0) {
         const overdueDays = Math.abs(daysUntil);
+        const dayWord = this._t(overdueDays === 1 ? "day_singular" : "day_plural");
         statusClass = "hp-watering--overdue";
         statusIcon = "mdi:alert-circle";
-        statusLabel = "Ueberfaellig";
-        statusValue = `${overdueDays} ${overdueDays === 1 ? "Tag" : "Tage"} ueberfaellig`;
-        if (lastDate) statusDetail = `Zuletzt: ${lastDate}`;
+        statusLabel = this._t("watering_overdue_label");
+        statusValue = this._t("watering_overdue_value", overdueDays, dayWord);
+        if (lastDate) statusDetail = this._t("last_detail", lastDate);
       } else if (daysUntil === 0) {
         statusClass = "hp-watering--today";
         statusIcon = "mdi:watering-can";
-        statusLabel = "Heute giessen!";
-        statusValue = "Heute faellig";
-        if (interval) statusDetail = `Intervall: ${interval} Tage`;
+        statusLabel = this._t("watering_today_label");
+        statusValue = this._t("watering_today_value");
+        if (interval) statusDetail = this._t("interval_detail", interval);
       } else if (daysUntil === 1) {
-        statusValue = "Morgen";
+        statusValue = this._t("watering_tomorrow");
         if (nextDate) statusDetail = nextDate;
       } else {
-        statusValue = `In ${daysUntil} Tagen`;
+        statusValue = this._t("watering_in_days", daysUntil);
         if (nextDate) statusDetail = nextDate;
       }
 
       html += `
         <div class="hp-watering ${statusClass}">
-          <ha-icon icon="${statusIcon}" class="hp-watering__icon"></ha-icon>
+          <ha-icon icon="${statusIcon}" class="hp-watering__icon" aria-hidden="true"></ha-icon>
           <div class="hp-watering__info">
-            <div class="hp-watering__label">${statusLabel}</div>
-            <div class="hp-watering__value">${_hpEscape(statusValue)}</div>
-            ${statusDetail ? `<div class="hp-watering__detail">${_hpEscape(statusDetail)}</div>` : ""}
+            <div class="hp-watering__label">${escapeHtml(statusLabel)}</div>
+            <div class="hp-watering__value">${escapeHtml(statusValue)}</div>
+            ${statusDetail ? `<div class="hp-watering__detail">${escapeHtml(statusDetail)}</div>` : ""}
           </div>
         </div>
       `;
@@ -636,7 +690,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     // --- Fertilizer section ---
     if (this._config.show_fertilizer !== false) {
       const planName = nutrientObj?.state;
-      const hasPlan = planName && planName !== "unknown" && planName !== "None";
+      const hasPlan = planName && !isUnavailableState(planName) && planName !== "None";
       const channelAttrs = channelsObj?.attributes || {};
       const channelIds = channelAttrs.channel_ids || [];
 
@@ -644,8 +698,8 @@ class KamerplanterHouseplantCard extends HTMLElement {
         html += `
           <div class="hp-fert">
             <div class="hp-fert__header">
-              <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon"></ha-icon>
-              <span class="hp-fert__plan-name">${_hpEscape(hasPlan ? planName : "Duenger")}</span>
+              <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon" aria-hidden="true"></ha-icon>
+              <span class="hp-fert__plan-name">${escapeHtml(hasPlan ? planName : this._t("fertilizer"))}</span>
             </div>
             <div class="hp-fert__channels">
         `;
@@ -659,23 +713,23 @@ class KamerplanterHouseplantCard extends HTMLElement {
 
             html += `<div class="hp-fert__channel">`;
             if (channelIds.length > 1) {
-              html += `<div class="hp-fert__channel-label">${_hpEscape(label)}</div>`;
+              html += `<div class="hp-fert__channel-label">${escapeHtml(label)}</div>`;
             }
             html += `<div class="hp-fert__dosages">`;
             for (const [product, ml] of Object.entries(dosages)) {
               html += `
                 <span class="hp-fert__dosage">
-                  ${_hpEscape(product)} <span class="hp-fert__dosage-ml">${ml} ml/L</span>
+                  ${escapeHtml(product)} <span class="hp-fert__dosage-ml">${escapeHtml(String(ml))} ml/L</span>
                 </span>
               `;
             }
             if (Object.keys(dosages).length === 0) {
-              html += `<span class="hp-fert__none">Keine Dosierungen</span>`;
+              html += `<span class="hp-fert__none">${escapeHtml(this._t("no_dosages"))}</span>`;
             }
             html += `</div></div>`;
           }
         } else if (hasPlan) {
-          html += `<span class="hp-fert__none">Keine aktiven Kanaele</span>`;
+          html += `<span class="hp-fert__none">${escapeHtml(this._t("no_channels"))}</span>`;
         }
 
         html += `</div></div>`;
@@ -698,7 +752,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kamerplanter-houseplant-card",
   name: "Kamerplanter Zimmerpflanze",
-  description: "Kompakte Karte fuer mehrjaehrige Pflanzen mit Giess-Status, Phase und Duenger-Info.",
+  description: "Kompakte Karte für mehrjährige Pflanzen mit Giess-Status, Phase und Dünger-Info.",
   preview: true,
   documentationURL: "https://kamerplanter.readthedocs.io/de/latest/guides/home-assistant-integration/",
 });
