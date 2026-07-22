@@ -2066,6 +2066,9 @@ class TasksDueTodaySensor(KamerplanterEntity, RestoreEntity, SensorEntity):
             "name": task.get("plant_name") or task.get("name", ""),
             "task_key": task.get("key", ""),
             "category": task.get("category", ""),
+            # Concrete care activity ("watering", "pest_check", ...); the card
+            # labels + icons each row from this instead of the generic category.
+            "activity": task.get("_activity", ""),
             "plant_key": task.get("plant_key", ""),
             "due_date": task.get("due_date", ""),
             "status": task.get("status", ""),
@@ -2126,6 +2129,7 @@ class TasksOverdueSensor(KamerplanterEntity, RestoreEntity, SensorEntity):
                     "due_date": due,
                     "task_key": alert.get("key", ""),
                     "category": alert.get("category", ""),
+                    "activity": alert.get("_activity", ""),
                     "status": alert.get("status", ""),
                     "started_at": alert.get("started_at") or "",
                 }

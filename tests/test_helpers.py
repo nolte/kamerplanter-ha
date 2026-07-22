@@ -12,6 +12,7 @@ from custom_components.kamerplanter.helpers import (
     resolve_entry_id,
     resolve_plant_channel,
     resolve_tank_key,
+    resolve_task_activity,
     resolve_task_display_name,
     resolve_task_plant_name,
     slugify_label,
@@ -323,13 +324,37 @@ def test_resolve_task_display_name_keeps_raw_when_unresolvable() -> None:
     assert resolve_task_display_name(task, {}) == "UNKNOWN-9 — watering"
 
 
+def test_resolve_task_activity_from_name_tail_keeps_slug() -> None:
+    """Care-reminder tasks embed the activity slug at the name tail (issue: care card)."""
+    task = {"key": "t", "name": "Dahlie — pest_check", "category": "care_reminder"}
+
+    # Underscores are preserved so the card can both icon-map and localise it.
+    assert resolve_task_activity(task) == "pest_check"
+
+
+def test_resolve_task_activity_falls_back_to_activity_key_then_category() -> None:
+    assert (
+        resolve_task_activity(
+            {"key": "t", "name": "No separator", "activity_key": "watering"}
+        )
+        == "watering"
+    )
+    assert (
+        resolve_task_activity(
+            {"key": "t", "name": "No separator", "category": "repotting"}
+        )
+        == "repotting"
+    )
+    assert resolve_task_activity({"key": "t", "name": "No separator"}) == ""
+
+
 def test_annotate_tasks_with_names_enriches_in_place() -> None:
     plants = [_drachenbaum()]
     tasks = [
         {
             "key": "t1",
             "name": "DRACA-0616-OWL — watering",
-            "category": "watering",
+            "category": "care_reminder",
             "entity_key": "plant-key-1",
         }
     ]
@@ -338,6 +363,8 @@ def test_annotate_tasks_with_names_enriches_in_place() -> None:
 
     assert tasks[0]["plant_name"] == "Drachenbaum"
     assert tasks[0]["_display_name"] == "Drachenbaum — watering"
+    # Concrete activity slug is stamped from the name tail, not the generic category.
+    assert tasks[0]["_activity"] == "watering"
 
 
 def test_annotate_tasks_with_names_tolerates_empty_inputs() -> None:
