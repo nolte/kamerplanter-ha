@@ -241,49 +241,66 @@ export class KamerplanterCardEditor extends HTMLElement {
  *  Device entity resolution                                           *
  * ================================================================== */
 
+/** Known object-id suffixes, used only as a last-resort fallback. */
+const KP_KNOWN_SUFFIXES = [
+  "phase",
+  "days_in_phase",
+  "days_until_watering",
+  "nutrient_plan",
+  "active_channels",
+  "phase_timeline",
+  "next_phase",
+  "status",
+  "plant_count",
+  "needs_attention",
+];
+
 /**
- * Collect the sensor states of a Kamerplanter device keyed by their suffix
- * (e.g. "phase", "days_in_phase", "phase_timeline").
+ * Collect the sensor states of a Kamerplanter device keyed by a stable suffix
+ * (e.g. "phase", "days_in_phase", "nutrient_plan").
  *
- * Entity IDs follow ``sensor.kp_{slug}_{suffix}`` where the slug may itself
- * contain underscores (e.g. "canna_0321_e02"), so the suffix cannot be split
- * off with a naive regex. Instead the longest common prefix over all of the
- * device's kp_ entity object-ids is derived and stripped — the remainder is
- * the stable suffix used as the map key (matches the entity's translation_key).
+ * Entity IDs are NOT guaranteed to carry a "kp_" prefix: with has_entity_name
+ * HA derives them from the device name (e.g. "sensor.draca_0616_owl_growth_phase")
+ * and the object-id suffix ("growth_phase") does not always equal the
+ * translation key ("phase"). The entity's ``translation_key`` is therefore the
+ * authoritative map key; unique_id parsing and a known-suffix match remain as
+ * fallbacks for entities that predate translation keys.
  */
 export function getEntityMap(hass, deviceId) {
   if (!deviceId || !hass) return {};
 
-  const deviceEnts = [];
+  const map = {};
   for (const ent of Object.values(hass.entities || {})) {
     if (ent.device_id !== deviceId) continue;
-    if (/^(?:sensor|binary_sensor)\.kp_/.test(ent.entity_id)) {
-      deviceEnts.push(ent);
-    }
-  }
-  if (deviceEnts.length === 0) return {};
-
-  const objectIds = deviceEnts.map((e) => e.entity_id.replace(/^[^.]+\./, ""));
-  let prefix = objectIds[0];
-  for (let i = 1; i < objectIds.length; i++) {
-    while (!objectIds[i].startsWith(prefix)) {
-      const idx = prefix.lastIndexOf("_");
-      if (idx <= 0) {
-        prefix = "";
-        break;
-      }
-      prefix = prefix.substring(0, idx + 1); // keep trailing _
-    }
-    if (!prefix) break;
-  }
-
-  const map = {};
-  for (const ent of deviceEnts) {
+    if (!/^(?:sensor|binary_sensor)\./.test(ent.entity_id)) continue;
     const st = hass.states[ent.entity_id];
     if (!st) continue;
+
+    // Preferred: translation_key (HA 2024.1+) — stable regardless of entity_id.
+    if (ent.translation_key) {
+      map[ent.translation_key] = st;
+      continue;
+    }
+
+    // Fallback: unique_id always ends with _kp_{slug}_{suffix}.
+    const kpParts = (ent.unique_id || "").split("_kp_");
+    if (kpParts.length >= 2) {
+      const rest = kpParts[kpParts.length - 1];
+      const underIdx = rest.indexOf("_");
+      if (underIdx > 0) {
+        map[rest.substring(underIdx + 1)] = st;
+        continue;
+      }
+    }
+
+    // Last resort: match the object-id against known suffixes.
     const objId = ent.entity_id.replace(/^[^.]+\./, "");
-    const suffix = prefix ? objId.substring(prefix.length) : objId;
-    if (suffix) map[suffix] = st;
+    for (const s of KP_KNOWN_SUFFIXES) {
+      if (objId.endsWith("_" + s)) {
+        map[s] = st;
+        break;
+      }
+    }
   }
   return map;
 }
