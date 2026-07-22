@@ -454,12 +454,10 @@ class KamerplanterHouseplantCard extends HTMLElement {
   }
 
   getGridOptions() {
-    let rows = 2;
-    const c = this._config || {};
-    if (c.show_watering !== false) rows += 2;
-    if (c.show_fertilizer !== false) rows += 2;
-    // 12-column grid: full width by default, never below half a section.
-    return { columns: 12, min_columns: 6, rows, min_rows: 2 };
+    // Sections-View: content-dependent height -> rows:"auto" (a fixed rows count
+    // sets .fit-rows/fixed height and the overflow pushes the edit overlays into
+    // the card). Matches hui-entities-card. getCardSize() stays as the legacy.
+    return { columns: 12, rows: "auto", min_columns: 6 };
   }
 
   static getConfigElement() {

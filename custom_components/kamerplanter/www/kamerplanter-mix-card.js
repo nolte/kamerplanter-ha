@@ -177,7 +177,7 @@ class KamerplanterMixCard extends HTMLElement {
   }
 
   getCardSize() { return 3; }
-  getGridOptions() { return { columns: 6, min_columns: 6, rows: 2, min_rows: 1 }; }
+  getGridOptions() { return { columns: 6, rows: "auto", min_columns: 6 }; }
   static getConfigElement() { return document.createElement("kamerplanter-mix-card-editor"); }
   static getStubConfig() { return { entities: [], title: "" }; }
 

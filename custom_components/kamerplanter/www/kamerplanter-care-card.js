@@ -422,15 +422,11 @@ class KamerplanterCareCard extends HTMLElement {
   }
 
   getGridOptions() {
-    // HA sections use a 12-column grid. Keep the task list readable: full
-    // width by default, never narrower than half a section.
-    return {
-      columns: 12,
-      rows: 2,
-      min_columns: 6,
-      min_rows: 1,
-      max_rows: 4,
-    };
+    // Sections-View: the task list has content-dependent height, so use
+    // rows:"auto". A fixed rows count sets the .fit-rows class (fixed height)
+    // and the overflowing content pushes HA's edit-mode overlays into the card.
+    // Matches hui-entities-card. getCardSize() stays as the masonry/panel legacy.
+    return { columns: 12, rows: "auto", min_columns: 6 };
   }
 
   static getConfigElement() {
