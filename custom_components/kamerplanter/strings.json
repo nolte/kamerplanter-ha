@@ -64,7 +64,8 @@
           "poll_interval_locations": "Locations polling interval (seconds)",
           "poll_interval_alerts": "Alerts polling interval (seconds)",
           "poll_interval_tasks": "Tasks polling interval (seconds)",
-          "poll_interval_ipm": "IPM polling interval (seconds)"
+          "poll_interval_ipm": "IPM polling interval (seconds)",
+          "poll_interval_weather": "Weather forecast polling interval (seconds)"
         }
       }
     }
@@ -184,6 +185,9 @@
       },
       "pest_alert": {
         "name": "Pest Alert"
+      },
+      "frost_forecast": {
+        "name": "Frost Forecast"
       }
     },
     "button": {

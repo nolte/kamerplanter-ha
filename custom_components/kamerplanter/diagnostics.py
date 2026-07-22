@@ -34,6 +34,7 @@ async def async_get_config_entry_diagnostics(
         "run_count": len(coordinators["runs"].data or []),
         "active_alerts": len(coordinators["alerts"].data or []),
         "pending_tasks": len(coordinators["tasks"].data or []),
+        "site_weather_count": len(coordinators["weather"].data or []),
         "coordinator_update_intervals": {
             name: coord.update_interval.total_seconds()
             for name, coord in coordinators.items()

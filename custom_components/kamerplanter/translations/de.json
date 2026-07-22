@@ -64,7 +64,8 @@
           "poll_interval_locations": "Standort-Abfrageintervall (Sekunden)",
           "poll_interval_alerts": "Alarm-Abfrageintervall (Sekunden)",
           "poll_interval_tasks": "Aufgaben-Abfrageintervall (Sekunden)",
-          "poll_interval_ipm": "IPM-Abfrageintervall (Sekunden)"
+          "poll_interval_ipm": "IPM-Abfrageintervall (Sekunden)",
+          "poll_interval_weather": "Wettervorhersage-Abfrageintervall (Sekunden)"
         }
       }
     }
@@ -184,6 +185,9 @@
       },
       "pest_alert": {
         "name": "Schaedlingsalarm"
+      },
+      "frost_forecast": {
+        "name": "Frostvorhersage"
       }
     },
     "button": {

@@ -33,6 +33,7 @@ from .const import (
     CONF_POLL_LOCATIONS,
     CONF_POLL_PLANTS,
     CONF_POLL_TASKS,
+    CONF_POLL_WEATHER,
     CONF_TENANT_SLUG,
     DEFAULT_API_PATH,
     DEFAULT_POLL_ALERTS,
@@ -40,12 +41,14 @@ from .const import (
     DEFAULT_POLL_LOCATIONS,
     DEFAULT_POLL_PLANTS,
     DEFAULT_POLL_TASKS,
+    DEFAULT_POLL_WEATHER,
     DOMAIN,
     MIN_POLL_ALERTS,
     MIN_POLL_IPM,
     MIN_POLL_LOCATIONS,
     MIN_POLL_PLANTS,
     MIN_POLL_TASKS,
+    MIN_POLL_WEATHER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,6 +75,10 @@ OPTIONS_SCHEMA = vol.Schema(
             CONF_POLL_IPM,
             default=DEFAULT_POLL_IPM,
         ): vol.All(int, vol.Range(min=MIN_POLL_IPM)),
+        vol.Optional(
+            CONF_POLL_WEATHER,
+            default=DEFAULT_POLL_WEATHER,
+        ): vol.All(int, vol.Range(min=MIN_POLL_WEATHER)),
     }
 )
 

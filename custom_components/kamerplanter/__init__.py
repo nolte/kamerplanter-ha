@@ -40,6 +40,7 @@ from .coordinator import (
     KamerplanterPlantCoordinator,
     KamerplanterRunCoordinator,
     KamerplanterTaskCoordinator,
+    KamerplanterWeatherCoordinator,
 )
 from .helpers import (
     resolve_entry_id,
@@ -97,6 +98,7 @@ async def async_setup_entry(
         "alerts": KamerplanterAlertCoordinator(hass, entry, api),
         "tasks": KamerplanterTaskCoordinator(hass, entry, api),
         "ipm": KamerplanterIpmCoordinator(hass, entry, api),
+        "weather": KamerplanterWeatherCoordinator(hass, entry, api),
     }
 
     # First refresh all coordinators in parallel. The first coordinator to
@@ -220,6 +222,23 @@ def _async_cleanup_orphaned_devices(
                     valid.add((DOMAIN, f"{entry.entry_id}_tank_{tank_key}"))
 
     device_reg = dr.async_get(hass)
+
+    # Site (weather) devices are pruned only when the weather coordinator has a
+    # confirmed successful update; otherwise every existing site device is kept.
+    # This decouples site-device cleanup from a transient weather-backend error
+    # without blocking the plant/location/run cleanup above.
+    weather_coord = coordinators.get("weather")
+    if weather_coord and weather_coord.last_update_success and weather_coord.data:
+        for site in weather_coord.data:
+            site_key = site.get("key") or site.get("_key", "")
+            if site_key:
+                valid.add((DOMAIN, f"{entry.entry_id}_site_{site_key}"))
+    else:
+        for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
+            for domain, ident in device.identifiers:
+                if domain == DOMAIN and ident.startswith(f"{entry.entry_id}_site_"):
+                    valid.add((domain, ident))
+
     for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
         if not (device.identifiers & valid):
             _LOGGER.debug(
