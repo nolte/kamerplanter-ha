@@ -26,7 +26,7 @@ import {
   t,
 } from "./kamerplanter-card-common.js";
 
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.3.0";
 
 /* ================================================================== *
  *  i18n — card-local de/en catalog (WP-16)                            *
@@ -50,6 +50,22 @@ const CATALOG = {
     section_today: "Heute fällig ({0})",
     section_upcoming: "Anstehend ({0})",
     task_care: "Pflege",
+    // Konkrete Pflegeart je ReminderType-Slug (Backend liefert engl. Slugs im
+    // Task-Namen "<Pflanze> — <slug>"). Fehlt ein Slug, greift ein aufbereiteter
+    // Fallback (Unterstriche → Leerzeichen) in ``_taskTypeLabel``.
+    tasktype_watering: "Gießen",
+    tasktype_fertilizing: "Düngen",
+    tasktype_repotting: "Umtopfen",
+    tasktype_pest_check: "Schädlingskontrolle",
+    tasktype_location_check: "Standortkontrolle",
+    tasktype_humidity_check: "Luftfeuchte prüfen",
+    tasktype_deadheading: "Verblühtes entfernen",
+    tasktype_tuber_dig: "Knollen ausgraben",
+    tasktype_storage_check: "Lagerkontrolle",
+    tasktype_spring_uncover: "Frühjahr: abdecken entfernen",
+    tasktype_winter_protection: "Winterschutz",
+    tasktype_dormancy_health_check: "Ruhephase prüfen",
+    tasktype_quarter_climate_check: "Winterquartier-Klima prüfen",
     unknown_plant: "Unbekannt",
     action_start: "Starten",
     action_complete: "Erledigt",
@@ -73,6 +89,20 @@ const CATALOG = {
     section_today: "Due today ({0})",
     section_upcoming: "Upcoming ({0})",
     task_care: "Care",
+    // Concrete care activity per ReminderType slug (see the German block above).
+    tasktype_watering: "Watering",
+    tasktype_fertilizing: "Fertilizing",
+    tasktype_repotting: "Repotting",
+    tasktype_pest_check: "Pest check",
+    tasktype_location_check: "Location check",
+    tasktype_humidity_check: "Humidity check",
+    tasktype_deadheading: "Deadheading",
+    tasktype_tuber_dig: "Dig up tubers",
+    tasktype_storage_check: "Storage check",
+    tasktype_spring_uncover: "Spring uncover",
+    tasktype_winter_protection: "Winter protection",
+    tasktype_dormancy_health_check: "Dormancy check",
+    tasktype_quarter_climate_check: "Winter-quarter climate check",
     unknown_plant: "Unknown",
     action_start: "Start",
     action_complete: "Complete",
@@ -196,7 +226,9 @@ const CARE_STYLES = `
         .task-type {
           font-size: 0.75rem;
           color: var(--secondary-text-color);
-          text-transform: capitalize;
+          /* Labels are already correctly cased & localised in JS
+             (_taskTypeLabel), so no CSS capitalize — it would mis-case
+             multi-word German labels like "Knollen ausgraben". */
         }
         .task-actions {
           display: flex;
@@ -464,7 +496,7 @@ class KamerplanterCareCard extends HTMLElement {
     return t(CATALOG, key, this._hass, ...args);
   }
 
-  _getTaskIcon(category) {
+  _getTaskIcon(activity) {
     const icons = {
       watering: "mdi:watering-can",
       giessen: "mdi:watering-can",
@@ -476,9 +508,36 @@ class KamerplanterCareCard extends HTMLElement {
       schaedlingskontrolle: "mdi:bug",
       pruning: "mdi:content-cut",
       schneiden: "mdi:content-cut",
+      location_check: "mdi:map-marker",
+      humidity_check: "mdi:water-percent",
+      deadheading: "mdi:flower-outline",
+      tuber_dig: "mdi:shovel",
+      storage_check: "mdi:package-variant-closed",
+      spring_uncover: "mdi:weather-sunny",
+      winter_protection: "mdi:snowflake",
+      dormancy_health_check: "mdi:sleep",
+      quarter_climate_check: "mdi:home-thermometer",
     };
-    const key = (category || "").toLowerCase();
+    const key = (activity || "").toLowerCase();
     return icons[key] || "mdi:clipboard-check-outline";
+  }
+
+  /**
+   * Human-readable, localised care-activity label for a task row. The aggregate
+   * sensors expose the concrete activity slug (``watering``, ``pest_check``, …)
+   * in ``task.activity``; the older/generic ``task.category`` ("care_reminder")
+   * is only a last-resort fallback. Unknown slugs are prettified (underscores →
+   * spaces, first letter upper-cased) rather than shown raw.
+   */
+  _taskTypeLabel(task) {
+    const slug = String(task.activity || task.category || "").trim();
+    if (!slug) return this._t("task_care");
+    const key = `tasktype_${slug.toLowerCase()}`;
+    const label = this._t(key);
+    // ``t`` returns the key itself on a miss — fall back to a prettified slug.
+    if (label !== key) return label;
+    const pretty = slug.replace(/[_-]+/g, " ").trim();
+    return pretty.charAt(0).toUpperCase() + pretty.slice(1);
   }
 
   _buildTaskRows(tasks, colorClass) {
@@ -487,10 +546,10 @@ class KamerplanterCareCard extends HTMLElement {
       .map(
         (task) => `
       <div class="task-row ${colorClass}">
-        <ha-icon icon="${this._getTaskIcon(task.category)}" class="task-icon"></ha-icon>
+        <ha-icon icon="${this._getTaskIcon(task.activity || task.category)}" class="task-icon"></ha-icon>
         <div class="task-info">
           <span class="plant-name">${escapeHtml(task.name || this._t("unknown_plant"))}</span>
-          <span class="task-type">${escapeHtml(task.category || this._t("task_care"))}</span>
+          <span class="task-type">${escapeHtml(this._taskTypeLabel(task))}</span>
         </div>
         ${this._config.interactive ? this._buildActionButtons(task) : ""}
       </div>

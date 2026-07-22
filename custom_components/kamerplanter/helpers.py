@@ -318,6 +318,31 @@ def _task_activity(task: Mapping[str, Any], raw: str) -> str:
     return str(fallback).replace("_", " ").strip()
 
 
+def resolve_task_activity(task: Mapping[str, Any]) -> str:
+    """Return the care-activity *slug* of a task (e.g. ``"watering"``, ``"pest_check"``).
+
+    Care-reminder tasks all share the generic ``category == "care_reminder"``; the
+    concrete activity lives at the tail of the backend name, which is built as
+    ``"<plant> — <ReminderType.value>"`` (see the backend ``care_reminder_service``).
+    This returns that trailing slug **verbatim** (underscores preserved), so the care
+    card can both map it to an icon and localise it. When the name carries no activity
+    separator it falls back to ``activity_key`` / ``category``. May be empty.
+
+    Unlike :func:`_task_activity` (which feeds the human ``_display_name`` and therefore
+    prettifies the fallback), this keeps the raw slug form the card's lookups expect.
+    """
+    raw = str(
+        task.get("name") or task.get("name_de") or task.get("title") or ""
+    ).strip()
+    for sep in _ACTIVITY_SEPARATORS:
+        if sep in raw:
+            tail = raw.rsplit(sep, 1)[-1].strip()
+            if tail:
+                return tail
+    fallback = task.get("activity_key") or task.get("category") or ""
+    return str(fallback).strip()
+
+
 def resolve_task_display_name(
     task: Mapping[str, Any], index: Mapping[str, dict[str, str]]
 ) -> str:
@@ -345,10 +370,11 @@ def annotate_tasks_with_names(
     """Enrich task dicts in place with readable ``plant_name`` + ``_display_name``.
 
     ``plant_name`` carries the readable plant label alone (consumed by the
-    aggregate task sensors / care card), while ``_display_name`` carries the
-    full ``"<name> — <activity>"`` label (consumed by the todo list and task
-    calendar). Both are safe to call on any task list; unresolved tasks keep
-    their raw backend name.
+    aggregate task sensors / care card), ``_display_name`` carries the full
+    ``"<name> — <activity>"`` label (consumed by the todo list and task
+    calendar), and ``_activity`` carries the bare care-activity slug (consumed
+    by the care card to label + icon each row). All are safe to call on any task
+    list; unresolved tasks keep their raw backend name.
     """
     index = build_plant_name_index(plants)
     for task in tasks or []:
@@ -358,3 +384,7 @@ def annotate_tasks_with_names(
         if plant_name:
             task["plant_name"] = plant_name
         task["_display_name"] = resolve_task_display_name(task, index)
+        # Concrete care activity ("watering", "pest_check", ...) so the aggregate
+        # task sensors / care card can show it instead of the generic
+        # ``category == "care_reminder"`` every care task carries.
+        task["_activity"] = resolve_task_activity(task)
