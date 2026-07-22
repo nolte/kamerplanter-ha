@@ -127,6 +127,23 @@ async def test_tenants_url_uses_custom_api_path() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_weather_forecast_hits_endpoint() -> None:
+    """async_get_site_weather_forecast GETs {tenant}/sites/{key}/weather-forecast."""
+    session = _make_session()
+    api = KamerplanterApi(
+        base_url="http://host:8000",
+        session=session,
+        tenant_slug="garden",
+    )
+
+    await api.async_get_site_weather_forecast("site-1")
+
+    method, url = session.request.call_args.args[:2]
+    assert method == "GET"
+    assert url == "http://host:8000/api/v1/t/garden/sites/site-1/weather-forecast"
+
+
+@pytest.mark.asyncio
 async def test_start_task_hits_start_endpoint() -> None:
     """async_start_task POSTs to {tenant}/tasks/{key}/start."""
     session = _make_session()

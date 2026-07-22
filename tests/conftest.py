@@ -82,6 +82,7 @@ def mock_api():
         api.async_get_planting_runs = AsyncMock(return_value=load_fixture("runs.json"))
         api.async_get_fertilizers = AsyncMock(return_value=[])
         api.async_get_sites = AsyncMock(return_value=[])
+        api.async_get_site_weather_forecast = AsyncMock(return_value=None)
         api.async_get_all_locations = AsyncMock(
             return_value=load_fixture("locations.json")
         )

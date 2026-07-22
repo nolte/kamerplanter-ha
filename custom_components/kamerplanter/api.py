@@ -165,6 +165,17 @@ class KamerplanterApi:
             "GET", f"{self._tenant_prefix}/sites/{site_key}/location-tree"
         )
 
+    async def async_get_site_weather_forecast(self, site_key: str) -> dict[str, Any]:
+        """Fetch a site's weather forecast incl. the proactive frost warning.
+
+        Backs the per-site frost-forecast binary sensor (issue #53). The backend
+        is graceful: when no forecast source is configured it returns 200 with
+        the ``forecast_*`` summary fields set to ``None`` (never a 404/500).
+        """
+        return await self._request(
+            "GET", f"{self._tenant_prefix}/sites/{site_key}/weather-forecast"
+        )
+
     async def async_get_all_locations(self) -> list[dict[str, Any]]:
         """Fetch all locations across all sites (including nested children)."""
         sites = await self.async_get_sites()

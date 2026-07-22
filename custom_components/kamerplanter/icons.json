@@ -45,7 +45,8 @@
       "sensor_offline": { "default": "mdi:access-point-network-off" },
       "care_overdue": { "default": "mdi:watering-can-outline" },
       "harvest_safe": { "default": "mdi:fruit-cherries" },
-      "pest_alert": { "default": "mdi:bug-check" }
+      "pest_alert": { "default": "mdi:bug-check" },
+      "frost_forecast": { "default": "mdi:snowflake-alert" }
     },
     "button": {
       "refresh_all": { "default": "mdi:refresh" }
