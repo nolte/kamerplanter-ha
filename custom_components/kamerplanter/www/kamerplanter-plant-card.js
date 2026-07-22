@@ -672,13 +672,19 @@ const CARD_STYLES = `
 
 /**
  * Build plant card editor schema.
- * Uses selector: { device: { integration: "kamerplanter" } } to filter
- * to Kamerplanter Plant Instance / Planting Run devices natively.
+ * The device selector is narrowed via model_id so it lists only the devices the
+ * plant card can render — Plant Instances and Planting Runs — and excludes the
+ * hub, tanks and locations (issue #63). model_id is a stable token set on the
+ * DeviceInfo in entity.py; the human-readable `model` carries a variable suffix
+ * and cannot be filtered on exactly.
  */
 function plantCardSchema(hass) {
   return [
     { name: "device_id", label: t(CATALOG, "editor_device", hass), required: true,
-      selector: { device: { integration: "kamerplanter" } } },
+      selector: { device: { filter: [
+        { integration: "kamerplanter", model_id: "plant_instance" },
+        { integration: "kamerplanter", model_id: "planting_run" },
+      ] } } },
     { name: "title",     label: t(CATALOG, "editor_title", hass),
       selector: { text: {} } },
     { name: "show_progress",  label: t(CATALOG, "editor_show_progress", hass),

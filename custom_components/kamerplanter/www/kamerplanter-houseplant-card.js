@@ -363,7 +363,11 @@ const HP_STYLES = `
 function houseplantCardSchema(hass) {
   return [
     { name: "device_id", label: t(CATALOG, "editor_device", hass), required: true,
-      selector: { device: { integration: "kamerplanter" } } },
+      // Houseplant card renders perennial/houseplant instances only, so the
+      // picker is narrowed to Plant Instance devices via model_id (issue #63).
+      selector: { device: { filter: [
+        { integration: "kamerplanter", model_id: "plant_instance" },
+      ] } } },
     { name: "title",     label: t(CATALOG, "editor_title", hass),
       selector: { text: {} } },
     { name: "show_watering",   label: t(CATALOG, "editor_show_watering", hass),

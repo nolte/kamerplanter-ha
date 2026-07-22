@@ -60,6 +60,7 @@ def plant_device_info(entry: ConfigEntry, plant: dict[str, Any]) -> DeviceInfo:
         name=name,
         manufacturer="Kamerplanter",
         model=model,
+        model_id="plant_instance",
         via_device=(DOMAIN, entry.entry_id),
     )
 
@@ -73,6 +74,7 @@ def run_device_info(entry: ConfigEntry, run: dict[str, Any]) -> DeviceInfo:
         name=name,
         manufacturer="Kamerplanter",
         model=f"Planting Run ({run.get('run_type', 'unknown')})",
+        model_id="planting_run",
         via_device=(DOMAIN, entry.entry_id),
     )
 
