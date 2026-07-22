@@ -1731,7 +1731,7 @@ class LocationChannelSensor(_LocationSensorBase):
 class LocationTankVolumeSensor(_LocationSensorBase):
     """Tank volume sensor — exposes assigned tank capacity in liters."""
 
-    _attr_device_class = SensorDeviceClass.VOLUME
+    _attr_device_class = SensorDeviceClass.VOLUME_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
 
@@ -1948,7 +1948,7 @@ class TankInfoSensor(KpSensorBase):
 class TankVolumeSensor(KpSensorBase):
     """Sensor exposing the tank's total volume in liters."""
 
-    _attr_device_class = SensorDeviceClass.VOLUME
+    _attr_device_class = SensorDeviceClass.VOLUME_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
 
