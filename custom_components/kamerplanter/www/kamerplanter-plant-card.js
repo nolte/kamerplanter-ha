@@ -15,46 +15,20 @@
  *   title:     string  (optional — override device name)
  */
 
+import {
+  KamerplanterCardEditor,
+  escapeAttr,
+  escapeHtml,
+  getDeviceName,
+  getEntityMap,
+  kamiSvg,
+  phaseLabel,
+  safeNum,
+} from "./kamerplanter-card-common.js";
+
 /* ================================================================== *
  *  Constants                                                          *
  * ================================================================== */
-
-const KAMI_PHASE_SVG = {
-  germination:         "/local/kami/timeline-kami-phase-germination.svg",
-  seedling:            "/local/kami/timeline-kami-phase-seedling.svg",
-  vegetative:          "/local/kami/timeline-kami-phase-vegetative.svg",
-  flowering:           "/local/kami/timeline-kami-phase-flowering.svg",
-  ripening:            "/local/kami/timeline-kami-phase-ripening.svg",
-  harvest:             "/local/kami/timeline-kami-phase-harvest.svg",
-  dormancy:            "/local/kami/timeline-kami-phase-dormancy.svg",
-  juvenile:            "/local/kami/timeline-kami-phase-juvenile.svg",
-  climbing:            "/local/kami/timeline-kami-phase-climbing.svg",
-  mature:              "/local/kami/timeline-kami-phase-mature.svg",
-  senescence:          "/local/kami/timeline-kami-phase-senescence.svg",
-  flushing:            "/local/kami/timeline-kami-phase-flushing.svg",
-  leaf_phase:          "/local/kami/timeline-kami-phase-leaf-phase.svg",
-  short_day_induction: "/local/kami/timeline-kami-phase-short-day-induction.svg",
-};
-
-const PHASE_LABELS = {
-  germination:         "Keimung",
-  seedling:            "Sämling",
-  vegetative:          "Vegetativ",
-  flowering:           "Blüte",
-  ripening:            "Reife",
-  harvest:             "Ernte",
-  dormancy:            "Ruhephase",
-  flush:               "Spülphase",
-  flushing:            "Spülung",
-  drying:              "Trocknung",
-  curing:              "Curing",
-  leaf_phase:          "Blattphase",
-  short_day_induction: "Kurztageinleitung",
-  juvenile:            "Juvenil",
-  climbing:            "Kletterphase",
-  mature:              "Reifephase",
-  senescence:          "Seneszenz",
-};
 
 const STANDARD_PHASES = [
   "germination", "seedling", "vegetative",
@@ -64,42 +38,8 @@ const STANDARD_PHASES = [
 const CHECK_SVG = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
 
 /* ================================================================== *
- *  Helpers                                                            *
+ *  Helpers (card-local date formatting)                               *
  * ================================================================== */
-
-function escapeHtml(s) {
-  const el = document.createElement("span");
-  el.textContent = s || "";
-  return el.innerHTML;
-}
-
-/**
- * Escape a value for use inside a double/single quoted HTML attribute.
- * `escapeHtml` only neutralises &, < and > (text-node semantics), so quotes
- * must be handled explicitly to prevent attribute breakout.
- */
-function escapeAttr(s) {
-  return escapeHtml(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-/**
- * Coerce a backend value to a safe string for HTML text content. Finite
- * numbers are rendered as-is; anything else is HTML-escaped so malicious
- * backend payloads cannot inject markup.
- */
-function safeNum(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? String(n) : escapeHtml(String(v));
-}
-
-function capitalize(s) {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
-}
-
-function phaseLabel(phase) {
-  const key = (phase || "").toLowerCase();
-  return PHASE_LABELS[key] || capitalize(phase);
-}
 
 function fmtDate(iso) {
   if (!iso) return "";
@@ -111,10 +51,6 @@ function fmtDateShort(iso) {
   if (!iso) return "";
   const p = iso.split("-");
   return p.length >= 3 ? `${p[2]}.${p[1]}.` : iso;
-}
-
-function kamiSvg(phase) {
-  return KAMI_PHASE_SVG[(phase || "").toLowerCase()] || null;
 }
 
 /* ================================================================== *
@@ -604,20 +540,6 @@ const CARD_STYLES = `
 `;
 
 /**
- * ha-form ready singleton (UI-NFR-015 §2.2).
- */
-const _haFormReadyPlant = (async () => {
-  if (customElements.get("ha-form")) return;
-  await customElements.whenDefined("hui-entities-card");
-  const helpers = await window.loadCardHelpers?.();
-  if (helpers) {
-    const temp = await helpers.createCardElement({ type: "entities", entities: [] });
-    if (temp?.constructor?.getConfigElement) await temp.constructor.getConfigElement();
-  }
-  await customElements.whenDefined("ha-form");
-})();
-
-/**
  * Build plant card editor schema.
  * Uses selector: { device: { integration: "kamerplanter" } } to filter
  * to Kamerplanter Plant Instance / Planting Run devices natively.
@@ -644,52 +566,20 @@ const PLANT_CARD_SCHEMA = [
  * ================================================================== */
 
 /**
- * Kamerplanter Plant Card Editor
- * Uses ha-form + schema — identical pattern to official HA card editors
+ * Kamerplanter Plant Card Editor — shared ha-form editor base
  * (UI-NFR-015 §2.1). No Shadow DOM (UI-NFR-015 R-022).
  */
-class KamerplanterPlantCardEditor extends HTMLElement {
-  setConfig(config) {
-    this._config = {
+class KamerplanterPlantCardEditor extends KamerplanterCardEditor {
+  _defaultConfig() {
+    return {
       device_id: "", title: "",
       show_progress: true, show_timeline: true,
       show_stats: true, show_next_hint: true, show_details: true,
-      ...config,
     };
-    if (this._hass) this._scheduleRender();
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._scheduleRender();
-  }
-
-  async _scheduleRender() {
-    await _haFormReadyPlant;
-    this._render();
-  }
-
-  _render() {
-    if (!this._config || !this._hass) return;
-
-    // Create ha-form once; reuse on subsequent renders (UI-NFR-015 R-020)
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.addEventListener("value-changed", (e) => {
-        this._config = e.detail.value;
-        this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: this._config },
-          bubbles: true,
-          composed: true,
-        }));
-      });
-      this.appendChild(this._form);
-    }
-
-    this._form.hass = this._hass;
-    this._form.schema = PLANT_CARD_SCHEMA;
-    this._form.data = this._config;
-    this._form.computeLabel = (schema) => schema.label || schema.name;
+  _schema() {
+    return PLANT_CARD_SCHEMA;
   }
 }
 
@@ -846,55 +736,12 @@ class KamerplanterPlantCard extends HTMLElement {
 
   /** Collect sensor states keyed by suffix (e.g. "phase", "phase_timeline"). */
   _getEntityMap() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return {};
-
-    // Collect all entity_ids for this device to derive the common prefix.
-    // Entity IDs follow: sensor.kp_{slug}_{suffix} where slug can contain
-    // underscores (e.g. "canna_0321_e02"), so we cannot split with a simple regex.
-    // Instead, find the common prefix from all entity_ids of this device.
-    const deviceEnts = [];
-    for (const ent of Object.values(this._hass.entities || {})) {
-      if (ent.device_id !== id) continue;
-      const eid = ent.entity_id;
-      if (/^(?:sensor|binary_sensor)\.kp_/.test(eid)) {
-        deviceEnts.push(ent);
-      }
-    }
-
-    if (deviceEnts.length === 0) return {};
-
-    // Derive common prefix: strip domain, find longest common prefix of the
-    // object_id part (after "sensor." / "binary_sensor.").
-    const objectIds = deviceEnts.map((e) => e.entity_id.replace(/^[^.]+\./, ""));
-    let prefix = objectIds[0];
-    for (let i = 1; i < objectIds.length; i++) {
-      while (!objectIds[i].startsWith(prefix)) {
-        // Remove last _segment from prefix
-        const idx = prefix.lastIndexOf("_");
-        if (idx <= 0) { prefix = ""; break; }
-        prefix = prefix.substring(0, idx + 1); // keep trailing _
-      }
-      if (!prefix) break;
-    }
-
-    const map = {};
-    for (const ent of deviceEnts) {
-      const st = this._hass.states[ent.entity_id];
-      if (!st) continue;
-      const objId = ent.entity_id.replace(/^[^.]+\./, "");
-      const suffix = prefix ? objId.substring(prefix.length) : objId;
-      if (suffix) map[suffix] = st;
-    }
-    return map;
+    return getEntityMap(this._hass, this._config.device_id);
   }
 
   /** Resolve device display name. */
   _getDeviceName() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return null;
-    const dev = Object.values(this._hass.devices || {}).find((d) => d.id === id);
-    return dev ? dev.name_by_user || dev.name : null;
+    return getDeviceName(this._hass, this._config.device_id);
   }
 
   /** Build ordered phase list from timeline attributes + standard backfill. */

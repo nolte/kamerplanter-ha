@@ -20,78 +20,17 @@
  *   show_fertilizer: true       # nutrient plan + dosages section
  */
 
+import {
+  KamerplanterCardEditor,
+  escapeHtml,
+  getDeviceName,
+  getEntityMap,
+  isUnavailableState,
+  kamiSvg,
+  phaseLabel,
+} from "./kamerplanter-card-common.js";
+
 const CARD_VERSION_HP = "1.0.0";
-
-/* ================================================================== *
- *  Shared constants                                                   *
- * ================================================================== */
-
-const KAMI_PHASE_SVG_HP = {
-  germination:         "/local/kami/timeline-kami-phase-germination.svg",
-  seedling:            "/local/kami/timeline-kami-phase-seedling.svg",
-  vegetative:          "/local/kami/timeline-kami-phase-vegetative.svg",
-  flowering:           "/local/kami/timeline-kami-phase-flowering.svg",
-  ripening:            "/local/kami/timeline-kami-phase-ripening.svg",
-  harvest:             "/local/kami/timeline-kami-phase-harvest.svg",
-  dormancy:            "/local/kami/timeline-kami-phase-dormancy.svg",
-  juvenile:            "/local/kami/timeline-kami-phase-juvenile.svg",
-  climbing:            "/local/kami/timeline-kami-phase-climbing.svg",
-  mature:              "/local/kami/timeline-kami-phase-mature.svg",
-  senescence:          "/local/kami/timeline-kami-phase-senescence.svg",
-  flushing:            "/local/kami/timeline-kami-phase-flushing.svg",
-  leaf_phase:          "/local/kami/timeline-kami-phase-leaf-phase.svg",
-  short_day_induction: "/local/kami/timeline-kami-phase-short-day-induction.svg",
-};
-
-const PHASE_LABELS_HP = {
-  germination:         "Keimung",
-  seedling:            "Saemling",
-  vegetative:          "Vegetativ",
-  flowering:           "Bluete",
-  ripening:            "Reife",
-  harvest:             "Ernte",
-  dormancy:            "Ruhephase",
-  flush:               "Spuelphase",
-  flushing:            "Spuelung",
-  drying:              "Trocknung",
-  curing:              "Curing",
-  leaf_phase:          "Blattphase",
-  short_day_induction: "Kurztageinleitung",
-  juvenile:            "Juvenil",
-  climbing:            "Kletterphase",
-  mature:              "Reifephase",
-  senescence:          "Seneszenz",
-};
-
-function _hpKamiSvg(phase) {
-  return KAMI_PHASE_SVG_HP[(phase || "").toLowerCase()] || null;
-}
-
-function _hpPhaseLabel(phase) {
-  const key = (phase || "").toLowerCase();
-  return PHASE_LABELS_HP[key] || (phase ? phase.charAt(0).toUpperCase() + phase.slice(1) : "—");
-}
-
-function _hpEscape(s) {
-  const el = document.createElement("span");
-  el.textContent = s || "";
-  return el.innerHTML;
-}
-
-/**
- * Prueft, ob ein State-Wert als "nicht verfuegbar" gilt.
- * Deckt fehlende States (undefined/null) und die HA-Sonderwerte
- * "unknown"/"unavailable" ab, damit diese nie als echter Anzeigewert
- * gerendert werden.
- */
-function _hpIsUnavailable(state) {
-  return (
-    state === undefined ||
-    state === null ||
-    state === "unknown" ||
-    state === "unavailable"
-  );
-}
 
 /* ================================================================== *
  *  Styles                                                             *
@@ -314,21 +253,6 @@ const HP_STYLES = `
 `;
 
 /* ================================================================== *
- *  ha-form ready singleton                                            *
- * ================================================================== */
-
-const _haFormReadyHouseplant = (async () => {
-  if (customElements.get("ha-form")) return;
-  await customElements.whenDefined("hui-entities-card");
-  const helpers = await window.loadCardHelpers?.();
-  if (helpers) {
-    const temp = await helpers.createCardElement({ type: "entities", entities: [] });
-    if (temp?.constructor?.getConfigElement) await temp.constructor.getConfigElement();
-  }
-  await customElements.whenDefined("ha-form");
-})();
-
-/* ================================================================== *
  *  Editor                                                             *
  * ================================================================== */
 
@@ -343,44 +267,13 @@ const HOUSEPLANT_CARD_SCHEMA = [
     selector: { boolean: {} } },
 ];
 
-class KamerplanterHouseplantCardEditor extends HTMLElement {
-  setConfig(config) {
-    this._config = {
-      device_id: "", title: "",
-      show_watering: true, show_fertilizer: true,
-      ...config,
-    };
-    if (this._hass) this._scheduleRender();
+class KamerplanterHouseplantCardEditor extends KamerplanterCardEditor {
+  _defaultConfig() {
+    return { device_id: "", title: "", show_watering: true, show_fertilizer: true };
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._scheduleRender();
-  }
-
-  async _scheduleRender() {
-    await _haFormReadyHouseplant;
-    this._render();
-  }
-
-  _render() {
-    if (!this._config || !this._hass) return;
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.addEventListener("value-changed", (e) => {
-        this._config = e.detail.value;
-        this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: this._config },
-          bubbles: true,
-          composed: true,
-        }));
-      });
-      this.appendChild(this._form);
-    }
-    this._form.hass = this._hass;
-    this._form.schema = HOUSEPLANT_CARD_SCHEMA;
-    this._form.data = this._config;
-    this._form.computeLabel = (schema) => schema.label || schema.name;
+  _schema() {
+    return HOUSEPLANT_CARD_SCHEMA;
   }
 }
 customElements.define("kamerplanter-houseplant-card-editor", KamerplanterHouseplantCardEditor);
@@ -474,55 +367,11 @@ class KamerplanterHouseplantCard extends HTMLElement {
   /* ---- Data helpers --------------------------------------------- */
 
   _getEntityMap() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return {};
-
-    const allDeviceEnts = [];
-    for (const ent of Object.values(this._hass.entities || {})) {
-      if (ent.device_id !== id) continue;
-      if (!/^(?:sensor|binary_sensor)\./.test(ent.entity_id)) continue;
-      allDeviceEnts.push(ent);
-    }
-
-    const map = {};
-    for (const ent of allDeviceEnts) {
-      const st = this._hass.states[ent.entity_id];
-      if (!st) continue;
-
-      // Try translation_key first (HA 2024.1+)
-      if (ent.translation_key) {
-        map[ent.translation_key] = st;
-        continue;
-      }
-
-      // Try unique_id (always ends with _kp_{slug}_{suffix})
-      const uid = ent.unique_id || "";
-      const parts = uid.split("_kp_");
-      if (parts.length >= 2) {
-        const rest = parts[parts.length - 1];
-        const underIdx = rest.indexOf("_");
-        if (underIdx > 0) {
-          map[rest.substring(underIdx + 1)] = st;
-          continue;
-        }
-      }
-
-      // Last resort: match entity_id against known suffixes
-      const objId = ent.entity_id.replace(/^[^.]+\./, "");
-      const KNOWN = ["phase","days_in_phase","days_until_watering","nutrient_plan",
-        "active_channels","phase_timeline","next_phase","status","plant_count","needs_attention"];
-      for (const s of KNOWN) {
-        if (objId.endsWith("_" + s)) { map[s] = st; break; }
-      }
-    }
-    return map;
+    return getEntityMap(this._hass, this._config.device_id);
   }
 
   _getDeviceName() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return null;
-    const dev = Object.values(this._hass.devices || {}).find((d) => d.id === id);
-    return dev ? dev.name_by_user || dev.name : null;
+    return getDeviceName(this._hass, this._config.device_id);
   }
 
   /* ---- DOM ------------------------------------------------------ */
@@ -624,19 +473,19 @@ class KamerplanterHouseplantCard extends HTMLElement {
     const nutrientObj  = ents["nutrient_plan"];
     const channelsObj  = ents["active_channels"];
 
-    const currentPhase = _hpIsUnavailable(phaseObj?.state) ? null : phaseObj.state;
+    const currentPhase = isUnavailableState(phaseObj?.state) ? null : phaseObj.state;
     const daysInPhase  = daysObj?.state;
     const plantName    = this._config.title || this._getDeviceName() || "Pflanze";
 
     // Build HTML
-    const kamiUrl = _hpKamiSvg(currentPhase);
+    const kamiUrl = kamiSvg(currentPhase);
     const kamiHtml = kamiUrl
-      ? `<img class="hp-header__kami" src="${kamiUrl}" alt="${_hpEscape(currentPhase)}" />`
+      ? `<img class="hp-header__kami" src="${kamiUrl}" alt="${escapeHtml(currentPhase)}" />`
       : `<span class="hp-header__icon">\uD83C\uDF31</span>`;
 
-    const phaseText = _hpPhaseLabel(currentPhase);
-    const daysText = !_hpIsUnavailable(daysInPhase)
-      ? ` \u2014 Tag ${_hpEscape(String(daysInPhase))}`
+    const phaseText = phaseLabel(currentPhase);
+    const daysText = !isUnavailableState(daysInPhase)
+      ? ` \u2014 Tag ${escapeHtml(String(daysInPhase))}`
       : "";
 
     let html = `
@@ -645,16 +494,16 @@ class KamerplanterHouseplantCard extends HTMLElement {
         <div class="hp-header">
           ${kamiHtml}
           <div class="hp-header__text">
-            <span class="hp-header__name">${_hpEscape(plantName)}</span>
-            <span class="hp-header__phase">${_hpEscape(phaseText)}${daysText}</span>
+            <span class="hp-header__name">${escapeHtml(plantName)}</span>
+            <span class="hp-header__phase">${escapeHtml(phaseText)}${daysText}</span>
           </div>
     `;
 
     // Days badge (days in phase)
-    if (!_hpIsUnavailable(daysInPhase)) {
+    if (!isUnavailableState(daysInPhase)) {
       html += `
           <div class="hp-header__days">
-            ${_hpEscape(String(daysInPhase))}<small>d</small>
+            ${escapeHtml(String(daysInPhase))}<small>d</small>
           </div>
       `;
     }
@@ -664,7 +513,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     // --- Watering section ---
     if (this._config.show_watering !== false) {
       const rawState = waterObj?.state;
-      const daysUntil = !_hpIsUnavailable(rawState)
+      const daysUntil = !isUnavailableState(rawState)
         ? parseInt(rawState, 10) : null;
       const attrs = waterObj?.attributes || {};
       const nextDate = attrs.next_watering_date;
@@ -707,8 +556,8 @@ class KamerplanterHouseplantCard extends HTMLElement {
           <ha-icon icon="${statusIcon}" class="hp-watering__icon"></ha-icon>
           <div class="hp-watering__info">
             <div class="hp-watering__label">${statusLabel}</div>
-            <div class="hp-watering__value">${_hpEscape(statusValue)}</div>
-            ${statusDetail ? `<div class="hp-watering__detail">${_hpEscape(statusDetail)}</div>` : ""}
+            <div class="hp-watering__value">${escapeHtml(statusValue)}</div>
+            ${statusDetail ? `<div class="hp-watering__detail">${escapeHtml(statusDetail)}</div>` : ""}
           </div>
         </div>
       `;
@@ -717,7 +566,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     // --- Fertilizer section ---
     if (this._config.show_fertilizer !== false) {
       const planName = nutrientObj?.state;
-      const hasPlan = planName && !_hpIsUnavailable(planName) && planName !== "None";
+      const hasPlan = planName && !isUnavailableState(planName) && planName !== "None";
       const channelAttrs = channelsObj?.attributes || {};
       const channelIds = channelAttrs.channel_ids || [];
 
@@ -726,7 +575,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
           <div class="hp-fert">
             <div class="hp-fert__header">
               <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon"></ha-icon>
-              <span class="hp-fert__plan-name">${_hpEscape(hasPlan ? planName : "Duenger")}</span>
+              <span class="hp-fert__plan-name">${escapeHtml(hasPlan ? planName : "Duenger")}</span>
             </div>
             <div class="hp-fert__channels">
         `;
@@ -740,13 +589,13 @@ class KamerplanterHouseplantCard extends HTMLElement {
 
             html += `<div class="hp-fert__channel">`;
             if (channelIds.length > 1) {
-              html += `<div class="hp-fert__channel-label">${_hpEscape(label)}</div>`;
+              html += `<div class="hp-fert__channel-label">${escapeHtml(label)}</div>`;
             }
             html += `<div class="hp-fert__dosages">`;
             for (const [product, ml] of Object.entries(dosages)) {
               html += `
                 <span class="hp-fert__dosage">
-                  ${_hpEscape(product)} <span class="hp-fert__dosage-ml">${_hpEscape(String(ml))} ml/L</span>
+                  ${escapeHtml(product)} <span class="hp-fert__dosage-ml">${escapeHtml(String(ml))} ml/L</span>
                 </span>
               `;
             }

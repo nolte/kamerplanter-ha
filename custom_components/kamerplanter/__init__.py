@@ -50,6 +50,12 @@ from .helpers import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Shared ES modules imported by the cards. They are served as static files so
+# the cards' relative imports resolve, but they are NOT cards themselves and
+# must therefore never be offered in the Lovelace card picker (i.e. never
+# registered as a Lovelace resource).
+NON_CARD_MODULES: frozenset[str] = frozenset({"kamerplanter-card-common.js"})
+
 # Repairs issue raised when Lovelace runs in YAML resource mode and the cards
 # therefore cannot be auto-registered.
 ISSUE_LOVELACE_YAML_MODE = "lovelace_yaml_mode"
@@ -238,7 +244,11 @@ async def _async_register_lovelace_resources(
     from homeassistant.exceptions import HomeAssistantError
     from homeassistant.helpers import issue_registry as ir
 
-    expected_urls = [f"/{DOMAIN}/{js_file.name}" for js_file in js_files]
+    # Shared modules (e.g. kamerplanter-card-common.js) are served statically
+    # for the cards' relative imports but are not cards — exclude them from the
+    # Lovelace resource list so they never surface in the card picker.
+    card_files = [f for f in js_files if f.name not in NON_CARD_MODULES]
+    expected_urls = [f"/{DOMAIN}/{js_file.name}" for js_file in card_files]
 
     lovelace_data = hass.data.get(LOVELACE_DOMAIN)
     if lovelace_data is None:

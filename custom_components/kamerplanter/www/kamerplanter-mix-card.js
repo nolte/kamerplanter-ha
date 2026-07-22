@@ -1,51 +1,47 @@
-/**
- * ha-form ready singleton (UI-NFR-015 §2.2).
- */
-const _haFormReadyMix = (async () => {
-  if (customElements.get("ha-form")) return;
-  await customElements.whenDefined("hui-entities-card");
-  const helpers = await window.loadCardHelpers?.();
-  if (helpers) {
-    const temp = await helpers.createCardElement({ type: "entities", entities: [] });
-    if (temp?.constructor?.getConfigElement) await temp.constructor.getConfigElement();
-  }
-  await customElements.whenDefined("ha-form");
-})();
+import {
+  KamerplanterCardEditor,
+  escapeAttr,
+  escapeHtml,
+  isUnavailableState,
+} from "./kamerplanter-card-common.js";
 
 /* ================================================================== *
- *  Helpers                                                            *
+ *  Styles (shared between preview and live render)                    *
  * ================================================================== */
 
-/**
- * Escape text for safe interpolation into element bodies (innerHTML).
- * Uses the DOM to neutralise `<`, `>`, `&` etc.
- */
-function escapeHtml(s) {
-  const el = document.createElement("span");
-  el.textContent = s == null ? "" : String(s);
-  return el.innerHTML;
-}
-
-/**
- * Escape a value for use inside a double-quoted HTML attribute.
- * Neutralises quotes so backend-provided values cannot break out of the
- * attribute (and thus cannot break `[data-entity="..."]` selectors).
- */
-function escapeAttr(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/**
- * True for entity states that carry no usable value.
- */
-function isUnavailableState(state) {
-  return state == null || state === "unavailable" || state === "unknown";
-}
+const MIX_STYLES = `
+        :host { display: block; overflow: hidden; box-sizing: border-box; }
+        ha-card { padding: 0; overflow: hidden; }
+        .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
+        .card-title { font-size: 1.1em; font-weight: 500; }
+        .card-content { padding: 8px 16px 16px; }
+        .mode-bar { display: flex; border: 1px solid var(--divider-color, #bdbdbd); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+        .seg-btn { flex: 1; padding: 6px 0; border: none; background: transparent; font-size: 0.8em; font-weight: 500; color: var(--secondary-text-color, #757575); cursor: pointer; transition: all 0.15s; border-right: 1px solid var(--divider-color, #bdbdbd); }
+        .seg-btn:last-child { border-right: none; }
+        .seg-btn.active { background: var(--primary-color, #1976d2); color: var(--text-primary-color, #fff); font-weight: 600; }
+        .seg-btn:not(.active):hover { background: var(--secondary-background-color, #f5f5f5); }
+        .vol-input-wrap { display: inline-flex; align-items: center; gap: 2px; background: var(--secondary-background-color, #f5f5f5); border: 1px solid var(--divider-color, #bdbdbd); border-radius: 6px; padding: 1px 6px 1px 2px; }
+        .vol-input { width: 52px; padding: 2px 4px; border: none; background: transparent; color: var(--primary-text-color); font-size: 0.82em; font-weight: 600; text-align: right; outline: none; -moz-appearance: textfield; }
+        .vol-input::-webkit-outer-spin-button, .vol-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .vol-unit { font-size: 0.75em; color: var(--secondary-text-color, #757575); font-weight: 500; }
+        .channel { margin-bottom: 16px; }
+        .channel:last-child { margin-bottom: 0; }
+        .channel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+        .channel-name { font-weight: 500; font-size: 0.95em; color: var(--primary-text-color); }
+        .channel-badges { display: flex; gap: 4px; }
+        .badge { font-size: 0.72em; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+        .badge.week { background: var(--secondary-background-color, #03a9f4); color: var(--primary-text-color, #fff); }
+        .badge.vol { background: var(--secondary-background-color, #e8f5e9); color: var(--primary-text-color, #2e7d32); }
+        .dosage-list { display: flex; flex-direction: column; gap: 4px; }
+        .dosage-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--divider-color, #f0f0f0); }
+        .dosage-row:last-child { border-bottom: none; }
+        .product-name { font-size: 0.9em; color: var(--primary-text-color); }
+        .dosage-values { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+        .ml-value { font-size: 0.9em; font-weight: 600; color: var(--primary-text-color); }
+        .ml-sub { font-size: 0.72em; color: var(--secondary-text-color, #9e9e9e); }
+        .empty { font-size: 0.85em; color: var(--secondary-text-color, #9e9e9e); font-style: italic; }
+        .missing { color: var(--error-color, #db4437); font-size: 0.85em; }
+`;
 
 /**
  * Build mix card editor schema.
@@ -67,47 +63,16 @@ function _buildMixSchema(hass) {
 }
 
 /**
- * Kamerplanter Mix Card Editor
- * Uses ha-form + schema — identical pattern to official HA card editors
+ * Kamerplanter Mix Card Editor — shared ha-form editor base
  * (UI-NFR-015 §2.1). No Shadow DOM (UI-NFR-015 R-022).
  */
-class KamerplanterMixCardEditor extends HTMLElement {
-  setConfig(config) {
-    this._config = { entities: [], title: "", ...config };
-    if (this._hass) this._scheduleRender();
+class KamerplanterMixCardEditor extends KamerplanterCardEditor {
+  _defaultConfig() {
+    return { entities: [], title: "" };
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._scheduleRender();
-  }
-
-  async _scheduleRender() {
-    await _haFormReadyMix;
-    this._render();
-  }
-
-  _render() {
-    if (!this._config || !this._hass) return;
-
-    // Create ha-form once; reuse on subsequent renders (UI-NFR-015 R-020)
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.addEventListener("value-changed", (e) => {
-        this._config = e.detail.value;
-        this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: this._config },
-          bubbles: true,
-          composed: true,
-        }));
-      });
-      this.appendChild(this._form);
-    }
-
-    this._form.hass = this._hass;
-    this._form.schema = _buildMixSchema(this._hass);
-    this._form.data = this._config;
-    this._form.computeLabel = (schema) => schema.label || schema.name;
+  _schema(hass) {
+    return _buildMixSchema(hass);
   }
 }
 customElements.define("kamerplanter-mix-card-editor", KamerplanterMixCardEditor);
@@ -192,32 +157,7 @@ class KamerplanterMixCard extends HTMLElement {
   _renderPreview() {
     if (!this.shadowRoot) return;
     this.shadowRoot.innerHTML = `
-      <style>
-        :host { display: block; overflow: hidden; box-sizing: border-box; }
-        ha-card { padding: 0; overflow: hidden; }
-        .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
-        .card-title { font-size: 1.1em; font-weight: 500; }
-        .card-content { padding: 8px 16px 16px; }
-        .mode-bar { display: flex; border: 1px solid var(--divider-color, #bdbdbd); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
-        .seg-btn { flex: 1; padding: 6px 0; border: none; background: transparent; font-size: 0.8em; font-weight: 500; color: var(--secondary-text-color, #757575); cursor: default; border-right: 1px solid var(--divider-color, #bdbdbd); }
-        .seg-btn:last-child { border-right: none; }
-        .seg-btn.active { background: var(--primary-color, #1976d2); color: var(--text-primary-color, #fff); font-weight: 600; }
-        .channel { margin-bottom: 16px; }
-        .channel:last-child { margin-bottom: 0; }
-        .channel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
-        .channel-name { font-weight: 500; font-size: 0.95em; color: var(--primary-text-color); }
-        .channel-badges { display: flex; gap: 4px; }
-        .badge { font-size: 0.72em; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-        .badge.week { background: var(--secondary-background-color, #03a9f4); color: var(--primary-text-color, #fff); }
-        .badge.vol { background: var(--secondary-background-color, #e8f5e9); color: var(--primary-text-color, #2e7d32); }
-        .dosage-list { display: flex; flex-direction: column; gap: 4px; }
-        .dosage-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--divider-color, #f0f0f0); }
-        .dosage-row:last-child { border-bottom: none; }
-        .product-name { font-size: 0.9em; color: var(--primary-text-color); }
-        .dosage-values { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-        .ml-value { font-size: 0.9em; font-weight: 600; color: var(--primary-text-color); }
-        .ml-sub { font-size: 0.72em; color: var(--secondary-text-color, #9e9e9e); }
-      </style>
+      <style>${MIX_STYLES}</style>
       <ha-card>
         <div class="card-header"><span class="card-title">Mix Rezept</span></div>
         <div class="card-content">
@@ -335,39 +275,7 @@ class KamerplanterMixCard extends HTMLElement {
     modeBarHtml += `</div>`;
 
     this.shadowRoot.innerHTML = `
-      <style>
-        :host { display: block; overflow: hidden; box-sizing: border-box; }
-        ha-card { padding: 0; overflow: hidden; }
-        .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
-        .card-title { font-size: 1.1em; font-weight: 500; }
-        .card-content { padding: 8px 16px 16px; }
-        .mode-bar { display: flex; border: 1px solid var(--divider-color, #bdbdbd); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
-        .seg-btn { flex: 1; padding: 6px 0; border: none; background: transparent; font-size: 0.8em; font-weight: 500; color: var(--secondary-text-color, #757575); cursor: pointer; transition: all 0.15s; border-right: 1px solid var(--divider-color, #bdbdbd); }
-        .seg-btn:last-child { border-right: none; }
-        .seg-btn.active { background: var(--primary-color, #1976d2); color: var(--text-primary-color, #fff); font-weight: 600; }
-        .seg-btn:not(.active):hover { background: var(--secondary-background-color, #f5f5f5); }
-        .vol-input-wrap { display: inline-flex; align-items: center; gap: 2px; background: var(--secondary-background-color, #f5f5f5); border: 1px solid var(--divider-color, #bdbdbd); border-radius: 6px; padding: 1px 6px 1px 2px; }
-        .vol-input { width: 52px; padding: 2px 4px; border: none; background: transparent; color: var(--primary-text-color); font-size: 0.82em; font-weight: 600; text-align: right; outline: none; -moz-appearance: textfield; }
-        .vol-input::-webkit-outer-spin-button, .vol-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .vol-unit { font-size: 0.75em; color: var(--secondary-text-color, #757575); font-weight: 500; }
-        .channel { margin-bottom: 16px; }
-        .channel:last-child { margin-bottom: 0; }
-        .channel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
-        .channel-name { font-weight: 500; font-size: 0.95em; color: var(--primary-text-color); }
-        .channel-badges { display: flex; gap: 4px; }
-        .badge { font-size: 0.72em; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-        .badge.week { background: var(--secondary-background-color, #03a9f4); color: var(--primary-text-color, #fff); }
-        .badge.vol { background: var(--secondary-background-color, #e8f5e9); color: var(--primary-text-color, #2e7d32); }
-        .dosage-list { display: flex; flex-direction: column; gap: 4px; }
-        .dosage-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--divider-color, #f0f0f0); }
-        .dosage-row:last-child { border-bottom: none; }
-        .product-name { font-size: 0.9em; color: var(--primary-text-color); }
-        .dosage-values { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-        .ml-value { font-size: 0.9em; font-weight: 600; color: var(--primary-text-color); }
-        .ml-sub { font-size: 0.72em; color: var(--secondary-text-color, #9e9e9e); }
-        .empty { font-size: 0.85em; color: var(--secondary-text-color, #9e9e9e); font-style: italic; }
-        .missing { color: var(--error-color, #db4437); font-size: 0.85em; }
-      </style>
+      <style>${MIX_STYLES}</style>
       <ha-card>
         <div class="card-header"><span class="card-title">${escapeHtml(title)}</span></div>
         <div class="card-content">
