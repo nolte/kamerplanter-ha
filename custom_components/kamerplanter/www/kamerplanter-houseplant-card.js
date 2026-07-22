@@ -22,15 +22,111 @@
 
 import {
   KamerplanterCardEditor,
+  capitalize,
+  escapeAttr,
   escapeHtml,
   getDeviceName,
   getEntityMap,
   isUnavailableState,
   kamiSvg,
   phaseLabel,
+  pickLang,
+  t,
 } from "./kamerplanter-card-common.js";
 
 const CARD_VERSION_HP = "1.0.0";
+
+/* ================================================================== *
+ *  Localization (WP-16) — card-local de/en catalog                    *
+ * ================================================================== */
+
+const CATALOG = {
+  de: {
+    plant: "Pflanze",
+    fertilizer: "Dünger",
+    phase_day: "Tag {0}",
+    day_short: "d",
+    watering_next: "Nächstes Giessen",
+    watering_none: "Kein Giessplan",
+    watering_today_label: "Heute giessen!",
+    watering_today_value: "Heute fällig",
+    watering_overdue_label: "Überfällig",
+    watering_overdue_value: "{0} {1} überfällig",
+    watering_tomorrow: "Morgen",
+    watering_in_days: "In {0} Tagen",
+    day_singular: "Tag",
+    day_plural: "Tage",
+    interval_detail: "Intervall: {0} Tage",
+    last_detail: "Zuletzt: {0}",
+    no_dosages: "Keine Dosierungen",
+    no_channels: "Keine aktiven Kanäle",
+    loading: "Pflanzendaten werden geladen …",
+    no_device: "Kein Gerät konfiguriert",
+    kami_alt: "Kami-Phase: {0}",
+    editor_device: "Pflanze",
+    editor_title: "Titel (optional)",
+    editor_show_watering: "Giess-Status anzeigen",
+    editor_show_fertilizer: "Dünger-Info anzeigen",
+  },
+  en: {
+    plant: "Plant",
+    fertilizer: "Fertilizer",
+    phase_day: "Day {0}",
+    day_short: "d",
+    watering_next: "Next watering",
+    watering_none: "No watering schedule",
+    watering_today_label: "Water today!",
+    watering_today_value: "Due today",
+    watering_overdue_label: "Overdue",
+    watering_overdue_value: "{0} {1} overdue",
+    watering_tomorrow: "Tomorrow",
+    watering_in_days: "In {0} days",
+    day_singular: "day",
+    day_plural: "days",
+    interval_detail: "Interval: {0} days",
+    last_detail: "Last: {0}",
+    no_dosages: "No dosages",
+    no_channels: "No active channels",
+    loading: "Loading plant data …",
+    no_device: "No device configured",
+    kami_alt: "Kami phase: {0}",
+    editor_device: "Plant",
+    editor_title: "Title (optional)",
+    editor_show_watering: "Show watering status",
+    editor_show_fertilizer: "Show fertilizer info",
+  },
+};
+
+// EN phase labels — the shared phaseLabel() returns German only, so mirror the
+// common PHASE_LABELS map in English and pick language-dependent (WP-16).
+const PHASE_LABELS_EN = {
+  germination: "Germination",
+  seedling: "Seedling",
+  vegetative: "Vegetative",
+  flowering: "Flowering",
+  ripening: "Ripening",
+  harvest: "Harvest",
+  dormancy: "Dormancy",
+  flush: "Flush",
+  flushing: "Flushing",
+  drying: "Drying",
+  curing: "Curing",
+  leaf_phase: "Leaf phase",
+  short_day_induction: "Short-day induction",
+  juvenile: "Juvenile",
+  climbing: "Climbing",
+  mature: "Mature",
+  senescence: "Senescence",
+};
+
+/** Language-dependent phase label: German via shared phaseLabel(), English via
+ *  the card-local map. Em-dash for an empty phase. */
+function localizedPhase(phase, hass) {
+  if (!phase) return "—";
+  if (pickLang(hass) === "de") return phaseLabel(phase);
+  const key = String(phase).toLowerCase();
+  return PHASE_LABELS_EN[key] || capitalize(phase);
+}
 
 /* ================================================================== *
  *  Styles                                                             *
@@ -69,6 +165,7 @@ const HP_STYLES = `
   }
   .hp-header__name {
     display: block;
+    margin: 0;
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--primary-text-color);
@@ -112,7 +209,7 @@ const HP_STYLES = `
     gap: 12px;
     padding: 10px 12px;
     border-radius: 12px;
-    background: var(--card-background-color, var(--ha-card-background, #fff));
+    background: var(--secondary-background-color, #f5f5f5);
     border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
     margin-bottom: 10px;
   }
@@ -167,7 +264,7 @@ const HP_STYLES = `
   .hp-fert {
     padding: 10px 12px;
     border-radius: 12px;
-    background: var(--card-background-color, var(--ha-card-background, #fff));
+    background: var(--secondary-background-color, #f5f5f5);
     border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
   }
   .hp-fert__header {
@@ -250,30 +347,39 @@ const HP_STYLES = `
     color: var(--error-color, #f44336);
     font-size: 0.9rem;
   }
+
+  /* --- Focus visibility (a11y, WP-17) --- */
+  :focus-visible {
+    outline: 2px solid var(--primary-color, #4caf50);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 `;
 
 /* ================================================================== *
  *  Editor                                                             *
  * ================================================================== */
 
-const HOUSEPLANT_CARD_SCHEMA = [
-  { name: "device_id", label: "Pflanze", required: true,
-    selector: { device: { integration: "kamerplanter" } } },
-  { name: "title",     label: "Titel (optional)",
-    selector: { text: {} } },
-  { name: "show_watering",   label: "Giess-Status anzeigen",
-    selector: { boolean: {} } },
-  { name: "show_fertilizer", label: "Duenger-Info anzeigen",
-    selector: { boolean: {} } },
-];
+function houseplantCardSchema(hass) {
+  return [
+    { name: "device_id", label: t(CATALOG, "editor_device", hass), required: true,
+      selector: { device: { integration: "kamerplanter" } } },
+    { name: "title",     label: t(CATALOG, "editor_title", hass),
+      selector: { text: {} } },
+    { name: "show_watering",   label: t(CATALOG, "editor_show_watering", hass),
+      selector: { boolean: {} } },
+    { name: "show_fertilizer", label: t(CATALOG, "editor_show_fertilizer", hass),
+      selector: { boolean: {} } },
+  ];
+}
 
 class KamerplanterHouseplantCardEditor extends KamerplanterCardEditor {
   _defaultConfig() {
     return { device_id: "", title: "", show_watering: true, show_fertilizer: true };
   }
 
-  _schema() {
-    return HOUSEPLANT_CARD_SCHEMA;
+  _schema(hass) {
+    return houseplantCardSchema(hass);
   }
 }
 customElements.define("kamerplanter-houseplant-card-editor", KamerplanterHouseplantCardEditor);
@@ -366,6 +472,11 @@ class KamerplanterHouseplantCard extends HTMLElement {
 
   /* ---- Data helpers --------------------------------------------- */
 
+  /** Translate a catalog key for the current HA language (WP-16). */
+  _t(key, ...args) {
+    return t(CATALOG, key, this._hass, ...args);
+  }
+
   _getEntityMap() {
     return getEntityMap(this._hass, this._config.device_id);
   }
@@ -384,13 +495,14 @@ class KamerplanterHouseplantCard extends HTMLElement {
     const showWatering = c.show_watering !== false;
     const showFertilizer = c.show_fertilizer !== false;
 
+    const dayShort = this._t("day_short");
     const wateringHtml = showWatering ? `
         <div class="hp-watering hp-watering--today">
-          <ha-icon icon="mdi:watering-can" class="hp-watering__icon"></ha-icon>
+          <ha-icon icon="mdi:watering-can" class="hp-watering__icon" aria-hidden="true"></ha-icon>
           <div class="hp-watering__info">
-            <div class="hp-watering__label">Heute giessen!</div>
-            <div class="hp-watering__value">Heute faellig</div>
-            <div class="hp-watering__detail">Intervall: 5 Tage</div>
+            <div class="hp-watering__label">${escapeHtml(this._t("watering_today_label"))}</div>
+            <div class="hp-watering__value">${escapeHtml(this._t("watering_today_value"))}</div>
+            <div class="hp-watering__detail">${escapeHtml(this._t("interval_detail", 5))}</div>
           </div>
         </div>
     ` : "";
@@ -398,7 +510,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     const fertilizerHtml = showFertilizer ? `
         <div class="hp-fert">
           <div class="hp-fert__header">
-            <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon"></ha-icon>
+            <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon" aria-hidden="true"></ha-icon>
             <span class="hp-fert__plan-name">Zimmerpflanzen Universal</span>
           </div>
           <div class="hp-fert__channels">
@@ -412,16 +524,18 @@ class KamerplanterHouseplantCard extends HTMLElement {
         </div>
     ` : "";
 
+    const previewPhase = `${localizedPhase("vegetative", this._hass)} \u2014 ${this._t("phase_day", 45)}`;
+
     this.shadowRoot.innerHTML = `
       <style>${HP_STYLES}</style>
       <ha-card>
         <div class="hp-header">
-          <span class="hp-header__icon">\uD83C\uDF3F</span>
+          <span class="hp-header__icon" aria-hidden="true">\uD83C\uDF3F</span>
           <div class="hp-header__text">
-            <span class="hp-header__name">Monstera deliciosa</span>
-            <span class="hp-header__phase">Vegetativ \u2014 Tag 45</span>
+            <h2 class="hp-header__name">Monstera deliciosa</h2>
+            <span class="hp-header__phase">${escapeHtml(previewPhase)}</span>
           </div>
-          <div class="hp-header__days">45<small>d</small></div>
+          <div class="hp-header__days">45<small>${escapeHtml(dayShort)}</small></div>
         </div>
         ${wateringHtml}
         ${fertilizerHtml}
@@ -441,7 +555,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     if (!this._config || !this._config.device_id) {
       this.shadowRoot.innerHTML = `
         <style>${HP_STYLES}</style>
-        <ha-card><div class="hp-error">Kein Gerät konfiguriert</div></ha-card>
+        <ha-card><div class="hp-error" role="alert">${escapeHtml(this._t("no_device"))}</div></ha-card>
       `;
       this._built = false;
       return;
@@ -457,9 +571,9 @@ class KamerplanterHouseplantCard extends HTMLElement {
       this.shadowRoot.innerHTML = `
         <style>${HP_STYLES}</style>
         <ha-card>
-          <div class="hp-empty">
-            <ha-icon icon="mdi:sprout"></ha-icon>
-            <span>Pflanzendaten werden geladen ...</span>
+          <div class="hp-empty" role="status">
+            <ha-icon icon="mdi:sprout" aria-hidden="true"></ha-icon>
+            <span>${escapeHtml(this._t("loading"))}</span>
           </div>
         </ha-card>
       `;
@@ -475,17 +589,17 @@ class KamerplanterHouseplantCard extends HTMLElement {
 
     const currentPhase = isUnavailableState(phaseObj?.state) ? null : phaseObj.state;
     const daysInPhase  = daysObj?.state;
-    const plantName    = this._config.title || this._getDeviceName() || "Pflanze";
+    const plantName    = this._config.title || this._getDeviceName() || this._t("plant");
 
     // Build HTML
+    const phaseText = localizedPhase(currentPhase, this._hass);
     const kamiUrl = kamiSvg(currentPhase);
     const kamiHtml = kamiUrl
-      ? `<img class="hp-header__kami" src="${kamiUrl}" alt="${escapeHtml(currentPhase)}" />`
-      : `<span class="hp-header__icon">\uD83C\uDF31</span>`;
+      ? `<img class="hp-header__kami" src="${kamiUrl}" alt="${escapeAttr(this._t("kami_alt", phaseText))}" />`
+      : `<span class="hp-header__icon" aria-hidden="true">\uD83C\uDF31</span>`;
 
-    const phaseText = phaseLabel(currentPhase);
     const daysText = !isUnavailableState(daysInPhase)
-      ? ` \u2014 Tag ${escapeHtml(String(daysInPhase))}`
+      ? ` \u2014 ${escapeHtml(this._t("phase_day", String(daysInPhase)))}`
       : "";
 
     let html = `
@@ -494,7 +608,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
         <div class="hp-header">
           ${kamiHtml}
           <div class="hp-header__text">
-            <span class="hp-header__name">${escapeHtml(plantName)}</span>
+            <h2 class="hp-header__name">${escapeHtml(plantName)}</h2>
             <span class="hp-header__phase">${escapeHtml(phaseText)}${daysText}</span>
           </div>
     `;
@@ -503,7 +617,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     if (!isUnavailableState(daysInPhase)) {
       html += `
           <div class="hp-header__days">
-            ${escapeHtml(String(daysInPhase))}<small>d</small>
+            ${escapeHtml(String(daysInPhase))}<small>${escapeHtml(this._t("day_short"))}</small>
           </div>
       `;
     }
@@ -522,40 +636,41 @@ class KamerplanterHouseplantCard extends HTMLElement {
 
       let statusClass = "hp-watering--ok";
       let statusIcon = "mdi:watering-can";
-      let statusLabel = "Naechstes Giessen";
+      let statusLabel = this._t("watering_next");
       let statusValue = "";
       let statusDetail = "";
 
       if (daysUntil === null || isNaN(daysUntil)) {
-        statusValue = "Kein Giessplan";
+        statusValue = this._t("watering_none");
         statusClass = "";
         statusIcon = "mdi:watering-can-outline";
       } else if (daysUntil < 0) {
         const overdueDays = Math.abs(daysUntil);
+        const dayWord = this._t(overdueDays === 1 ? "day_singular" : "day_plural");
         statusClass = "hp-watering--overdue";
         statusIcon = "mdi:alert-circle";
-        statusLabel = "Ueberfaellig";
-        statusValue = `${overdueDays} ${overdueDays === 1 ? "Tag" : "Tage"} ueberfaellig`;
-        if (lastDate) statusDetail = `Zuletzt: ${lastDate}`;
+        statusLabel = this._t("watering_overdue_label");
+        statusValue = this._t("watering_overdue_value", overdueDays, dayWord);
+        if (lastDate) statusDetail = this._t("last_detail", lastDate);
       } else if (daysUntil === 0) {
         statusClass = "hp-watering--today";
         statusIcon = "mdi:watering-can";
-        statusLabel = "Heute giessen!";
-        statusValue = "Heute faellig";
-        if (interval) statusDetail = `Intervall: ${interval} Tage`;
+        statusLabel = this._t("watering_today_label");
+        statusValue = this._t("watering_today_value");
+        if (interval) statusDetail = this._t("interval_detail", interval);
       } else if (daysUntil === 1) {
-        statusValue = "Morgen";
+        statusValue = this._t("watering_tomorrow");
         if (nextDate) statusDetail = nextDate;
       } else {
-        statusValue = `In ${daysUntil} Tagen`;
+        statusValue = this._t("watering_in_days", daysUntil);
         if (nextDate) statusDetail = nextDate;
       }
 
       html += `
         <div class="hp-watering ${statusClass}">
-          <ha-icon icon="${statusIcon}" class="hp-watering__icon"></ha-icon>
+          <ha-icon icon="${statusIcon}" class="hp-watering__icon" aria-hidden="true"></ha-icon>
           <div class="hp-watering__info">
-            <div class="hp-watering__label">${statusLabel}</div>
+            <div class="hp-watering__label">${escapeHtml(statusLabel)}</div>
             <div class="hp-watering__value">${escapeHtml(statusValue)}</div>
             ${statusDetail ? `<div class="hp-watering__detail">${escapeHtml(statusDetail)}</div>` : ""}
           </div>
@@ -574,8 +689,8 @@ class KamerplanterHouseplantCard extends HTMLElement {
         html += `
           <div class="hp-fert">
             <div class="hp-fert__header">
-              <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon"></ha-icon>
-              <span class="hp-fert__plan-name">${escapeHtml(hasPlan ? planName : "Duenger")}</span>
+              <ha-icon icon="mdi:bottle-tonic" class="hp-fert__icon" aria-hidden="true"></ha-icon>
+              <span class="hp-fert__plan-name">${escapeHtml(hasPlan ? planName : this._t("fertilizer"))}</span>
             </div>
             <div class="hp-fert__channels">
         `;
@@ -600,12 +715,12 @@ class KamerplanterHouseplantCard extends HTMLElement {
               `;
             }
             if (Object.keys(dosages).length === 0) {
-              html += `<span class="hp-fert__none">Keine Dosierungen</span>`;
+              html += `<span class="hp-fert__none">${escapeHtml(this._t("no_dosages"))}</span>`;
             }
             html += `</div></div>`;
           }
         } else if (hasPlan) {
-          html += `<span class="hp-fert__none">Keine aktiven Kanaele</span>`;
+          html += `<span class="hp-fert__none">${escapeHtml(this._t("no_channels"))}</span>`;
         }
 
         html += `</div></div>`;
@@ -628,7 +743,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kamerplanter-houseplant-card",
   name: "Kamerplanter Zimmerpflanze",
-  description: "Kompakte Karte fuer mehrjaehrige Pflanzen mit Giess-Status, Phase und Duenger-Info.",
+  description: "Kompakte Karte für mehrjährige Pflanzen mit Giess-Status, Phase und Dünger-Info.",
   preview: true,
   documentationURL: "https://kamerplanter.readthedocs.io/de/latest/guides/home-assistant-integration/",
 });

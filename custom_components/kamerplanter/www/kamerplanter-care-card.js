@@ -23,9 +23,69 @@ import {
   escapeAttr,
   escapeHtml,
   isUnavailable,
+  t,
 } from "./kamerplanter-card-common.js";
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.2.0";
+
+/* ================================================================== *
+ *  i18n — card-local de/en catalog (WP-16)                            *
+ * ================================================================== */
+
+/**
+ * Card-lokaler Übersetzungskatalog. Auflösung über ``t(CATALOG, key, hass)``
+ * aus dem gemeinsamen Modul — deutsche HA-Nutzer sehen deutsche Texte,
+ * alle anderen Locales fallen auf Englisch zurück. ``{0}``-Platzhalter
+ * werden über die positionsbasierten Argumente von ``t`` ersetzt.
+ */
+const CATALOG = {
+  de: {
+    default_title: "Kamerplanter Pflege",
+    preview_title: "Pflege-Dashboard",
+    all_done_title: "Alles erledigt!",
+    all_done_subtitle: "Keine Pflegeaufgaben ausstehend.",
+    unavailable_title: "Pflegedaten nicht verfügbar",
+    unavailable_subtitle: "Die Aufgaben-Sensoren sind derzeit nicht erreichbar.",
+    section_overdue: "Überfällig ({0})",
+    section_today: "Heute fällig ({0})",
+    section_upcoming: "Anstehend ({0})",
+    task_care: "Pflege",
+    unknown_plant: "Unbekannt",
+    action_start: "Starten",
+    action_complete: "Erledigt",
+    action_skip: "Überspringen",
+    skip_confirm: "Zum Bestätigen erneut tippen",
+    action_failed: 'Aktion „{0}“ fehlgeschlagen: {1}',
+    unknown_error: "Unbekannter Fehler",
+    badge_overdue: "{0} überfällige Aufgaben",
+    badge_due: "{0} heute fällige Aufgaben",
+    badge_ok: "Keine offenen Aufgaben",
+    badge_warn: "Pflegedaten nicht verfügbar",
+  },
+  en: {
+    default_title: "Kamerplanter Care",
+    preview_title: "Care dashboard",
+    all_done_title: "All done!",
+    all_done_subtitle: "No care tasks pending.",
+    unavailable_title: "Care data unavailable",
+    unavailable_subtitle: "The task sensors are currently unreachable.",
+    section_overdue: "Overdue ({0})",
+    section_today: "Due today ({0})",
+    section_upcoming: "Upcoming ({0})",
+    task_care: "Care",
+    unknown_plant: "Unknown",
+    action_start: "Start",
+    action_complete: "Complete",
+    action_skip: "Skip",
+    skip_confirm: "Tap again to confirm",
+    action_failed: 'Action "{0}" failed: {1}',
+    unknown_error: "Unknown error",
+    badge_overdue: "{0} overdue tasks",
+    badge_due: "{0} tasks due today",
+    badge_ok: "No pending tasks",
+    badge_warn: "Care data unavailable",
+  },
+};
 
 /* ================================================================== *
  *  Styles (shared between preview and live render)                    *
@@ -137,12 +197,19 @@ const CARE_STYLES = `
           flex-shrink: 0;
         }
         .action-btn {
+          /* A11y (WP-17, Finding B3): >=44px Touch-Ziel. Die farbige Flaeche
+             bleibt optisch bei ~34px — das 5px-Padding vergroessert nur die
+             klickbare Hit-Area, waehrend background-clip: content-box den
+             Hintergrund weiter auf den inneren Kreis begrenzt. */
+          box-sizing: border-box;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 34px;
-          height: 34px;
-          min-width: 34px;
+          width: 44px;
+          height: 44px;
+          min-width: 44px;
+          padding: 5px;
+          background-clip: content-box;
           border-radius: 50%;
           border: none;
           cursor: pointer;
@@ -158,6 +225,12 @@ const CARE_STYLES = `
         .action-btn:disabled {
           opacity: 0.4;
           cursor: not-allowed;
+        }
+        /* Sichtbarer Tastaturfokus (WP-17, Finding B4). :focus-visible zeigt
+           den Ring nur bei Keyboard-Navigation, nicht bei Maus-/Touch-Klick. */
+        .action-btn:focus-visible {
+          outline: 2px solid var(--primary-color, #03a9f4);
+          outline-offset: 2px;
         }
         .start-btn {
           background-color: var(--primary-color, #03a9f4);
@@ -284,8 +357,10 @@ function careCardSchema(hass) {
  */
 class KamerplanterCareCardEditor extends KamerplanterCardEditor {
   _defaultConfig() {
+    // Kein Default-Titel: der leere Titel wird im Live-Render lokalisiert
+    // (WP-16) auf die Locale des Nutzers aufgeloest.
     return {
-      title: "Kamerplanter Pflege",
+      title: "",
       upcoming_days: 3,
       interactive: false,
       entity_due: "sensor.kamerplanter_tasks_due_today",
@@ -326,7 +401,8 @@ class KamerplanterCareCard extends HTMLElement {
 
   setConfig(config) {
     this._config = {
-      title: config.title || "Kamerplanter Pflege",
+      // Leerer Titel bleibt leer und wird im Render lokalisiert (WP-16).
+      title: config.title || "",
       upcoming_days: config.upcoming_days || 3,
       // Read-only by default so existing dashboards keep the glanceable view.
       // interactive: true opts into per-task start/complete/skip buttons.
@@ -367,7 +443,6 @@ class KamerplanterCareCard extends HTMLElement {
     // to the static mock on a real dashboard. The card-picker gallery is
     // detected at render time via the HA-set `preview` element property.
     return {
-      title: "Kamerplanter Pflege",
       upcoming_days: 3,
       interactive: false,
     };
@@ -378,6 +453,11 @@ class KamerplanterCareCard extends HTMLElement {
       this.attachShadow({ mode: "open" });
     }
     this._render();
+  }
+
+  /** Kurzform fuer die lokalisierte Katalog-Aufloesung (WP-16). */
+  _t(key, ...args) {
+    return t(CATALOG, key, this._hass, ...args);
   }
 
   _getTaskIcon(category) {
@@ -405,8 +485,8 @@ class KamerplanterCareCard extends HTMLElement {
       <div class="task-row ${colorClass}">
         <ha-icon icon="${this._getTaskIcon(task.category)}" class="task-icon"></ha-icon>
         <div class="task-info">
-          <span class="plant-name">${escapeHtml(task.name || "Unknown")}</span>
-          <span class="task-type">${escapeHtml(task.category || "Pflege")}</span>
+          <span class="plant-name">${escapeHtml(task.name || this._t("unknown_plant"))}</span>
+          <span class="task-type">${escapeHtml(task.category || this._t("task_care"))}</span>
         </div>
         ${this._config.interactive ? this._buildActionButtons(task) : ""}
       </div>
@@ -440,19 +520,23 @@ class KamerplanterCareCard extends HTMLElement {
     const pending = this._pendingActions && this._pendingActions.has(task.task_key);
     const disabledAttr = pending ? "disabled" : "";
     const started = this._isTaskStarted(task);
+    // aria-label (lokalisiert) statt nur title fuer Screenreader (WP-17).
+    const startLabel = escapeAttr(this._t("action_start"));
+    const completeLabel = escapeAttr(this._t("action_complete"));
+    const skipLabel = escapeAttr(this._t("action_skip"));
     const startBtn = started
       ? ""
-      : `<button class="action-btn start-btn" data-action="start" data-task-key="${taskKey}" title="Starten" ${disabledAttr}>
-           <ha-icon icon="mdi:play" class="btn-icon"></ha-icon>
+      : `<button class="action-btn start-btn" data-action="start" data-task-key="${taskKey}" aria-label="${startLabel}" title="${startLabel}" ${disabledAttr}>
+           <ha-icon icon="mdi:play" class="btn-icon" aria-hidden="true"></ha-icon>
          </button>`;
     return `
       <div class="task-actions">
         ${startBtn}
-        <button class="action-btn complete-btn" data-action="complete" data-task-key="${taskKey}" title="Erledigt" ${disabledAttr}>
-          <ha-icon icon="mdi:check" class="btn-icon"></ha-icon>
+        <button class="action-btn complete-btn" data-action="complete" data-task-key="${taskKey}" aria-label="${completeLabel}" title="${completeLabel}" ${disabledAttr}>
+          <ha-icon icon="mdi:check" class="btn-icon" aria-hidden="true"></ha-icon>
         </button>
-        <button class="action-btn skip-btn" data-action="skip" data-task-key="${taskKey}" title="Überspringen" ${disabledAttr}>
-          <ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon>
+        <button class="action-btn skip-btn" data-action="skip" data-task-key="${taskKey}" aria-label="${skipLabel}" title="${skipLabel}" ${disabledAttr}>
+          <ha-icon icon="mdi:skip-next" class="btn-icon" aria-hidden="true"></ha-icon>
         </button>
       </div>
     `;
@@ -464,11 +548,11 @@ class KamerplanterCareCard extends HTMLElement {
       <style>${CARE_STYLES}</style>
       <ha-card>
         <div class="header">
-          <span class="header-title">Pflege-Dashboard</span>
-          <span class="badge badge-overdue">3</span>
+          <span class="header-title">${escapeHtml(this._t("preview_title"))}</span>
+          <span class="badge badge-overdue" aria-label="${escapeAttr(this._t("badge_overdue", 3))}">3</span>
         </div>
         <div class="section-overdue">
-          <div class="section-label">Ueberfaellig (1)</div>
+          <div class="section-label">${escapeHtml(this._t("section_overdue", 1))}</div>
           <div class="task-row overdue">
             <ha-icon icon="mdi:watering-can" class="task-icon"></ha-icon>
             <div class="task-info">
@@ -483,7 +567,7 @@ class KamerplanterCareCard extends HTMLElement {
           </div>
         </div>
         <div class="section-today">
-          <div class="section-label">Heute faellig (2)</div>
+          <div class="section-label">${escapeHtml(this._t("section_today", 2))}</div>
           <div class="task-row today">
             <ha-icon icon="mdi:bottle-tonic" class="task-icon"></ha-icon>
             <div class="task-info">
@@ -561,36 +645,42 @@ class KamerplanterCareCard extends HTMLElement {
 
     const hasData = totalCount > 0;
 
+    // Titel-Fallback lokalisieren, wenn der Nutzer keinen Titel gesetzt hat.
+    const title = this._config.title || this._t("default_title");
+
+    // Badge inkl. aria-label: der Status wird nicht nur ueber die Farbe,
+    // sondern zusaetzlich per Screenreader-Text vermittelt (WP-17).
+    const badgeHtml =
+      dataUnavailable && !hasData
+        ? `<span class="badge badge-warn" role="status" aria-label="${escapeAttr(this._t("badge_warn"))}">!</span>`
+        : overdueCount > 0
+          ? `<span class="badge badge-overdue" role="status" aria-label="${escapeAttr(this._t("badge_overdue", overdueCount))}">${overdueCount}</span>`
+          : dueCount > 0
+            ? `<span class="badge badge-due" role="status" aria-label="${escapeAttr(this._t("badge_due", dueCount))}">${dueCount}</span>`
+            : `<span class="badge badge-ok" role="status" aria-label="${escapeAttr(this._t("badge_ok"))}">0</span>`;
+
     this.shadowRoot.innerHTML = `
       <style>${CARE_STYLES}</style>
       <ha-card>
         <div class="header">
-          <span class="header-title">${escapeHtml(this._config.title)}</span>
-          ${
-            dataUnavailable && !hasData
-              ? `<span class="badge badge-warn">!</span>`
-              : overdueCount > 0
-                ? `<span class="badge badge-overdue">${overdueCount}</span>`
-                : dueCount > 0
-                  ? `<span class="badge badge-due">${dueCount}</span>`
-                  : `<span class="badge badge-ok">0</span>`
-          }
+          <span class="header-title">${escapeHtml(title)}</span>
+          ${badgeHtml}
         </div>
         ${
           !hasData
             ? dataUnavailable
               ? `
           <div class="warning-state">
-            <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-            <div class="title">Pflegedaten nicht verfügbar</div>
-            <div class="subtitle">Die Aufgaben-Sensoren sind derzeit nicht erreichbar.</div>
+            <ha-icon icon="mdi:alert-circle-outline" aria-hidden="true"></ha-icon>
+            <div class="title">${escapeHtml(this._t("unavailable_title"))}</div>
+            <div class="subtitle">${escapeHtml(this._t("unavailable_subtitle"))}</div>
           </div>
         `
               : `
           <div class="empty-state">
-            <ha-icon icon="mdi:check-circle-outline"></ha-icon>
-            <div class="title">Alles erledigt!</div>
-            <div class="subtitle">Keine Pflegeaufgaben ausstehend.</div>
+            <ha-icon icon="mdi:check-circle-outline" aria-hidden="true"></ha-icon>
+            <div class="title">${escapeHtml(this._t("all_done_title"))}</div>
+            <div class="subtitle">${escapeHtml(this._t("all_done_subtitle"))}</div>
           </div>
         `
             : `
@@ -598,7 +688,7 @@ class KamerplanterCareCard extends HTMLElement {
             overdueTasks.length > 0
               ? `
             <div class="section-overdue">
-              <div class="section-label">Ueberfaellig (${overdueTasks.length})</div>
+              <div class="section-label">${escapeHtml(this._t("section_overdue", overdueTasks.length))}</div>
               ${this._buildTaskRows(overdueTasks, "overdue")}
             </div>
           `
@@ -608,7 +698,7 @@ class KamerplanterCareCard extends HTMLElement {
             dueTodayTasks.length > 0
               ? `
             <div class="section-today">
-              <div class="section-label">Heute faellig (${dueTodayTasks.length})</div>
+              <div class="section-label">${escapeHtml(this._t("section_today", dueTodayTasks.length))}</div>
               ${this._buildTaskRows(dueTodayTasks, "today")}
             </div>
           `
@@ -618,7 +708,7 @@ class KamerplanterCareCard extends HTMLElement {
             upcomingTasks.length > 0
               ? `
             <div class="section-upcoming">
-              <div class="section-label">Anstehend (${upcomingTasks.length})</div>
+              <div class="section-label">${escapeHtml(this._t("section_upcoming", upcomingTasks.length))}</div>
               ${this._buildTaskRows(upcomingTasks, "upcoming")}
             </div>
           `
@@ -662,8 +752,10 @@ class KamerplanterCareCard extends HTMLElement {
   _armSkipConfirm(btn) {
     btn.dataset.confirm = "1";
     btn.classList.add("confirm");
-    btn.title = "Zum Bestätigen erneut tippen";
-    btn.innerHTML = '<ha-icon icon="mdi:skip-next-circle" class="btn-icon"></ha-icon>';
+    const confirmLabel = this._t("skip_confirm");
+    btn.title = confirmLabel;
+    btn.setAttribute("aria-label", confirmLabel);
+    btn.innerHTML = '<ha-icon icon="mdi:skip-next-circle" class="btn-icon" aria-hidden="true"></ha-icon>';
     this._skipTimers = this._skipTimers || new WeakMap();
     clearTimeout(this._skipTimers.get(btn));
     this._skipTimers.set(
@@ -676,8 +768,10 @@ class KamerplanterCareCard extends HTMLElement {
     if (!btn.isConnected) return;
     btn.dataset.confirm = "";
     btn.classList.remove("confirm");
-    btn.title = "Überspringen";
-    btn.innerHTML = '<ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon>';
+    const skipLabel = this._t("action_skip");
+    btn.title = skipLabel;
+    btn.setAttribute("aria-label", skipLabel);
+    btn.innerHTML = '<ha-icon icon="mdi:skip-next" class="btn-icon" aria-hidden="true"></ha-icon>';
   }
 
   _executeAction(btn, action, taskKey) {
@@ -702,7 +796,7 @@ class KamerplanterCareCard extends HTMLElement {
         b.disabled = true;
       });
     }
-    btn.innerHTML = '<ha-icon icon="mdi:check-all" class="btn-icon"></ha-icon>';
+    btn.innerHTML = '<ha-icon icon="mdi:check-all" class="btn-icon" aria-hidden="true"></ha-icon>';
 
     const service = `${action}_task`;
     // Den Promise auswerten: bei Erfolg raeumt der Live-State-Refresh die Zeile
@@ -725,10 +819,14 @@ class KamerplanterCareCard extends HTMLElement {
     return map[action] || "mdi:check";
   }
 
-  /** Menschenlesbarer Aktionsname fuer Titel und Fehlermeldung. */
+  /** Menschenlesbarer, lokalisierter Aktionsname (Titel + Fehlermeldung). */
   _actionTitle(action) {
-    const map = { start: "Starten", complete: "Erledigt", skip: "Überspringen" };
-    return map[action] || action;
+    const map = {
+      start: "action_start",
+      complete: "action_complete",
+      skip: "action_skip",
+    };
+    return map[action] ? this._t(map[action]) : action;
   }
 
   /**
@@ -746,11 +844,14 @@ class KamerplanterCareCard extends HTMLElement {
       btn.disabled = false;
       btn.classList.remove("confirm");
       btn.dataset.confirm = "";
-      btn.title = this._actionTitle(action);
-      btn.innerHTML = `<ha-icon icon="${this._actionIcon(action)}" class="btn-icon"></ha-icon>`;
+      const actionLabel = this._actionTitle(action);
+      btn.title = actionLabel;
+      btn.setAttribute("aria-label", actionLabel);
+      btn.innerHTML = `<ha-icon icon="${this._actionIcon(action)}" class="btn-icon" aria-hidden="true"></ha-icon>`;
     }
-    const message = err && err.message ? err.message : String(err || "Unbekannter Fehler");
-    this._showError(`Aktion "${this._actionTitle(action)}" fehlgeschlagen: ${message}`);
+    const message =
+      err && err.message ? err.message : String(err || this._t("unknown_error"));
+    this._showError(this._t("action_failed", this._actionTitle(action), message));
   }
 
   /** Fehler-Feedback an den Nutzer via HA-Notification-Toast. */
