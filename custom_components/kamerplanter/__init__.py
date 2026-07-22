@@ -11,6 +11,7 @@ from aiohttp import ClientSession
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_URL
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -48,6 +49,12 @@ from .helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Shared ES modules imported by the cards. They are served as static files so
+# the cards' relative imports resolve, but they are NOT cards themselves and
+# must therefore never be offered in the Lovelace card picker (i.e. never
+# registered as a Lovelace resource).
+NON_CARD_MODULES: frozenset[str] = frozenset({"kamerplanter-card-common.js"})
 
 # Repairs issue raised when Lovelace runs in YAML resource mode and the cards
 # therefore cannot be auto-registered.
@@ -237,7 +244,11 @@ async def _async_register_lovelace_resources(
     from homeassistant.exceptions import HomeAssistantError
     from homeassistant.helpers import issue_registry as ir
 
-    expected_urls = [f"/{DOMAIN}/{js_file.name}" for js_file in js_files]
+    # Shared modules (e.g. kamerplanter-card-common.js) are served statically
+    # for the cards' relative imports but are not cards — exclude them from the
+    # Lovelace resource list so they never surface in the card picker.
+    card_files = [f for f in js_files if f.name not in NON_CARD_MODULES]
+    expected_urls = [f"/{DOMAIN}/{js_file.name}" for js_file in card_files]
 
     lovelace_data = hass.data.get(LOVELACE_DOMAIN)
     if lovelace_data is None:
@@ -306,12 +317,50 @@ def _async_handle_yaml_mode_resources(
     )
 
 
+# Services registered once, globally, for the whole integration.
+_SERVICES: tuple[str, ...] = (
+    SERVICE_REFRESH,
+    SERVICE_CLEAR_CACHE,
+    SERVICE_FILL_TANK,
+    SERVICE_WATER_CHANNEL,
+    SERVICE_CONFIRM_CARE,
+    SERVICE_START_TASK,
+    SERVICE_COMPLETE_TASK,
+    SERVICE_SKIP_TASK,
+)
+
+
 async def async_unload_entry(
     hass: HomeAssistant, entry: KamerplanterConfigEntry
 ) -> bool:
     """Unload a config entry."""
     # runtime_data is automatically cleaned up by HA
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        _async_remove_services_if_last(hass, entry)
+    return unload_ok
+
+
+@callback
+def _async_remove_services_if_last(
+    hass: HomeAssistant, entry: KamerplanterConfigEntry
+) -> None:
+    """Deregister the shared services once the last entry is unloaded.
+
+    The services are registered globally in ``async_setup_entry`` (idempotent
+    guard). They must be torn down when no Kamerplanter entry remains so a
+    fully removed integration leaves no dangling service handlers behind.
+    """
+    remaining = [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    ]
+    if remaining:
+        return
+    for service in _SERVICES:
+        if hass.services.has_service(DOMAIN, service):
+            hass.services.async_remove(DOMAIN, service)
 
 
 async def async_remove_entry(
@@ -507,14 +556,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         try:
             result = await api.async_fill_tank(tank_key, payload)
             _LOGGER.info(
-                "Tank fill recorded: %s", result.get("fill_event", {}).get("key")
+                "Tank fill recorded: %s",
+                (result or {}).get("fill_event", {}).get("key"),
             )
 
             # Refresh coordinators to reflect new state
             for coordinator in runtime_data.coordinators.values():
                 await coordinator.async_request_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception("Failed to fill tank %s", tank_key)
+            raise HomeAssistantError(f"Failed to fill tank {tank_key}: {err}") from err
 
     async def handle_water_channel(call: ServiceCall) -> None:
         """Handle the water_channel service call."""
@@ -600,13 +651,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
         try:
             result = await api.async_create_watering_log(payload)
-            log_data = result.get("log", result)
+            log_data = (result or {}).get("log", result) or {}
             _LOGGER.info("Watering log created: %s", log_data.get("key", "unknown"))
 
             for coordinator in runtime_data.coordinators.values():
                 await coordinator.async_request_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception("Failed to create watering log for plant %s", plant_key)
+            raise HomeAssistantError(
+                f"Failed to create watering log for plant {plant_key}: {err}"
+            ) from err
 
     async def handle_confirm_care(call: ServiceCall) -> None:
         """Handle the confirm_care service call (REQ-030)."""
@@ -647,8 +701,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
             for coordinator in runtime_data.coordinators.values():
                 await coordinator.async_request_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception("Failed to confirm care reminder %s", notification_key)
+            raise HomeAssistantError(
+                f"Failed to confirm care reminder {notification_key}: {err}"
+            ) from err
 
     async def _handle_task_action(
         call: ServiceCall, action: str, api_method: str
@@ -687,8 +744,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             )
             for coordinator in runtime_data.coordinators.values():
                 await coordinator.async_request_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception("Failed to %s task %s", action, task_key)
+            raise HomeAssistantError(
+                f"Failed to {action} task {task_key}: {err}"
+            ) from err
 
     async def handle_start_task(call: ServiceCall) -> None:
         """Handle the start_task service call."""

@@ -15,87 +15,173 @@
  *   title:     string  (optional — override device name)
  */
 
+import {
+  KamerplanterCardEditor,
+  capitalize,
+  escapeAttr,
+  escapeHtml,
+  getDeviceName,
+  getEntityMap,
+  kamiSvg,
+  pickLang,
+  safeNum,
+  t,
+} from "./kamerplanter-card-common.js";
+
 /* ================================================================== *
  *  Constants                                                          *
  * ================================================================== */
-
-const KAMI_PHASE_SVG = {
-  germination:         "/local/kami/timeline-kami-phase-germination.svg",
-  seedling:            "/local/kami/timeline-kami-phase-seedling.svg",
-  vegetative:          "/local/kami/timeline-kami-phase-vegetative.svg",
-  flowering:           "/local/kami/timeline-kami-phase-flowering.svg",
-  ripening:            "/local/kami/timeline-kami-phase-ripening.svg",
-  harvest:             "/local/kami/timeline-kami-phase-harvest.svg",
-  dormancy:            "/local/kami/timeline-kami-phase-dormancy.svg",
-  juvenile:            "/local/kami/timeline-kami-phase-juvenile.svg",
-  climbing:            "/local/kami/timeline-kami-phase-climbing.svg",
-  mature:              "/local/kami/timeline-kami-phase-mature.svg",
-  senescence:          "/local/kami/timeline-kami-phase-senescence.svg",
-  flushing:            "/local/kami/timeline-kami-phase-flushing.svg",
-  leaf_phase:          "/local/kami/timeline-kami-phase-leaf-phase.svg",
-  short_day_induction: "/local/kami/timeline-kami-phase-short-day-induction.svg",
-};
-
-const PHASE_LABELS = {
-  germination:         "Keimung",
-  seedling:            "Sämling",
-  vegetative:          "Vegetativ",
-  flowering:           "Blüte",
-  ripening:            "Reife",
-  harvest:             "Ernte",
-  dormancy:            "Ruhephase",
-  flush:               "Spülphase",
-  flushing:            "Spülung",
-  drying:              "Trocknung",
-  curing:              "Curing",
-  leaf_phase:          "Blattphase",
-  short_day_induction: "Kurztageinleitung",
-  juvenile:            "Juvenil",
-  climbing:            "Kletterphase",
-  mature:              "Reifephase",
-  senescence:          "Seneszenz",
-};
 
 const STANDARD_PHASES = [
   "germination", "seedling", "vegetative",
   "flowering", "ripening", "harvest",
 ];
 
-const CHECK_SVG = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
 
 /* ================================================================== *
- *  Helpers                                                            *
+ *  i18n (WP-16 — card-local de/en catalogs)                          *
  * ================================================================== */
 
-function escapeHtml(s) {
-  const el = document.createElement("span");
-  el.textContent = s || "";
-  return el.innerHTML;
+/**
+ * Card-lokaler Uebersetzungskatalog (de/en). Ersetzt alle frueher hart in der
+ * Card kodierten deutschen UI-Strings. Uebersetzt via ``t(CATALOG, key, hass)``
+ * aus dem gemeinsamen Modul; ``{0}``/``{1}`` sind Positions-Platzhalter.
+ *
+ * Die Phase-Labels liegen hier zweisprachig vor: das common-Modul liefert nur
+ * deutsche Labels via ``phaseLabel()`` — englische HA-Nutzer brauchen englische
+ * Phasen-Bezeichnungen, daher der card-lokale Katalog + ``phaseLabelI18n()``.
+ */
+const CATALOG = {
+  de: {
+    error_no_device: "Kein Gerät konfiguriert",
+    error_not_found: "Gerät nicht gefunden oder keine Entitäten",
+    loading: "Wird geladen …",
+    default_plant_name: "Pflanze",
+    stat_overall_week: "Gesamtwoche",
+    stat_phase_week: "Phasenwoche",
+    stat_to_harvest: "bis Ernte",
+    day_of: "Tag {0} / {1}",
+    week_of: "Woche {0} / {1}",
+    day_n: "Tag {0}",
+    days_remaining_one: "{0} Tag verbleibend",
+    days_remaining_other: "{0} Tage verbleibend",
+    weeks_remaining_one: "{0} Woche verbleibend",
+    weeks_remaining_other: "{0} Wochen verbleibend",
+    week_one: "{0} Woche",
+    week_other: "{0} Wochen",
+    day_one: "{0} Tag",
+    day_other: "{0} Tage",
+    duration_weeks_days: "{0}, {1}",
+    in_this_phase: "{0} in dieser Phase",
+    has_begun: "hat begonnen ({0})",
+    in_weeks: "in {0}",
+    next_phase_label: "Nächste Phase:",
+    details_col_phase: "Phase",
+    details_col_start: "Start",
+    details_col_duration: "Dauer",
+    aria_progress: "Phasenfortschritt",
+    editor_device: "Pflanze / Planting Run",
+    editor_title: "Titel (optional)",
+    editor_show_progress: "Fortschrittsbalken anzeigen",
+    editor_show_timeline: "Phasen-Timeline anzeigen",
+    editor_show_next_hint: "Nächste-Phase-Hinweis anzeigen",
+    editor_show_stats: "Wochen- & Ernte-Statistik anzeigen",
+    editor_show_details: "Phasen-Historie anzeigen",
+    // Phase-Labels (spiegelt PHASE_LABELS im common-Modul in korrektem UTF-8)
+    phase_germination: "Keimung",
+    phase_seedling: "Sämling",
+    phase_vegetative: "Vegetativ",
+    phase_flowering: "Blüte",
+    phase_ripening: "Reife",
+    phase_harvest: "Ernte",
+    phase_dormancy: "Ruhephase",
+    phase_flush: "Spülphase",
+    phase_flushing: "Spülung",
+    phase_drying: "Trocknung",
+    phase_curing: "Curing",
+    phase_leaf_phase: "Blattphase",
+    phase_short_day_induction: "Kurztageinleitung",
+    phase_juvenile: "Juvenil",
+    phase_climbing: "Kletterphase",
+    phase_mature: "Reifephase",
+    phase_senescence: "Seneszenz",
+  },
+  en: {
+    error_no_device: "No device configured",
+    error_not_found: "Device not found or no entities",
+    loading: "Loading …",
+    default_plant_name: "Plant",
+    stat_overall_week: "Overall week",
+    stat_phase_week: "Phase week",
+    stat_to_harvest: "until harvest",
+    day_of: "Day {0} / {1}",
+    week_of: "Week {0} / {1}",
+    day_n: "Day {0}",
+    days_remaining_one: "{0} day remaining",
+    days_remaining_other: "{0} days remaining",
+    weeks_remaining_one: "{0} week remaining",
+    weeks_remaining_other: "{0} weeks remaining",
+    week_one: "{0} week",
+    week_other: "{0} weeks",
+    day_one: "{0} day",
+    day_other: "{0} days",
+    duration_weeks_days: "{0}, {1}",
+    in_this_phase: "{0} in this phase",
+    has_begun: "has begun ({0})",
+    in_weeks: "in {0}",
+    next_phase_label: "Next phase:",
+    details_col_phase: "Phase",
+    details_col_start: "Start",
+    details_col_duration: "Duration",
+    aria_progress: "Phase progress",
+    editor_device: "Plant / planting run",
+    editor_title: "Title (optional)",
+    editor_show_progress: "Show progress bar",
+    editor_show_timeline: "Show phase timeline",
+    editor_show_next_hint: "Show next-phase hint",
+    editor_show_stats: "Show week & harvest stats",
+    editor_show_details: "Show phase history",
+    phase_germination: "Germination",
+    phase_seedling: "Seedling",
+    phase_vegetative: "Vegetative",
+    phase_flowering: "Flowering",
+    phase_ripening: "Ripening",
+    phase_harvest: "Harvest",
+    phase_dormancy: "Dormancy",
+    phase_flush: "Flush",
+    phase_flushing: "Flushing",
+    phase_drying: "Drying",
+    phase_curing: "Curing",
+    phase_leaf_phase: "Leaf phase",
+    phase_short_day_induction: "Short-day induction",
+    phase_juvenile: "Juvenile",
+    phase_climbing: "Climbing",
+    phase_mature: "Mature",
+    phase_senescence: "Senescence",
+  },
+};
+
+/**
+ * Localized phase label for the current HA language. Falls back to a
+ * capitalized raw code for phases missing from the catalog; em-dash for empty.
+ */
+function phaseLabelI18n(phase, hass) {
+  if (!phase) return "—";
+  const key = String(phase).toLowerCase();
+  const table = CATALOG[pickLang(hass)] || CATALOG.en;
+  return table["phase_" + key] || capitalize(String(phase));
 }
 
-function capitalize(s) {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
-}
+/* ================================================================== *
+ *  Helpers (locale-aware date formatting)                             *
+ * ================================================================== */
 
-function phaseLabel(phase) {
-  const key = (phase || "").toLowerCase();
-  return PHASE_LABELS[key] || capitalize(phase);
-}
-
-function fmtDate(iso) {
-  if (!iso) return "";
-  const p = iso.split("-");
-  return p.length >= 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
-}
-
-function fmtDateShort(iso) {
-  if (!iso) return "";
-  const p = iso.split("-");
-  return p.length >= 3 ? `${p[2]}.${p[1]}.` : iso;
-}
-
-function kamiSvg(phase) {
-  return KAMI_PHASE_SVG[(phase || "").toLowerCase()] || null;
+/** Parse an ISO date/date-time string into a Date (local midnight for dates). */
+function _parseIso(iso) {
+  const s = iso.length <= 10 ? `${iso}T00:00:00` : iso;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /* ================================================================== *
@@ -184,6 +270,19 @@ const CARD_STYLES = `
     padding: 12px 16px 16px;
     overflow: hidden;
     box-sizing: border-box;
+  }
+
+  /* ---- Clickable (more-info) ---- */
+  .kp-clickable {
+    cursor: pointer;
+    border-radius: var(--ha-border-radius-md, 8px);
+  }
+  .kp-clickable:hover {
+    background: var(--divider-color);
+  }
+  .kp-clickable:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 
   /* ---- Progress bar ---- */
@@ -473,7 +572,7 @@ const CARD_STYLES = `
   .kp-details__row {
     padding: 6px 0;
     font-size: 0.88em;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid var(--divider-color);
   }
   .kp-details__row:last-child {
     border-bottom: none;
@@ -572,92 +671,48 @@ const CARD_STYLES = `
 `;
 
 /**
- * ha-form ready singleton (UI-NFR-015 §2.2).
- */
-const _haFormReadyPlant = (async () => {
-  if (customElements.get("ha-form")) return;
-  await customElements.whenDefined("hui-entities-card");
-  const helpers = await window.loadCardHelpers?.();
-  if (helpers) {
-    const temp = await helpers.createCardElement({ type: "entities", entities: [] });
-    if (temp?.constructor?.getConfigElement) await temp.constructor.getConfigElement();
-  }
-  await customElements.whenDefined("ha-form");
-})();
-
-/**
  * Build plant card editor schema.
  * Uses selector: { device: { integration: "kamerplanter" } } to filter
  * to Kamerplanter Plant Instance / Planting Run devices natively.
  */
-const PLANT_CARD_SCHEMA = [
-  { name: "device_id", label: "Pflanze / Planting Run", required: true,
-    selector: { device: { integration: "kamerplanter" } } },
-  { name: "title",     label: "Titel (optional)",
-    selector: { text: {} } },
-  { name: "show_progress",  label: "Fortschrittsbalken anzeigen",
-    selector: { boolean: {} } },
-  { name: "show_timeline",  label: "Phasen-Timeline anzeigen",
-    selector: { boolean: {} } },
-  { name: "show_next_hint", label: "Nächste-Phase-Hinweis anzeigen",
-    selector: { boolean: {} } },
-  { name: "show_stats",     label: "Wochen- & Ernte-Statistik anzeigen",
-    selector: { boolean: {} } },
-  { name: "show_details",   label: "Phasen-Historie anzeigen",
-    selector: { boolean: {} } },
-];
+function plantCardSchema(hass) {
+  return [
+    { name: "device_id", label: t(CATALOG, "editor_device", hass), required: true,
+      selector: { device: { integration: "kamerplanter" } } },
+    { name: "title",     label: t(CATALOG, "editor_title", hass),
+      selector: { text: {} } },
+    { name: "show_progress",  label: t(CATALOG, "editor_show_progress", hass),
+      selector: { boolean: {} } },
+    { name: "show_timeline",  label: t(CATALOG, "editor_show_timeline", hass),
+      selector: { boolean: {} } },
+    { name: "show_next_hint", label: t(CATALOG, "editor_show_next_hint", hass),
+      selector: { boolean: {} } },
+    { name: "show_stats",     label: t(CATALOG, "editor_show_stats", hass),
+      selector: { boolean: {} } },
+    { name: "show_details",   label: t(CATALOG, "editor_show_details", hass),
+      selector: { boolean: {} } },
+  ];
+}
 
 /* ================================================================== *
  *  Editor                                                             *
  * ================================================================== */
 
 /**
- * Kamerplanter Plant Card Editor
- * Uses ha-form + schema — identical pattern to official HA card editors
+ * Kamerplanter Plant Card Editor — shared ha-form editor base
  * (UI-NFR-015 §2.1). No Shadow DOM (UI-NFR-015 R-022).
  */
-class KamerplanterPlantCardEditor extends HTMLElement {
-  setConfig(config) {
-    this._config = {
+class KamerplanterPlantCardEditor extends KamerplanterCardEditor {
+  _defaultConfig() {
+    return {
       device_id: "", title: "",
       show_progress: true, show_timeline: true,
       show_stats: true, show_next_hint: true, show_details: true,
-      ...config,
     };
-    if (this._hass) this._scheduleRender();
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._scheduleRender();
-  }
-
-  async _scheduleRender() {
-    await _haFormReadyPlant;
-    this._render();
-  }
-
-  _render() {
-    if (!this._config || !this._hass) return;
-
-    // Create ha-form once; reuse on subsequent renders (UI-NFR-015 R-020)
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.addEventListener("value-changed", (e) => {
-        this._config = e.detail.value;
-        this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: this._config },
-          bubbles: true,
-          composed: true,
-        }));
-      });
-      this.appendChild(this._form);
-    }
-
-    this._form.hass = this._hass;
-    this._form.schema = PLANT_CARD_SCHEMA;
-    this._form.data = this._config;
-    this._form.computeLabel = (schema) => schema.label || schema.name;
+  _schema(hass) {
+    return plantCardSchema(hass);
   }
 }
 
@@ -699,29 +754,79 @@ class KamerplanterPlantCard extends HTMLElement {
     // sets `this.preview` only AFTER setConfig \u2014 is never broken.
     this._config = { ...KamerplanterPlantCard.CONFIG_DEFAULTS, ...config };
     this._monitoredEntities = [];
+    this._coreEntitiesResolved = false;
     this._update();
   }
 
   set hass(hass) {
-    // Collect monitored entities on first call
-    if (this._monitoredEntities.length === 0 && hass) {
-      this._monitoredEntities = Object.keys(hass.states).filter(
-        id => id.startsWith("sensor.") || id.startsWith("binary_sensor.")
-      );
+    const prevHass = this._hass;
+    this._hass = hass;
+
+    // Collect this device's entity_ids. Re-collect as long as the core
+    // entities (phase / phase_timeline) are not yet resolvable, to cope with
+    // entity-registry population timing right after HA startup.
+    if (hass && (this._monitoredEntities.length === 0 || !this._coreEntitiesResolved)) {
+      this._collectMonitoredEntities();
     }
 
-    // Change-detection: only re-render when own entities changed
-    const changed = !this._hass || this._monitoredEntities.some(
-      id => this._hass.states[id] !== hass.states[id]
+    // Change-detection: only re-render when our own entities changed.
+    const changed = !prevHass || this._monitoredEntities.some(
+      id => prevHass.states[id] !== hass.states[id]
     );
-    this._hass = hass;
     if (changed) this._update();
+  }
+
+  /** Populate `_monitoredEntities` with the entity_ids of the configured device. */
+  _collectMonitoredEntities() {
+    const deviceId = this._config?.device_id;
+    if (!deviceId || !this._hass) {
+      this._monitoredEntities = [];
+      this._coreEntitiesResolved = false;
+      return;
+    }
+    const ids = [];
+    for (const ent of Object.values(this._hass.entities || {})) {
+      if (ent.device_id === deviceId) ids.push(ent.entity_id);
+    }
+    this._monitoredEntities = ids;
+    // Consider the core entities resolved once the entity map exposes the
+    // phase / status / phase_timeline suffixes for this device.
+    const map = this._getEntityMap();
+    this._coreEntitiesResolved = !!(
+      map["phase"] || map["status"] || map["phase_timeline"]
+    );
   }
 
   _handleMoreInfo(entityId) {
     const event = new Event("hass-more-info", { bubbles: true, composed: true });
     event.detail = { entityId };
     this.dispatchEvent(event);
+  }
+
+  /**
+   * Wire an element as a keyboard/pointer-accessible more-info trigger.
+   * Passing a falsy entityId strips the affordance again.
+   */
+  _makeMoreInfo(el, entityId) {
+    if (!el) return;
+    if (!entityId) {
+      el.removeAttribute("role");
+      el.removeAttribute("tabindex");
+      el.classList.remove("kp-clickable");
+      el.onclick = null;
+      el.onkeydown = null;
+      return;
+    }
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    el.classList.add("kp-clickable");
+    el.onclick = () => this._handleMoreInfo(entityId);
+    el.onkeydown = (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        this._handleMoreInfo(entityId);
+      }
+    };
   }
 
   getCardSize() {
@@ -736,20 +841,11 @@ class KamerplanterPlantCard extends HTMLElement {
   }
 
   getGridOptions() {
-    let rows = 2; // header
-    const c = this._config || {};
-    if (c.show_stats !== false) rows += 1;
-    if (c.show_progress !== false) rows += 1;
-    if (c.show_timeline !== false) rows += 2;
-    if (c.show_next_hint !== false) rows += 1;
-    if (c.show_details !== false) rows += 2;
-    // 12-column grid: full width by default, never below half a section.
-    return {
-      columns: 12,
-      min_columns: 6,
-      rows: rows,
-      min_rows: 2,
-    };
+    // Sections-View: content-dependent height, so use rows:"auto" instead of a
+    // guessed row count. A fixed rows number sets .fit-rows (fixed height) and
+    // taller content overflows the grid cell, pushing the edit-mode overlays
+    // into the card. Matches hui-entities-card. getCardSize() is the legacy path.
+    return { columns: 12, rows: "auto", min_columns: 6 };
   }
 
   static getConfigElement() {
@@ -764,55 +860,45 @@ class KamerplanterPlantCard extends HTMLElement {
 
   /** Collect sensor states keyed by suffix (e.g. "phase", "phase_timeline"). */
   _getEntityMap() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return {};
-
-    // Collect all entity_ids for this device to derive the common prefix.
-    // Entity IDs follow: sensor.kp_{slug}_{suffix} where slug can contain
-    // underscores (e.g. "canna_0321_e02"), so we cannot split with a simple regex.
-    // Instead, find the common prefix from all entity_ids of this device.
-    const deviceEnts = [];
-    for (const ent of Object.values(this._hass.entities || {})) {
-      if (ent.device_id !== id) continue;
-      const eid = ent.entity_id;
-      if (/^(?:sensor|binary_sensor)\.kp_/.test(eid)) {
-        deviceEnts.push(ent);
-      }
-    }
-
-    if (deviceEnts.length === 0) return {};
-
-    // Derive common prefix: strip domain, find longest common prefix of the
-    // object_id part (after "sensor." / "binary_sensor.").
-    const objectIds = deviceEnts.map((e) => e.entity_id.replace(/^[^.]+\./, ""));
-    let prefix = objectIds[0];
-    for (let i = 1; i < objectIds.length; i++) {
-      while (!objectIds[i].startsWith(prefix)) {
-        // Remove last _segment from prefix
-        const idx = prefix.lastIndexOf("_");
-        if (idx <= 0) { prefix = ""; break; }
-        prefix = prefix.substring(0, idx + 1); // keep trailing _
-      }
-      if (!prefix) break;
-    }
-
-    const map = {};
-    for (const ent of deviceEnts) {
-      const st = this._hass.states[ent.entity_id];
-      if (!st) continue;
-      const objId = ent.entity_id.replace(/^[^.]+\./, "");
-      const suffix = prefix ? objId.substring(prefix.length) : objId;
-      if (suffix) map[suffix] = st;
-    }
-    return map;
+    return getEntityMap(this._hass, this._config.device_id);
   }
 
   /** Resolve device display name. */
   _getDeviceName() {
-    const id = this._config.device_id;
-    if (!id || !this._hass) return null;
-    const dev = Object.values(this._hass.devices || {}).find((d) => d.id === id);
-    return dev ? dev.name_by_user || dev.name : null;
+    return getDeviceName(this._hass, this._config.device_id);
+  }
+
+  /** BCP-47 locale for Intl date formatting (HA locale wins). */
+  _dateLocale() {
+    return this._hass?.locale?.language || this._hass?.language || undefined;
+  }
+
+  /** Locale-aware full date (falls back to the raw ISO string). */
+  _fmtDate(iso) {
+    if (!iso) return "";
+    const d = _parseIso(iso);
+    if (!d) return iso;
+    try {
+      return new Intl.DateTimeFormat(this._dateLocale(), {
+        year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(d);
+    } catch {
+      return iso;
+    }
+  }
+
+  /** Locale-aware short date (day + month). */
+  _fmtDateShort(iso) {
+    if (!iso) return "";
+    const d = _parseIso(iso);
+    if (!d) return iso;
+    try {
+      return new Intl.DateTimeFormat(this._dateLocale(), {
+        month: "2-digit", day: "2-digit",
+      }).format(d);
+    } catch {
+      return iso;
+    }
   }
 
   /** Build ordered phase list from timeline attributes + standard backfill. */
@@ -874,28 +960,29 @@ class KamerplanterPlantCard extends HTMLElement {
     this._built = false;
 
     const c = this._config || {};
+    const hass = this._hass;
     const statsHtml = c.show_stats !== false ? `
         <div class="kp-stats">
-          <div class="kp-stats__item"><span class="kp-stats__value">6</span><span class="kp-stats__label">Gesamtwoche</span></div>
-          <div class="kp-stats__item"><span class="kp-stats__value">4</span><span class="kp-stats__label">Phasenwoche</span></div>
-          <div class="kp-stats__item kp-stats__item--harvest"><span class="kp-stats__value">35<span class="kp-stats__unit">d</span></span><span class="kp-stats__label">bis Ernte</span></div>
+          <div class="kp-stats__item"><span class="kp-stats__value">6</span><span class="kp-stats__label">${escapeHtml(t(CATALOG, "stat_overall_week", hass))}</span></div>
+          <div class="kp-stats__item"><span class="kp-stats__value">4</span><span class="kp-stats__label">${escapeHtml(t(CATALOG, "stat_phase_week", hass))}</span></div>
+          <div class="kp-stats__item kp-stats__item--harvest"><span class="kp-stats__value">35<span class="kp-stats__unit">d</span></span><span class="kp-stats__label">${escapeHtml(t(CATALOG, "stat_to_harvest", hass))}</span></div>
         </div>
     ` : "";
     const progressHtml = c.show_progress !== false ? `
         <div class="kp-progress">
-          <div class="kp-progress__header"><span class="kp-progress__phase">Blüte</span><span class="kp-progress__info">Tag 28 / 63</span></div>
-          <div class="kp-progress__track"><div class="kp-progress__fill" style="width:44%;background:#e91e63"></div></div>
-          <div class="kp-progress__footer"><span class="kp-progress__pct">44%</span><span class="kp-progress__remain">35 Tage verbleibend</span></div>
+          <div class="kp-progress__header"><span class="kp-progress__phase">${escapeHtml(phaseLabelI18n("flowering", hass))}</span><span class="kp-progress__info">${escapeHtml(t(CATALOG, "day_of", hass, "28", "63"))}</span></div>
+          <div class="kp-progress__track" role="progressbar" aria-label="${escapeAttr(t(CATALOG, "aria_progress", hass))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="44"><div class="kp-progress__fill" style="width:44%;background:#e91e63"></div></div>
+          <div class="kp-progress__footer"><span class="kp-progress__pct">44%</span><span class="kp-progress__remain">${escapeHtml(t(CATALOG, "days_remaining_other", hass, "35"))}</span></div>
         </div>
     ` : "";
     const timelineHtml = c.show_timeline !== false ? `
         <div class="kp-timeline-wrapper">
           <div class="kp-timeline">
-            <div class="kp-phase-pill"><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#795548"></div><span class="kp-phase-pill__label">Keimung</span><span class="kp-phase-pill__days">5d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#8bc34a"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#8bc34a"></div><span class="kp-phase-pill__label">Setzling</span><span class="kp-phase-pill__days">10d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#4caf50"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#4caf50"></div><span class="kp-phase-pill__label">Vegetativ</span><span class="kp-phase-pill__days">14d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#e91e63"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--current" style="--dot-color:#e91e63"></div><span class="kp-phase-pill__label">Blüte</span><span class="kp-phase-pill__days">28d</span></div>
-            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#bdbdbd"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--upcoming" style="--dot-color:#bdbdbd"></div><span class="kp-phase-pill__label">Ernte</span><span class="kp-phase-pill__days">—</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#795548" aria-hidden="true"></div><span class="kp-phase-pill__label">${escapeHtml(phaseLabelI18n("germination", hass))}</span><span class="kp-phase-pill__days">5d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#8bc34a"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#8bc34a" aria-hidden="true"></div><span class="kp-phase-pill__label">${escapeHtml(phaseLabelI18n("seedling", hass))}</span><span class="kp-phase-pill__days">10d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#4caf50"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--completed" style="--dot-color:#4caf50" aria-hidden="true"></div><span class="kp-phase-pill__label">${escapeHtml(phaseLabelI18n("vegetative", hass))}</span><span class="kp-phase-pill__days">14d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#e91e63"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--current" style="--dot-color:#e91e63" aria-hidden="true"></div><span class="kp-phase-pill__label">${escapeHtml(phaseLabelI18n("flowering", hass))}</span><span class="kp-phase-pill__days">28d</span></div>
+            <div class="kp-phase-pill"><div class="kp-phase-pill__line" style="background:#bdbdbd"></div><div class="kp-phase-pill__dot kp-phase-pill__dot--upcoming" style="--dot-color:#bdbdbd" aria-hidden="true"></div><span class="kp-phase-pill__label">${escapeHtml(phaseLabelI18n("harvest", hass))}</span><span class="kp-phase-pill__days">—</span></div>
           </div>
         </div>
     ` : "";
@@ -940,7 +1027,7 @@ class KamerplanterPlantCard extends HTMLElement {
       </style>
       <ha-card>
         <div class="kp-header">
-          <span class="kp-header__icon">\uD83C\uDF31</span>
+          <span class="kp-header__icon" aria-hidden="true">\uD83C\uDF31</span>
           <div class="kp-header__text">
             <span class="kp-header__name">Northern Lights #03</span>
             <span class="kp-header__plan">GH Flora Bloom</span>
@@ -966,19 +1053,28 @@ class KamerplanterPlantCard extends HTMLElement {
     if (!this._config.device_id) {
       this.shadowRoot.innerHTML = `
         <style>${CARD_STYLES}</style>
-        <ha-card><div class="kp-error">Kein Gerät konfiguriert</div></ha-card>
+        <ha-card><div class="kp-error">${escapeHtml(t(CATALOG, "error_no_device", this._hass))}</div></ha-card>
       `;
       this._built = false;
       return;
     }
-    if (!this._hass) return;
+    // Device configured but HA context / states not yet available: show a
+    // neutral loading hint instead of an empty card (WP-17).
+    if (!this._hass) {
+      this.shadowRoot.innerHTML = `
+        <style>${CARD_STYLES}</style>
+        <ha-card><div class="kp-empty" role="status">${escapeHtml(t(CATALOG, "loading", this._hass))}</div></ha-card>
+      `;
+      this._built = false;
+      return;
+    }
 
     const ents = this._getEntityMap();
 
     if (Object.keys(ents).length === 0) {
       this.shadowRoot.innerHTML = `
         <style>${CARD_STYLES}</style>
-        <ha-card><div class="kp-error">Device nicht gefunden oder keine Entities</div></ha-card>
+        <ha-card><div class="kp-error">${escapeHtml(t(CATALOG, "error_not_found", this._hass))}</div></ha-card>
       `;
       this._built = false;
       return;
@@ -1002,13 +1098,14 @@ class KamerplanterPlantCard extends HTMLElement {
     const nextPhase    = nextPhaseObj?.state;
     const daysInPhase  = tAttrs.days_in_phase ?? daysObj?.state;
     const nutrientPlan = nutrientObj?.state;
-    const plantName    = this._config.title || this._getDeviceName() || "Pflanze";
+    const plantName    = this._config.title || this._getDeviceName()
+      || t(CATALOG, "default_plant_name", this._hass);
 
     /* Header */
     const headerSvg = kamiSvg(currentPhase);
     $("headerVisual").innerHTML = headerSvg
-      ? `<img class="kp-header__kami" src="${headerSvg}" alt="${escapeHtml(currentPhase)}" />`
-      : `<span class="kp-header__icon">\uD83C\uDF31</span>`;
+      ? `<img class="kp-header__kami" src="${headerSvg}" alt="${escapeAttr(phaseLabelI18n(currentPhase, this._hass))}" />`
+      : `<span class="kp-header__icon" aria-hidden="true">\uD83C\uDF31</span>`;
 
     $("plantName").textContent = plantName;
 
@@ -1052,11 +1149,16 @@ class KamerplanterPlantCard extends HTMLElement {
       if (progressHtml) {
         progressEl.innerHTML = progressHtml;
         progressEl.hidden = false;
+        // Click on the phase/progress opens the phase entity's more-info dialog.
+        const phaseEntityId = (phaseObj || timelineObj)?.entity_id;
+        this._makeMoreInfo(progressEl, phaseEntityId);
       } else {
         progressEl.hidden = true;
+        this._makeMoreInfo(progressEl, null);
       }
     } else {
       progressEl.hidden = true;
+      this._makeMoreInfo(progressEl, null);
     }
 
     /* Timeline */
@@ -1128,24 +1230,24 @@ class KamerplanterPlantCard extends HTMLElement {
     if (overallWeek != null) {
       html += `
         <div class="kp-stats__item">
-          <span class="kp-stats__value">${overallWeek}</span>
-          <span class="kp-stats__label">Gesamtwoche</span>
+          <span class="kp-stats__value">${safeNum(overallWeek)}</span>
+          <span class="kp-stats__label">${escapeHtml(t(CATALOG, "stat_overall_week", this._hass))}</span>
         </div>`;
     }
 
     if (phaseWeek != null) {
       html += `
         <div class="kp-stats__item">
-          <span class="kp-stats__value">${phaseWeek}</span>
-          <span class="kp-stats__label">Phasenwoche</span>
+          <span class="kp-stats__value">${safeNum(phaseWeek)}</span>
+          <span class="kp-stats__label">${escapeHtml(t(CATALOG, "stat_phase_week", this._hass))}</span>
         </div>`;
     }
 
     if (daysToHarvest != null) {
       html += `
         <div class="kp-stats__item kp-stats__item--harvest">
-          <span class="kp-stats__value">${daysToHarvest}<span class="kp-stats__unit">d</span></span>
-          <span class="kp-stats__label">bis Ernte</span>
+          <span class="kp-stats__value">${safeNum(daysToHarvest)}<span class="kp-stats__unit">d</span></span>
+          <span class="kp-stats__label">${escapeHtml(t(CATALOG, "stat_to_harvest", this._hass))}</span>
         </div>`;
     }
 
@@ -1162,29 +1264,32 @@ class KamerplanterPlantCard extends HTMLElement {
     const remainingDays = tAttrs.remaining_days;
     const remainingWeeks = tAttrs.phase_remaining_weeks;
 
+    const ariaLabel = escapeAttr(t(CATALOG, "aria_progress", this._hass));
+
     // Full progress mode: plan-based week/percentage data available
     if (phaseWeek != null && plannedWeeks != null && plannedWeeks > 0) {
       const pct = Math.min(100, progressPct || 0);
       const infoText = daysInPhase != null
-        ? `Tag ${daysInPhase} / ${typicalDays || "?"}`
-        : `Woche ${phaseWeek} / ${plannedWeeks}`;
-      const remainText = remainingDays != null
-        ? `${remainingDays} ${remainingDays === 1 ? "Tag" : "Tage"} verbleibend`
-        : remainingWeeks != null
-          ? `${remainingWeeks} ${remainingWeeks === 1 ? "Woche" : "Wochen"} verbleibend`
-          : "";
+        ? t(CATALOG, "day_of", this._hass, safeNum(daysInPhase), typicalDays ? safeNum(typicalDays) : "?")
+        : t(CATALOG, "week_of", this._hass, safeNum(phaseWeek), safeNum(plannedWeeks));
+      let remainText = "";
+      if (remainingDays != null) {
+        remainText = t(CATALOG, remainingDays === 1 ? "days_remaining_one" : "days_remaining_other", this._hass, safeNum(remainingDays));
+      } else if (remainingWeeks != null) {
+        remainText = t(CATALOG, remainingWeeks === 1 ? "weeks_remaining_one" : "weeks_remaining_other", this._hass, safeNum(remainingWeeks));
+      }
 
       return `
         <div class="kp-progress__header">
-          <span class="kp-progress__phase">${escapeHtml(phaseLabel(currentPhase))}</span>
-          <span class="kp-progress__info">${infoText}</span>
+          <span class="kp-progress__phase">${escapeHtml(phaseLabelI18n(currentPhase, this._hass))}</span>
+          <span class="kp-progress__info">${escapeHtml(infoText)}</span>
         </div>
-        <div class="kp-progress__track">
-          <div class="kp-progress__fill" style="width:${pct}%"></div>
+        <div class="kp-progress__track" role="progressbar" aria-label="${ariaLabel}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Number(pct)}">
+          <div class="kp-progress__fill" style="width:${Number(pct)}%"></div>
         </div>
         <div class="kp-progress__footer">
-          <span class="kp-progress__pct">${pct}%</span>
-          ${remainText ? `<span class="kp-progress__remaining">${remainText}</span>` : ""}
+          <span class="kp-progress__pct">${Number(pct)}%</span>
+          ${remainText ? `<span class="kp-progress__remaining">${escapeHtml(remainText)}</span>` : ""}
         </div>
       `;
     }
@@ -1194,19 +1299,22 @@ class KamerplanterPlantCard extends HTMLElement {
       const weeks = Math.floor(daysInPhase / 7);
       const daysMod = daysInPhase % 7;
       const durationText = weeks > 0
-        ? `${weeks} ${weeks === 1 ? "Woche" : "Wochen"}, ${daysMod} ${daysMod === 1 ? "Tag" : "Tage"}`
-        : `${daysInPhase} ${daysInPhase === 1 ? "Tag" : "Tage"}`;
+        ? t(CATALOG, "duration_weeks_days", this._hass,
+            t(CATALOG, weeks === 1 ? "week_one" : "week_other", this._hass, safeNum(weeks)),
+            t(CATALOG, daysMod === 1 ? "day_one" : "day_other", this._hass, safeNum(daysMod)))
+        : t(CATALOG, daysInPhase === 1 ? "day_one" : "day_other", this._hass, safeNum(daysInPhase));
+      const inPhaseText = t(CATALOG, "in_this_phase", this._hass, durationText);
 
       return `
         <div class="kp-progress__header">
-          <span class="kp-progress__phase">${escapeHtml(phaseLabel(currentPhase))}</span>
-          <span class="kp-progress__info">Tag ${daysInPhase}</span>
+          <span class="kp-progress__phase">${escapeHtml(phaseLabelI18n(currentPhase, this._hass))}</span>
+          <span class="kp-progress__info">${escapeHtml(t(CATALOG, "day_n", this._hass, safeNum(daysInPhase)))}</span>
         </div>
-        <div class="kp-progress__track">
+        <div class="kp-progress__track" role="progressbar" aria-label="${ariaLabel}" aria-valuemin="0" aria-valuemax="100" aria-valuetext="${escapeAttr(inPhaseText)}">
           <div class="kp-progress__fill kp-progress__fill--indeterminate"></div>
         </div>
         <div class="kp-progress__footer">
-          <span class="kp-progress__remaining">${durationText} in dieser Phase</span>
+          <span class="kp-progress__remaining">${escapeHtml(inPhaseText)}</span>
         </div>
       `;
     }
@@ -1222,26 +1330,28 @@ class KamerplanterPlantCard extends HTMLElement {
     const weeksUntilNext = tAttrs.weeks_until_next_phase;
 
     if (nextPlanPhase != null && weeksUntilNext != null) {
-      const label = phaseLabel(nextPlanPhase);
+      const label = phaseLabelI18n(nextPlanPhase, this._hass);
       const nKami = kamiSvg(nextPlanPhase);
       const kamiImg = nKami
-        ? `<img class="kp-next__kami" src="${nKami}" alt="" />`
-        : `<span class="kp-next__arrow">\u2192</span>`;
+        ? `<img class="kp-next__kami" src="${nKami}" alt="" aria-hidden="true" />`
+        : `<span class="kp-next__arrow" aria-hidden="true">\u2192</span>`;
 
       if (weeksUntilNext === 0) {
-        return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> hat begonnen (${nextPhaseWeeks} ${nextPhaseWeeks === 1 ? "Woche" : "Wochen"})</span>`;
+        const weeksPhrase = t(CATALOG, nextPhaseWeeks === 1 ? "week_one" : "week_other", this._hass, safeNum(nextPhaseWeeks));
+        return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> ${escapeHtml(t(CATALOG, "has_begun", this._hass, weeksPhrase))}</span>`;
       }
-      return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> in ${weeksUntilNext} ${weeksUntilNext === 1 ? "Woche" : "Wochen"}</span>`;
+      const weeksPhrase = t(CATALOG, weeksUntilNext === 1 ? "week_one" : "week_other", this._hass, safeNum(weeksUntilNext));
+      return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> ${escapeHtml(t(CATALOG, "in_weeks", this._hass, weeksPhrase))}</span>`;
     }
 
     /* Fallback: simple next_phase sensor */
     if (nextPhase && nextPhase !== "None" && nextPhase !== "unknown") {
-      const label = phaseLabel(nextPhase);
+      const label = phaseLabelI18n(nextPhase, this._hass);
       const nSvg = kamiSvg(nextPhase);
       const visual = nSvg
-        ? `<img class="kp-next__kami" src="${nSvg}" alt="" />`
-        : `<span class="kp-next__arrow">\u2192</span>`;
-      return `${visual}<span>N\u00e4chste Phase: <strong>${escapeHtml(label)}</strong></span>`;
+        ? `<img class="kp-next__kami" src="${nSvg}" alt="" aria-hidden="true" />`
+        : `<span class="kp-next__arrow" aria-hidden="true">\u2192</span>`;
+      return `${visual}<span>${escapeHtml(t(CATALOG, "next_phase_label", this._hass))} <strong>${escapeHtml(label)}</strong></span>`;
     }
 
     return null;
@@ -1265,15 +1375,15 @@ class KamerplanterPlantCard extends HTMLElement {
         html += `<div class="kp-timeline__connector ${cls}"></div>`;
       }
 
-      /* Marker content */
+      /* Marker content — decorative (phase name is shown as adjacent text). */
       const svg = kamiSvg(p.name);
       let marker = "";
       if (svg) {
-        marker = `<img src="${svg}" alt="${escapeHtml(p.name)}" />`;
+        marker = `<img src="${svg}" alt="" aria-hidden="true" />`;
       } else if (state === "completed") {
         marker = CHECK_SVG;
       } else if (state === "current") {
-        marker = `<div class="kp-step__pulse"></div>`;
+        marker = `<div class="kp-step__pulse" aria-hidden="true"></div>`;
       }
 
       const dateStr = p.started || p.date || "";
@@ -1284,9 +1394,9 @@ class KamerplanterPlantCard extends HTMLElement {
             ${marker}
           </div>
           <div class="kp-step__body">
-            <span class="kp-step__name">${escapeHtml(phaseLabel(p.name))}</span>
-            ${dateStr ? `<span class="kp-step__date">${fmtDateShort(dateStr)}</span>` : ""}
-            ${p.days != null ? `<span class="kp-step__duration">${p.days}d</span>` : ""}
+            <span class="kp-step__name">${escapeHtml(phaseLabelI18n(p.name, this._hass))}</span>
+            ${dateStr ? `<span class="kp-step__date">${escapeHtml(this._fmtDateShort(dateStr))}</span>` : ""}
+            ${p.days != null ? `<span class="kp-step__duration">${safeNum(p.days)}d</span>` : ""}
           </div>
         </div>
       `;
@@ -1302,17 +1412,17 @@ class KamerplanterPlantCard extends HTMLElement {
       rows += `
         <div class="kp-details__row${isCur ? " kp-details__row--current" : ""}">
           <span class="kp-details__phase">
-            ${svg ? `<img src="${svg}" alt="" />` : ""}
-            ${escapeHtml(phaseLabel(p.name))}
+            ${svg ? `<img src="${svg}" alt="" aria-hidden="true" />` : ""}
+            ${escapeHtml(phaseLabelI18n(p.name, this._hass))}
           </span>
-          <span class="kp-details__date">${fmtDate(p.started || p.date || "")}</span>
-          <span class="kp-details__days">${p.days != null ? `${p.days}d` : "\u2014"}</span>
+          <span class="kp-details__date">${escapeHtml(this._fmtDate(p.started || p.date || ""))}</span>
+          <span class="kp-details__days">${p.days != null ? `${safeNum(p.days)}d` : "\u2014"}</span>
         </div>
       `;
     }
     return `
       <div class="kp-details__header">
-        <span>Phase</span><span>Start</span><span>Dauer</span>
+        <span>${escapeHtml(t(CATALOG, "details_col_phase", this._hass))}</span><span>${escapeHtml(t(CATALOG, "details_col_start", this._hass))}</span><span>${escapeHtml(t(CATALOG, "details_col_duration", this._hass))}</span>
       </div>
       ${rows}
     `;

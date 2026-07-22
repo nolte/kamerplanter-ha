@@ -13,7 +13,9 @@ from custom_components.kamerplanter.api import (
 )
 from custom_components.kamerplanter.coordinator import (
     KamerplanterAlertCoordinator,
+    KamerplanterIpmCoordinator,
     KamerplanterPlantCoordinator,
+    KamerplanterRunCoordinator,
     KamerplanterTaskCoordinator,
     _calc_current_week,
 )
@@ -32,6 +34,60 @@ def test_calc_current_week() -> None:
     # Day 0 = week 1
     started = datetime.now(tz=timezone.utc).isoformat()
     assert _calc_current_week(started) == 1
+
+
+def test_calc_current_week_malformed_falls_back_to_one() -> None:
+    """A malformed or empty start timestamp yields week 1 instead of raising."""
+    assert _calc_current_week("not-a-date") == 1
+    assert _calc_current_week("") == 1
+
+
+async def test_run_coordinator_skips_run_without_key(hass) -> None:
+    """A run missing its key is returned un-enriched, never aborting the update."""
+    api = MagicMock(spec=KamerplanterApi)
+    api.async_get_planting_runs = AsyncMock(
+        return_value=[
+            {"key": "run-1", "status": "active"},
+            {"status": "active"},  # malformed: no key
+        ]
+    )
+    api.async_get_fertilizers = AsyncMock(return_value=[])
+    api.async_get_run_nutrient_plan = AsyncMock(return_value=None)
+    api.async_get_run_phase_timeline = AsyncMock(return_value=[])
+    api.async_get_run_active_channels = AsyncMock(return_value=[])
+    api.async_get_run_watering_schedule = AsyncMock(return_value=None)
+
+    entry = MagicMock()
+    entry.options = {}
+    entry.entry_id = "test"
+
+    coord = KamerplanterRunCoordinator(hass, entry, api)
+    result = await coord._async_update_data()
+
+    assert len(result) == 2
+    run1 = next(r for r in result if r.get("key") == "run-1")
+    assert run1["_timeline"] == []
+
+
+async def test_ipm_coordinator_skips_plant_without_key(hass) -> None:
+    """A plant record without a key is skipped instead of raising a KeyError."""
+    api = MagicMock(spec=KamerplanterApi)
+    api.async_get_plants = AsyncMock(
+        return_value=[{"key": "plant-1"}, {"instance_id": "no-key"}]
+    )
+    api.async_get_ha_published_keys = AsyncMock(return_value=None)
+    api.async_get_pest_inspections = AsyncMock(return_value=[])
+    api.async_get_karenz = AsyncMock(return_value=[])
+    api.async_get_harvest_safety = AsyncMock(return_value=None)
+
+    entry = MagicMock()
+    entry.options = {}
+    entry.entry_id = "test"
+
+    coord = KamerplanterIpmCoordinator(hass, entry, api)
+    result = await coord._async_update_data()
+
+    assert {r["key"] for r in result} == {"plant-1"}
 
 
 async def test_plant_coordinator_auth_error(hass) -> None:

@@ -445,6 +445,17 @@ class KpSensorBase(KamerplanterEntity, SensorEntity):
     def _find_resource(self) -> dict[str, Any] | None:
         return find_by_key(self.coordinator.data, self._resource_key)
 
+    @property
+    def available(self) -> bool:
+        """Return True only while the backing resource exists in coordinator data.
+
+        Resource-bound sensors (plant / run / location / tank) become
+        ``unavailable`` when their element drops out of the coordinator data —
+        e.g. a plant is archived — instead of exposing a stale last value
+        (HA-SPEC-ENTITY §6 / HA-SPEC-DEVICE §7.2).
+        """
+        return super().available and self._find_resource() is not None
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         # Populate state immediately from existing coordinator data
@@ -640,7 +651,6 @@ class PlantDaysUntilWateringSensor(KpSensorBase):
     _attr_translation_key = "days_until_watering"
     _attr_native_unit_of_measurement = UnitOfTime.DAYS
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:watering-can"
 
     def __init__(
         self, coordinator: Any, entry: ConfigEntry, key: str, dev: DeviceInfo
@@ -1184,7 +1194,6 @@ class RunDaysUntilWateringSensor(KpSensorBase):
     _attr_translation_key = "days_until_watering"
     _attr_native_unit_of_measurement = UnitOfTime.DAYS
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:watering-can"
 
     def __init__(
         self, coordinator: Any, entry: ConfigEntry, key: str, dev: DeviceInfo
@@ -1722,7 +1731,7 @@ class LocationChannelSensor(_LocationSensorBase):
 class LocationTankVolumeSensor(_LocationSensorBase):
     """Tank volume sensor — exposes assigned tank capacity in liters."""
 
-    _attr_icon = "mdi:barrel"
+    _attr_device_class = SensorDeviceClass.VOLUME_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
 
@@ -1864,6 +1873,15 @@ class TankInfoSensor(KpSensorBase):
                     return tank
         return None
 
+    def _find_resource(self) -> dict[str, Any] | None:
+        """Resolve availability against the tank, not a location key.
+
+        The coordinator data is a list of locations, so the base lookup by
+        ``_resource_key`` (the tank key) would never match. Delegate to the
+        tank lookup so ``available`` reflects the tank's presence.
+        """
+        return self._find_tank()
+
     @callback
     def _handle_coordinator_update(self) -> None:
         tank = self._find_tank()
@@ -1930,7 +1948,7 @@ class TankInfoSensor(KpSensorBase):
 class TankVolumeSensor(KpSensorBase):
     """Sensor exposing the tank's total volume in liters."""
 
-    _attr_icon = "mdi:water-outline"
+    _attr_device_class = SensorDeviceClass.VOLUME_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
 
@@ -1955,6 +1973,10 @@ class TankVolumeSensor(KpSensorBase):
                 if tank.get("key") == self._tank_key:
                     return tank
         return None
+
+    def _find_resource(self) -> dict[str, Any] | None:
+        """Resolve availability against the tank (coordinator data holds locations)."""
+        return self._find_tank()
 
     @callback
     def _handle_coordinator_update(self) -> None:

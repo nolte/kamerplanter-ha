@@ -42,11 +42,15 @@
     "error": {
       "cannot_connect": "Cannot connect to Kamerplanter",
       "invalid_auth": "Invalid or missing API key",
-      "no_tenants": "No tenants found for this account"
+      "no_tenants": "No tenants found for this account",
+      "unknown": "Unexpected error"
     },
     "abort": {
       "already_configured": "This Kamerplanter instance is already configured",
       "reauth_successful": "Re-authentication successful",
+      "reconfigure_successful": "Reconfiguration successful",
+      "cannot_connect": "Cannot connect to Kamerplanter",
+      "no_tenants": "No tenants found for this account",
       "missing_instance_id": "The discovered service is missing a required instance ID"
     }
   },
@@ -230,6 +234,10 @@
           "name": "Tank Entity",
           "description": "Any tank entity."
         },
+        "tank_key": {
+          "name": "Tank Key",
+          "description": "Direct key of the tank (use when no entity ID is available)."
+        },
         "fill_type": {
           "name": "Fill Type",
           "description": "Type of fill operation."
@@ -237,6 +245,18 @@
         "volume_liters": {
           "name": "Volume",
           "description": "Volume in liters."
+        },
+        "measured_ec_ms": {
+          "name": "Measured EC (mS/cm)",
+          "description": "EC value after mixing (optional)."
+        },
+        "measured_ph": {
+          "name": "Measured pH",
+          "description": "pH value after mixing (optional)."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional remarks for the fill event."
         }
       }
     },
@@ -248,9 +268,33 @@
           "name": "Channel Entity",
           "description": "Channel mix entity."
         },
+        "plant_key": {
+          "name": "Plant Key",
+          "description": "Direct key of the plant instance (use when no entity ID is available)."
+        },
+        "channel_id": {
+          "name": "Channel ID",
+          "description": "ID of the delivery channel (use together with the plant key)."
+        },
         "volume_liters": {
           "name": "Volume",
           "description": "Volume in liters."
+        },
+        "application_method": {
+          "name": "Application Method",
+          "description": "How the water is applied."
+        },
+        "measured_ec_ms": {
+          "name": "Measured EC (mS/cm)",
+          "description": "EC value of the nutrient solution (optional)."
+        },
+        "measured_ph": {
+          "name": "Measured pH",
+          "description": "pH value of the nutrient solution (optional)."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Optional remarks."
         }
       }
     },

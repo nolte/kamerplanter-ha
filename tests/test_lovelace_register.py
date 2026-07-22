@@ -10,6 +10,7 @@ import pytest
 
 from custom_components.kamerplanter import (
     ISSUE_LOVELACE_YAML_MODE,
+    NON_CARD_MODULES,
     _async_register_lovelace_resources,
 )
 from custom_components.kamerplanter.const import DOMAIN
@@ -69,6 +70,31 @@ async def test_storage_mode_registers_missing_resources() -> None:
     create_issue.assert_not_called()
     # A stale YAML-mode repair is cleared once storage registration succeeds.
     delete_issue.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_shared_module_not_registered_as_resource() -> None:
+    """The shared card module is served statically but is not a card.
+
+    It must never be registered as a Lovelace resource (would pollute the card
+    picker), while real cards in the same directory still get registered.
+    """
+    resources = _StorageResources([])
+    hass = _hass(resources)
+
+    js_files = [Path(name) for name in NON_CARD_MODULES]
+    js_files.append(Path("kamerplanter-plant-card.js"))
+
+    with (
+        patch("homeassistant.helpers.issue_registry.async_create_issue"),
+        patch("homeassistant.helpers.issue_registry.async_delete_issue"),
+    ):
+        await _async_register_lovelace_resources(hass, js_files)
+
+    # Only the real card is registered; the shared module is filtered out.
+    assert resources.created == [f"/{DOMAIN}/kamerplanter-plant-card.js"]
+    for name in NON_CARD_MODULES:
+        assert f"/{DOMAIN}/{name}" not in resources.created
 
 
 @pytest.mark.asyncio

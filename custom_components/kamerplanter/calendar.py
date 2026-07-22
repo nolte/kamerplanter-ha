@@ -227,8 +227,12 @@ class KamerplanterPhaseCalendar(CoordinatorEntity, CalendarEntity):
         ]
 
 
-class KamerplanterTaskCalendar(CalendarEntity):
+class KamerplanterTaskCalendar(CoordinatorEntity, CalendarEntity):
     """Calendar showing pending tasks with due dates.
+
+    Derives from ``CoordinatorEntity`` so it re-renders on every task
+    coordinator update (subscription), in addition to the immediate refresh
+    triggered by ``EVENT_TASK_COMPLETED``.
 
     Future: integrate with iCal feed (REQ-015 §4.2).
     """
@@ -242,19 +246,18 @@ class KamerplanterTaskCalendar(CalendarEntity):
         entry: ConfigEntry,
         coordinator: KamerplanterTaskCoordinator,
     ) -> None:
+        super().__init__(coordinator)
         self._entry = entry
-        self._coordinator = coordinator
-        self._unsub: Any = None
         self._attr_unique_id = f"{entry.entry_id}_kp_tasks_calendar"
         self._attr_translation_key = "tasks"
         self._attr_device_info = server_device_info(entry)
 
     def _build_events(self) -> list[CalendarEvent]:
         """Build calendar events from pending tasks."""
-        if not self._coordinator.data:
+        if not self.coordinator.data:
             return []
         events: list[CalendarEvent] = []
-        for task in self._coordinator.data:
+        for task in self.coordinator.data:
             due = task.get("due_date")
             if not due:
                 continue
@@ -318,15 +321,11 @@ class KamerplanterTaskCalendar(CalendarEntity):
         ]
 
     async def async_added_to_hass(self) -> None:
-        """Register event listener (HA-NFR-005)."""
-        self._unsub = self.hass.bus.async_listen(
-            EVENT_TASK_COMPLETED, self._on_task_completed
+        """Subscribe to the coordinator and the task-completed event (HA-NFR-005)."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.hass.bus.async_listen(EVENT_TASK_COMPLETED, self._on_task_completed)
         )
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Unregister event listener."""
-        if self._unsub:
-            self._unsub()
 
     @callback
     def _on_task_completed(self, event: Any) -> None:
