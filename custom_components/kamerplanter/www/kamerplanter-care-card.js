@@ -94,9 +94,17 @@ const CATALOG = {
 const CARE_STYLES = `
         :host {
           display: block;
+          overflow: hidden;
+          box-sizing: border-box;
         }
         ha-card {
           padding: 16px;
+          overflow: hidden;
+        }
+        /* Collapse the last section's trailing margin so the card's bottom
+           padding is not doubled — matches upstream card density (issue #64). */
+        ha-card > *:last-child {
+          margin-bottom: 0;
         }
         .header {
           display: flex;
