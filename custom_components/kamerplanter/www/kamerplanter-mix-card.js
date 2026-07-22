@@ -12,6 +12,41 @@ const _haFormReadyMix = (async () => {
   await customElements.whenDefined("ha-form");
 })();
 
+/* ================================================================== *
+ *  Helpers                                                            *
+ * ================================================================== */
+
+/**
+ * Escape text for safe interpolation into element bodies (innerHTML).
+ * Uses the DOM to neutralise `<`, `>`, `&` etc.
+ */
+function escapeHtml(s) {
+  const el = document.createElement("span");
+  el.textContent = s == null ? "" : String(s);
+  return el.innerHTML;
+}
+
+/**
+ * Escape a value for use inside a double-quoted HTML attribute.
+ * Neutralises quotes so backend-provided values cannot break out of the
+ * attribute (and thus cannot break `[data-entity="..."]` selectors).
+ */
+function escapeAttr(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * True for entity states that carry no usable value.
+ */
+function isUnavailableState(state) {
+  return state == null || state === "unavailable" || state === "unknown";
+}
+
 /**
  * Build mix card editor schema.
  * Uses selector: { entity: { multiple: true } } — renders ha-entities-picker
@@ -124,19 +159,24 @@ class KamerplanterMixCard extends HTMLElement {
     const stateObj = this._hass.states[entityId];
     if (!stateObj) return;
     const attrs = stateObj.attributes;
-    const input = this.shadowRoot.querySelector(`.vol-input[data-entity="${entityId}"]`);
+    const sel = window.CSS && CSS.escape ? CSS.escape(entityId) : entityId;
+    const input = this.shadowRoot.querySelector(`.vol-input[data-entity="${sel}"]`);
     if (!input) return;
     const channelDiv = input.closest(".channel");
     if (!channelDiv) return;
     const rows = channelDiv.querySelectorAll(".dosage-row");
+    const numVol = Number(vol);
     const dosages = [];
     for (const [key, val] of Object.entries(attrs)) {
-      if (key.endsWith("(ml/L)") && val != null) dosages.push({ name: key.replace(" (ml/L)", ""), mlPerL: val });
+      if (key.endsWith("(ml/L)") && val != null) {
+        const mlPerL = Number(val);
+        if (Number.isFinite(mlPerL)) dosages.push({ name: key.replace(" (ml/L)", ""), mlPerL });
+      }
     }
     dosages.sort((a, b) => b.mlPerL - a.mlPerL);
     let i = 0;
     for (const d of dosages) {
-      if (rows[i]) { const mlEl = rows[i].querySelector(".ml-value"); if (mlEl) mlEl.textContent = `${(d.mlPerL * vol).toFixed(1)} ml`; }
+      if (rows[i]) { const mlEl = rows[i].querySelector(".ml-value"); if (mlEl) mlEl.textContent = `${(d.mlPerL * numVol).toFixed(1)} ml`; }
       i++;
     }
   }
@@ -158,25 +198,25 @@ class KamerplanterMixCard extends HTMLElement {
         .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
         .card-title { font-size: 1.1em; font-weight: 500; }
         .card-content { padding: 8px 16px 16px; }
-        .mode-bar { display: flex; border: 1px solid #bdbdbd; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
-        .seg-btn { flex: 1; padding: 6px 0; border: none; background: transparent; font-size: 0.8em; font-weight: 500; color: #757575; cursor: default; border-right: 1px solid #bdbdbd; }
+        .mode-bar { display: flex; border: 1px solid var(--divider-color, #bdbdbd); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+        .seg-btn { flex: 1; padding: 6px 0; border: none; background: transparent; font-size: 0.8em; font-weight: 500; color: var(--secondary-text-color, #757575); cursor: default; border-right: 1px solid var(--divider-color, #bdbdbd); }
         .seg-btn:last-child { border-right: none; }
-        .seg-btn.active { background: #1976d2; color: #fff; font-weight: 600; }
+        .seg-btn.active { background: var(--primary-color, #1976d2); color: var(--text-primary-color, #fff); font-weight: 600; }
         .channel { margin-bottom: 16px; }
         .channel:last-child { margin-bottom: 0; }
-        .channel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e0e0e0; }
-        .channel-name { font-weight: 500; font-size: 0.95em; }
+        .channel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+        .channel-name { font-weight: 500; font-size: 0.95em; color: var(--primary-text-color); }
         .channel-badges { display: flex; gap: 4px; }
         .badge { font-size: 0.72em; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-        .badge.week { background: #03a9f4; color: #fff; }
-        .badge.vol { background: #e8f5e9; color: #2e7d32; }
+        .badge.week { background: var(--secondary-background-color, #03a9f4); color: var(--primary-text-color, #fff); }
+        .badge.vol { background: var(--secondary-background-color, #e8f5e9); color: var(--primary-text-color, #2e7d32); }
         .dosage-list { display: flex; flex-direction: column; gap: 4px; }
-        .dosage-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
+        .dosage-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--divider-color, #f0f0f0); }
         .dosage-row:last-child { border-bottom: none; }
-        .product-name { font-size: 0.9em; }
+        .product-name { font-size: 0.9em; color: var(--primary-text-color); }
         .dosage-values { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-        .ml-value { font-size: 0.9em; font-weight: 600; }
-        .ml-sub { font-size: 0.72em; color: #9e9e9e; }
+        .ml-value { font-size: 0.9em; font-weight: 600; color: var(--primary-text-color); }
+        .ml-sub { font-size: 0.72em; color: var(--secondary-text-color, #9e9e9e); }
       </style>
       <ha-card>
         <div class="card-header"><span class="card-title">Mix Rezept</span></div>
@@ -223,7 +263,7 @@ class KamerplanterMixCard extends HTMLElement {
       return;
     }
     if (!this._config.entities || !this._config.entities.length) {
-      this.shadowRoot.innerHTML = `<ha-card><div style="padding:16px;color:#f44336">Keine Einträge konfiguriert</div></ha-card>`;
+      this.shadowRoot.innerHTML = `<ha-card><div style="padding:16px;color:var(--secondary-text-color)">Keine Einträge konfiguriert</div></ha-card>`;
       return;
     }
     if (!this._hass) return;
@@ -236,30 +276,39 @@ class KamerplanterMixCard extends HTMLElement {
 
     let channelsHtml = "";
     for (const entityId of this._config.entities) {
+      const safeId = escapeHtml(entityId);
       const stateObj = this._hass.states[entityId];
-      if (!stateObj) { channelsHtml += `<div class="channel missing">Entity ${entityId} nicht gefunden</div>`; continue; }
+      if (!stateObj) { channelsHtml += `<div class="channel missing">Entity ${safeId} nicht gefunden</div>`; continue; }
       const attrs = stateObj.attributes;
-      const channelName = attrs.friendly_name || entityId;
-      const currentWeek = attrs.current_week;
+      const channelName = escapeHtml(attrs.friendly_name || entityId);
+      // Explizites Handling fuer unavailable/unknown statt stummer leerer Kanaele.
+      if (isUnavailableState(stateObj.state)) {
+        channelsHtml += `<div class="channel unavailable"><div class="channel-header"><span class="channel-name">${channelName}</span></div><div class="empty">Kanal nicht verfügbar</div></div>`;
+        continue;
+      }
+      const week = Number(attrs.current_week);
       const kaVol = this._channelVol(entityId);
-      const customVol = this._customVols[entityId] || 10;
+      const customVol = Number(this._customVols[entityId]) || 10;
       let effVol = null;
-      if (mode === "ka" && kaVol) effVol = kaVol;
+      if (mode === "ka" && kaVol) effVol = Number(kaVol);
       else if (mode === "custom" && customVol > 0) effVol = customVol;
 
       const dosages = [];
       for (const [key, val] of Object.entries(attrs)) {
-        if (key.endsWith("(ml/L)") && val != null) dosages.push({ name: key.replace(" (ml/L)", ""), mlPerL: val });
+        if (key.endsWith("(ml/L)") && val != null) {
+          const mlPerL = Number(val);
+          if (Number.isFinite(mlPerL)) dosages.push({ name: key.replace(" (ml/L)", ""), mlPerL });
+        }
       }
       dosages.sort((a, b) => b.mlPerL - a.mlPerL);
 
       channelsHtml += `<div class="channel"><div class="channel-header">`;
       channelsHtml += `<span class="channel-name">${channelName}</span><span class="channel-badges">`;
-      if (currentWeek) channelsHtml += `<span class="badge week">W${currentWeek}</span>`;
+      if (Number.isFinite(week) && week > 0) channelsHtml += `<span class="badge week">W${week}</span>`;
       if (mode === "custom") {
-        channelsHtml += `<span class="vol-input-wrap"><input type="number" class="vol-input" data-entity="${entityId}" value="${customVol}" min="0.1" step="0.5" /><span class="vol-unit">L</span></span>`;
+        channelsHtml += `<span class="vol-input-wrap"><input type="number" class="vol-input" data-entity="${escapeAttr(entityId)}" value="${Number(customVol)}" min="0.1" step="0.5" /><span class="vol-unit">L</span></span>`;
       } else if (effVol) {
-        channelsHtml += `<span class="badge vol">${effVol} L</span>`;
+        channelsHtml += `<span class="badge vol">${Number(effVol)} L</span>`;
       }
       channelsHtml += `</span></div>`;
 
@@ -271,14 +320,14 @@ class KamerplanterMixCard extends HTMLElement {
           const valHtml = effVol
             ? `<span class="ml-value">${(d.mlPerL * effVol).toFixed(1)} ml</span><span class="ml-sub">${d.mlPerL} ml/L</span>`
             : `<span class="ml-value">${d.mlPerL} ml/L</span>`;
-          channelsHtml += `<div class="dosage-row"><span class="product-name">${d.name}</span><span class="dosage-values">${valHtml}</span></div>`;
+          channelsHtml += `<div class="dosage-row"><span class="product-name">${escapeHtml(d.name)}</span><span class="dosage-values">${valHtml}</span></div>`;
         }
         channelsHtml += `</div>`;
       }
       channelsHtml += `</div>`;
     }
 
-    const seg = (id, label, active) => `<button class="seg-btn ${active ? "active" : ""}" data-mode="${id}">${label}</button>`;
+    const seg = (id, label, active) => `<button class="seg-btn ${active ? "active" : ""}" data-mode="${escapeAttr(id)}">${escapeHtml(label)}</button>`;
     let modeBarHtml = `<div class="mode-bar">`;
     modeBarHtml += seg("perL", "ml/L", mode === "perL");
     if (anyKaVol) modeBarHtml += seg("ka", "Tank/Kanne", mode === "ka");
@@ -292,35 +341,35 @@ class KamerplanterMixCard extends HTMLElement {
         .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
         .card-title { font-size: 1.1em; font-weight: 500; }
         .card-content { padding: 8px 16px 16px; }
-        .mode-bar { display: flex; border: 1px solid #bdbdbd; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
-        .seg-btn { flex: 1; padding: 6px 0; border: none; background: transparent; font-size: 0.8em; font-weight: 500; color: #757575; cursor: pointer; transition: all 0.15s; border-right: 1px solid #bdbdbd; }
+        .mode-bar { display: flex; border: 1px solid var(--divider-color, #bdbdbd); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+        .seg-btn { flex: 1; padding: 6px 0; border: none; background: transparent; font-size: 0.8em; font-weight: 500; color: var(--secondary-text-color, #757575); cursor: pointer; transition: all 0.15s; border-right: 1px solid var(--divider-color, #bdbdbd); }
         .seg-btn:last-child { border-right: none; }
-        .seg-btn.active { background: #1976d2; color: #fff; font-weight: 600; }
-        .seg-btn:not(.active):hover { background: #f5f5f5; }
-        .vol-input-wrap { display: inline-flex; align-items: center; gap: 2px; background: #f5f5f5; border: 1px solid #bdbdbd; border-radius: 6px; padding: 1px 6px 1px 2px; }
-        .vol-input { width: 52px; padding: 2px 4px; border: none; background: transparent; font-size: 0.82em; font-weight: 600; text-align: right; outline: none; -moz-appearance: textfield; }
+        .seg-btn.active { background: var(--primary-color, #1976d2); color: var(--text-primary-color, #fff); font-weight: 600; }
+        .seg-btn:not(.active):hover { background: var(--secondary-background-color, #f5f5f5); }
+        .vol-input-wrap { display: inline-flex; align-items: center; gap: 2px; background: var(--secondary-background-color, #f5f5f5); border: 1px solid var(--divider-color, #bdbdbd); border-radius: 6px; padding: 1px 6px 1px 2px; }
+        .vol-input { width: 52px; padding: 2px 4px; border: none; background: transparent; color: var(--primary-text-color); font-size: 0.82em; font-weight: 600; text-align: right; outline: none; -moz-appearance: textfield; }
         .vol-input::-webkit-outer-spin-button, .vol-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .vol-unit { font-size: 0.75em; color: #757575; font-weight: 500; }
+        .vol-unit { font-size: 0.75em; color: var(--secondary-text-color, #757575); font-weight: 500; }
         .channel { margin-bottom: 16px; }
         .channel:last-child { margin-bottom: 0; }
-        .channel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e0e0e0; }
-        .channel-name { font-weight: 500; font-size: 0.95em; }
+        .channel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--divider-color, #e0e0e0); }
+        .channel-name { font-weight: 500; font-size: 0.95em; color: var(--primary-text-color); }
         .channel-badges { display: flex; gap: 4px; }
         .badge { font-size: 0.72em; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-        .badge.week { background: #03a9f4; color: #fff; }
-        .badge.vol { background: #e8f5e9; color: #2e7d32; }
+        .badge.week { background: var(--secondary-background-color, #03a9f4); color: var(--primary-text-color, #fff); }
+        .badge.vol { background: var(--secondary-background-color, #e8f5e9); color: var(--primary-text-color, #2e7d32); }
         .dosage-list { display: flex; flex-direction: column; gap: 4px; }
-        .dosage-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
+        .dosage-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--divider-color, #f0f0f0); }
         .dosage-row:last-child { border-bottom: none; }
-        .product-name { font-size: 0.9em; }
+        .product-name { font-size: 0.9em; color: var(--primary-text-color); }
         .dosage-values { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-        .ml-value { font-size: 0.9em; font-weight: 600; }
-        .ml-sub { font-size: 0.72em; color: #9e9e9e; }
-        .empty { font-size: 0.85em; color: #9e9e9e; font-style: italic; }
-        .missing { color: #db4437; font-size: 0.85em; }
+        .ml-value { font-size: 0.9em; font-weight: 600; color: var(--primary-text-color); }
+        .ml-sub { font-size: 0.72em; color: var(--secondary-text-color, #9e9e9e); }
+        .empty { font-size: 0.85em; color: var(--secondary-text-color, #9e9e9e); font-style: italic; }
+        .missing { color: var(--error-color, #db4437); font-size: 0.85em; }
       </style>
       <ha-card>
-        <div class="card-header"><span class="card-title">${title}</span></div>
+        <div class="card-header"><span class="card-title">${escapeHtml(title)}</span></div>
         <div class="card-content">
           ${modeBarHtml}
           ${channelsHtml}
