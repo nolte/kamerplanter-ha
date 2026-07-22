@@ -78,6 +78,21 @@ function _hpEscape(s) {
   return el.innerHTML;
 }
 
+/**
+ * Prueft, ob ein State-Wert als "nicht verfuegbar" gilt.
+ * Deckt fehlende States (undefined/null) und die HA-Sonderwerte
+ * "unknown"/"unavailable" ab, damit diese nie als echter Anzeigewert
+ * gerendert werden.
+ */
+function _hpIsUnavailable(state) {
+  return (
+    state === undefined ||
+    state === null ||
+    state === "unknown" ||
+    state === "unavailable"
+  );
+}
+
 /* ================================================================== *
  *  Styles                                                             *
  * ================================================================== */
@@ -381,8 +396,35 @@ class KamerplanterHouseplantCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const prevHass = this._hass;
+
+    // Beim ersten Aufruf die zum konfigurierten Device gehoerenden Entity-IDs
+    // sammeln. Solange die Liste leer ist, wird erneut gesammelt, um das
+    // Timing der Entity-Registry beim HA-Start abzufangen.
+    if ((!this._monitoredEntities || this._monitoredEntities.length === 0) && hass) {
+      const deviceId = this._config?.device_id;
+      if (deviceId) {
+        this._monitoredEntities = Object.values(hass.entities || {})
+          .filter((ent) => ent.device_id === deviceId)
+          .map((ent) => ent.entity_id);
+      }
+    }
+
     this._hass = hass;
-    this._update();
+
+    // Change-Detection: nur rendern beim ersten hass, solange noch keine
+    // eigenen Entities bekannt sind (Loading-State), oder wenn sich der State
+    // einer eigenen Device-Entity geaendert hat. Fremd-State-Changes loesen
+    // damit kein Re-Render aus.
+    const changed =
+      !prevHass ||
+      !this._monitoredEntities ||
+      this._monitoredEntities.length === 0 ||
+      this._monitoredEntities.some(
+        (entId) => prevHass.states[entId] !== hass.states[entId],
+      );
+
+    if (changed) this._update();
   }
 
   setConfig(config) {
@@ -393,6 +435,9 @@ class KamerplanterHouseplantCard extends HTMLElement {
     // sets `this.preview` only AFTER setConfig — is never broken.
     this._config = { ...KamerplanterHouseplantCard.CONFIG_DEFAULTS, ...config };
     this._built = false;
+    // Monitored-Entity-Liste zuruecksetzen, damit sie fuer das (ggf. neue)
+    // device_id beim naechsten hass-Setter neu gesammelt wird.
+    this._monitoredEntities = [];
     this._update();
   }
 
@@ -557,9 +602,17 @@ class KamerplanterHouseplantCard extends HTMLElement {
     const ents = this._getEntityMap();
 
     if (Object.keys(ents).length === 0) {
+      // device_id ist gesetzt, aber es liegen noch keine States vor. Das ist
+      // typischerweise ein Timing-Problem der Entity-Registry beim HA-Start und
+      // kein echter Fehler -> neutraler Ladehinweis statt hp-error.
       this.shadowRoot.innerHTML = `
         <style>${HP_STYLES}</style>
-        <ha-card><div class="hp-error">Device nicht gefunden oder keine Entities</div></ha-card>
+        <ha-card>
+          <div class="hp-empty">
+            <ha-icon icon="mdi:sprout"></ha-icon>
+            <span>Pflanzendaten werden geladen ...</span>
+          </div>
+        </ha-card>
       `;
       this._built = false;
       return;
@@ -571,7 +624,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     const nutrientObj  = ents["nutrient_plan"];
     const channelsObj  = ents["active_channels"];
 
-    const currentPhase = phaseObj?.state || "—";
+    const currentPhase = _hpIsUnavailable(phaseObj?.state) ? null : phaseObj.state;
     const daysInPhase  = daysObj?.state;
     const plantName    = this._config.title || this._getDeviceName() || "Pflanze";
 
@@ -582,7 +635,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
       : `<span class="hp-header__icon">\uD83C\uDF31</span>`;
 
     const phaseText = _hpPhaseLabel(currentPhase);
-    const daysText = daysInPhase != null && daysInPhase !== "unknown"
+    const daysText = !_hpIsUnavailable(daysInPhase)
       ? ` \u2014 Tag ${_hpEscape(String(daysInPhase))}`
       : "";
 
@@ -598,7 +651,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     `;
 
     // Days badge (days in phase)
-    if (daysInPhase != null && daysInPhase !== "unknown") {
+    if (!_hpIsUnavailable(daysInPhase)) {
       html += `
           <div class="hp-header__days">
             ${_hpEscape(String(daysInPhase))}<small>d</small>
@@ -611,7 +664,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     // --- Watering section ---
     if (this._config.show_watering !== false) {
       const rawState = waterObj?.state;
-      const daysUntil = rawState != null && rawState !== "unknown" && rawState !== "unavailable"
+      const daysUntil = !_hpIsUnavailable(rawState)
         ? parseInt(rawState, 10) : null;
       const attrs = waterObj?.attributes || {};
       const nextDate = attrs.next_watering_date;
@@ -664,7 +717,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
     // --- Fertilizer section ---
     if (this._config.show_fertilizer !== false) {
       const planName = nutrientObj?.state;
-      const hasPlan = planName && planName !== "unknown" && planName !== "None";
+      const hasPlan = planName && !_hpIsUnavailable(planName) && planName !== "None";
       const channelAttrs = channelsObj?.attributes || {};
       const channelIds = channelAttrs.channel_ids || [];
 
@@ -693,7 +746,7 @@ class KamerplanterHouseplantCard extends HTMLElement {
             for (const [product, ml] of Object.entries(dosages)) {
               html += `
                 <span class="hp-fert__dosage">
-                  ${_hpEscape(product)} <span class="hp-fert__dosage-ml">${ml} ml/L</span>
+                  ${_hpEscape(product)} <span class="hp-fert__dosage-ml">${_hpEscape(String(ml))} ml/L</span>
                 </span>
               `;
             }
