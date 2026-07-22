@@ -73,6 +73,25 @@ function escapeHtml(s) {
   return el.innerHTML;
 }
 
+/**
+ * Escape a value for use inside a double/single quoted HTML attribute.
+ * `escapeHtml` only neutralises &, < and > (text-node semantics), so quotes
+ * must be handled explicitly to prevent attribute breakout.
+ */
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/**
+ * Coerce a backend value to a safe string for HTML text content. Finite
+ * numbers are rendered as-is; anything else is HTML-escaped so malicious
+ * backend payloads cannot inject markup.
+ */
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? String(n) : escapeHtml(String(v));
+}
+
 function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 }
@@ -184,6 +203,19 @@ const CARD_STYLES = `
     padding: 12px 16px 16px;
     overflow: hidden;
     box-sizing: border-box;
+  }
+
+  /* ---- Clickable (more-info) ---- */
+  .kp-clickable {
+    cursor: pointer;
+    border-radius: var(--ha-border-radius-md, 8px);
+  }
+  .kp-clickable:hover {
+    background: var(--divider-color);
+  }
+  .kp-clickable:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
   }
 
   /* ---- Progress bar ---- */
@@ -473,7 +505,7 @@ const CARD_STYLES = `
   .kp-details__row {
     padding: 6px 0;
     font-size: 0.88em;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid var(--divider-color);
   }
   .kp-details__row:last-child {
     border-bottom: none;
@@ -699,29 +731,79 @@ class KamerplanterPlantCard extends HTMLElement {
     // sets `this.preview` only AFTER setConfig \u2014 is never broken.
     this._config = { ...KamerplanterPlantCard.CONFIG_DEFAULTS, ...config };
     this._monitoredEntities = [];
+    this._coreEntitiesResolved = false;
     this._update();
   }
 
   set hass(hass) {
-    // Collect monitored entities on first call
-    if (this._monitoredEntities.length === 0 && hass) {
-      this._monitoredEntities = Object.keys(hass.states).filter(
-        id => id.startsWith("sensor.") || id.startsWith("binary_sensor.")
-      );
+    const prevHass = this._hass;
+    this._hass = hass;
+
+    // Collect this device's entity_ids. Re-collect as long as the core
+    // entities (phase / phase_timeline) are not yet resolvable, to cope with
+    // entity-registry population timing right after HA startup.
+    if (hass && (this._monitoredEntities.length === 0 || !this._coreEntitiesResolved)) {
+      this._collectMonitoredEntities();
     }
 
-    // Change-detection: only re-render when own entities changed
-    const changed = !this._hass || this._monitoredEntities.some(
-      id => this._hass.states[id] !== hass.states[id]
+    // Change-detection: only re-render when our own entities changed.
+    const changed = !prevHass || this._monitoredEntities.some(
+      id => prevHass.states[id] !== hass.states[id]
     );
-    this._hass = hass;
     if (changed) this._update();
+  }
+
+  /** Populate `_monitoredEntities` with the entity_ids of the configured device. */
+  _collectMonitoredEntities() {
+    const deviceId = this._config?.device_id;
+    if (!deviceId || !this._hass) {
+      this._monitoredEntities = [];
+      this._coreEntitiesResolved = false;
+      return;
+    }
+    const ids = [];
+    for (const ent of Object.values(this._hass.entities || {})) {
+      if (ent.device_id === deviceId) ids.push(ent.entity_id);
+    }
+    this._monitoredEntities = ids;
+    // Consider the core entities resolved once the entity map exposes the
+    // phase / status / phase_timeline suffixes for this device.
+    const map = this._getEntityMap();
+    this._coreEntitiesResolved = !!(
+      map["phase"] || map["status"] || map["phase_timeline"]
+    );
   }
 
   _handleMoreInfo(entityId) {
     const event = new Event("hass-more-info", { bubbles: true, composed: true });
     event.detail = { entityId };
     this.dispatchEvent(event);
+  }
+
+  /**
+   * Wire an element as a keyboard/pointer-accessible more-info trigger.
+   * Passing a falsy entityId strips the affordance again.
+   */
+  _makeMoreInfo(el, entityId) {
+    if (!el) return;
+    if (!entityId) {
+      el.removeAttribute("role");
+      el.removeAttribute("tabindex");
+      el.classList.remove("kp-clickable");
+      el.onclick = null;
+      el.onkeydown = null;
+      return;
+    }
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    el.classList.add("kp-clickable");
+    el.onclick = () => this._handleMoreInfo(entityId);
+    el.onkeydown = (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        this._handleMoreInfo(entityId);
+      }
+    };
   }
 
   getCardSize() {
@@ -1007,7 +1089,7 @@ class KamerplanterPlantCard extends HTMLElement {
     /* Header */
     const headerSvg = kamiSvg(currentPhase);
     $("headerVisual").innerHTML = headerSvg
-      ? `<img class="kp-header__kami" src="${headerSvg}" alt="${escapeHtml(currentPhase)}" />`
+      ? `<img class="kp-header__kami" src="${headerSvg}" alt="${escapeAttr(currentPhase)}" />`
       : `<span class="kp-header__icon">\uD83C\uDF31</span>`;
 
     $("plantName").textContent = plantName;
@@ -1052,11 +1134,16 @@ class KamerplanterPlantCard extends HTMLElement {
       if (progressHtml) {
         progressEl.innerHTML = progressHtml;
         progressEl.hidden = false;
+        // Click on the phase/progress opens the phase entity's more-info dialog.
+        const phaseEntityId = (phaseObj || timelineObj)?.entity_id;
+        this._makeMoreInfo(progressEl, phaseEntityId);
       } else {
         progressEl.hidden = true;
+        this._makeMoreInfo(progressEl, null);
       }
     } else {
       progressEl.hidden = true;
+      this._makeMoreInfo(progressEl, null);
     }
 
     /* Timeline */
@@ -1128,7 +1215,7 @@ class KamerplanterPlantCard extends HTMLElement {
     if (overallWeek != null) {
       html += `
         <div class="kp-stats__item">
-          <span class="kp-stats__value">${overallWeek}</span>
+          <span class="kp-stats__value">${safeNum(overallWeek)}</span>
           <span class="kp-stats__label">Gesamtwoche</span>
         </div>`;
     }
@@ -1136,7 +1223,7 @@ class KamerplanterPlantCard extends HTMLElement {
     if (phaseWeek != null) {
       html += `
         <div class="kp-stats__item">
-          <span class="kp-stats__value">${phaseWeek}</span>
+          <span class="kp-stats__value">${safeNum(phaseWeek)}</span>
           <span class="kp-stats__label">Phasenwoche</span>
         </div>`;
     }
@@ -1144,7 +1231,7 @@ class KamerplanterPlantCard extends HTMLElement {
     if (daysToHarvest != null) {
       html += `
         <div class="kp-stats__item kp-stats__item--harvest">
-          <span class="kp-stats__value">${daysToHarvest}<span class="kp-stats__unit">d</span></span>
+          <span class="kp-stats__value">${safeNum(daysToHarvest)}<span class="kp-stats__unit">d</span></span>
           <span class="kp-stats__label">bis Ernte</span>
         </div>`;
     }
@@ -1166,12 +1253,12 @@ class KamerplanterPlantCard extends HTMLElement {
     if (phaseWeek != null && plannedWeeks != null && plannedWeeks > 0) {
       const pct = Math.min(100, progressPct || 0);
       const infoText = daysInPhase != null
-        ? `Tag ${daysInPhase} / ${typicalDays || "?"}`
-        : `Woche ${phaseWeek} / ${plannedWeeks}`;
+        ? `Tag ${safeNum(daysInPhase)} / ${typicalDays ? safeNum(typicalDays) : "?"}`
+        : `Woche ${safeNum(phaseWeek)} / ${safeNum(plannedWeeks)}`;
       const remainText = remainingDays != null
-        ? `${remainingDays} ${remainingDays === 1 ? "Tag" : "Tage"} verbleibend`
+        ? `${safeNum(remainingDays)} ${remainingDays === 1 ? "Tag" : "Tage"} verbleibend`
         : remainingWeeks != null
-          ? `${remainingWeeks} ${remainingWeeks === 1 ? "Woche" : "Wochen"} verbleibend`
+          ? `${safeNum(remainingWeeks)} ${remainingWeeks === 1 ? "Woche" : "Wochen"} verbleibend`
           : "";
 
       return `
@@ -1195,12 +1282,12 @@ class KamerplanterPlantCard extends HTMLElement {
       const daysMod = daysInPhase % 7;
       const durationText = weeks > 0
         ? `${weeks} ${weeks === 1 ? "Woche" : "Wochen"}, ${daysMod} ${daysMod === 1 ? "Tag" : "Tage"}`
-        : `${daysInPhase} ${daysInPhase === 1 ? "Tag" : "Tage"}`;
+        : `${safeNum(daysInPhase)} ${daysInPhase === 1 ? "Tag" : "Tage"}`;
 
       return `
         <div class="kp-progress__header">
           <span class="kp-progress__phase">${escapeHtml(phaseLabel(currentPhase))}</span>
-          <span class="kp-progress__info">Tag ${daysInPhase}</span>
+          <span class="kp-progress__info">Tag ${safeNum(daysInPhase)}</span>
         </div>
         <div class="kp-progress__track">
           <div class="kp-progress__fill kp-progress__fill--indeterminate"></div>
@@ -1229,9 +1316,9 @@ class KamerplanterPlantCard extends HTMLElement {
         : `<span class="kp-next__arrow">\u2192</span>`;
 
       if (weeksUntilNext === 0) {
-        return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> hat begonnen (${nextPhaseWeeks} ${nextPhaseWeeks === 1 ? "Woche" : "Wochen"})</span>`;
+        return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> hat begonnen (${safeNum(nextPhaseWeeks)} ${nextPhaseWeeks === 1 ? "Woche" : "Wochen"})</span>`;
       }
-      return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> in ${weeksUntilNext} ${weeksUntilNext === 1 ? "Woche" : "Wochen"}</span>`;
+      return `${kamiImg}<span><strong>${escapeHtml(label)}</strong> in ${safeNum(weeksUntilNext)} ${weeksUntilNext === 1 ? "Woche" : "Wochen"}</span>`;
     }
 
     /* Fallback: simple next_phase sensor */
@@ -1269,7 +1356,7 @@ class KamerplanterPlantCard extends HTMLElement {
       const svg = kamiSvg(p.name);
       let marker = "";
       if (svg) {
-        marker = `<img src="${svg}" alt="${escapeHtml(p.name)}" />`;
+        marker = `<img src="${svg}" alt="${escapeAttr(p.name)}" />`;
       } else if (state === "completed") {
         marker = CHECK_SVG;
       } else if (state === "current") {
@@ -1286,7 +1373,7 @@ class KamerplanterPlantCard extends HTMLElement {
           <div class="kp-step__body">
             <span class="kp-step__name">${escapeHtml(phaseLabel(p.name))}</span>
             ${dateStr ? `<span class="kp-step__date">${fmtDateShort(dateStr)}</span>` : ""}
-            ${p.days != null ? `<span class="kp-step__duration">${p.days}d</span>` : ""}
+            ${p.days != null ? `<span class="kp-step__duration">${safeNum(p.days)}d</span>` : ""}
           </div>
         </div>
       `;
@@ -1306,7 +1393,7 @@ class KamerplanterPlantCard extends HTMLElement {
             ${escapeHtml(phaseLabel(p.name))}
           </span>
           <span class="kp-details__date">${fmtDate(p.started || p.date || "")}</span>
-          <span class="kp-details__days">${p.days != null ? `${p.days}d` : "\u2014"}</span>
+          <span class="kp-details__days">${p.days != null ? `${safeNum(p.days)}d` : "\u2014"}</span>
         </div>
       `;
     }
