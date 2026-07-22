@@ -1,3 +1,26 @@
+/* ================================================================== *
+ *  Helpers                                                            *
+ * ================================================================== */
+
+/**
+ * Escape a value for safe use in HTML text context (mirrors the pattern
+ * from plant-card.js). Uses the DOM to encode &, <, > entities.
+ */
+function escapeHtml(s) {
+  const el = document.createElement("span");
+  el.textContent = s == null ? "" : String(s);
+  return el.innerHTML;
+}
+
+/**
+ * Escape a value for safe use inside a double/single quoted HTML attribute.
+ * Extends escapeHtml by additionally encoding " and ' so backend-provided
+ * strings cannot break out of the attribute.
+ */
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 /**
  * ha-form ready singleton — waits for ha-form which transitively loads
  * ha-selector-entity → ha-entity-picker. No need to load ha-entity-picker
@@ -158,19 +181,27 @@ class KamerplanterTankCard extends HTMLElement {
     return parseFloat(s.state);
   }
 
-  _phColor(v) { if (v==null) return "#999"; if (v<5.5||v>6.5) return "#f44336"; if (v<5.8||v>6.3) return "#ff9800"; return "#4caf50"; }
-  _ecColor(v) { return v==null ? "#999" : "#1976d2"; }
-  _tempColor(v) { if (v==null) return "#999"; if (v<16||v>26) return "#f44336"; if (v<18||v>24) return "#ff9800"; return "#4caf50"; }
+  _phColor(v) { if (v==null) return "var(--disabled-text-color, #999)"; if (v<5.5||v>6.5) return "var(--error-color, #f44336)"; if (v<5.8||v>6.3) return "var(--warning-color, #ff9800)"; return "var(--success-color, #4caf50)"; }
+  _ecColor(v) { return v==null ? "var(--disabled-text-color, #999)" : "var(--info-color, #1976d2)"; }
+  _tempColor(v) { if (v==null) return "var(--disabled-text-color, #999)"; if (v<16||v>26) return "var(--error-color, #f44336)"; if (v<18||v>24) return "var(--warning-color, #ff9800)"; return "var(--success-color, #4caf50)"; }
 
   _buildTankSvg(ph, ec, temp, fillPct, cfg) {
     const showPh = cfg.show_ph_tank !== false && ph != null;
     const showEc = cfg.show_ec_tank !== false && ec != null;
     const showTemp = cfg.show_temp_tank !== false && temp != null;
-    const waterY = 180 - (fillPct / 100) * 140;
-    let waterFill = "rgba(3, 169, 244, 0.25)", waterLine = "rgba(3, 169, 244, 0.4)";
+    // WP-06: fill level is only known when both tank volume and last-fill
+    // volume are available. An unknown level is visualised as an empty,
+    // dashed tank with a "?" marker instead of a made-up 70 % fallback.
+    const known = fillPct != null && !Number.isNaN(fillPct);
+    const pct = known ? fillPct : 0;
+    const waterY = 180 - (pct / 100) * 140;
+    // Water tint is derived from pH; opacity is applied via SVG attributes so
+    // theme colour variables (with fallback) can be used directly (WP-09).
+    let waterColor = "var(--info-color, #03a9f4)";
     if (ph != null) {
-      if (ph >= 5.5 && ph <= 6.5) { waterFill = "rgba(76, 175, 80, 0.18)"; waterLine = "rgba(76, 175, 80, 0.35)"; }
-      else { waterFill = "rgba(244, 67, 54, 0.15)"; waterLine = "rgba(244, 67, 54, 0.3)"; }
+      waterColor = (ph >= 5.5 && ph <= 6.5)
+        ? "var(--success-color, #4caf50)"
+        : "var(--error-color, #f44336)";
     }
     const wy = waterY;
     const wave1 = `M 30 ${wy} Q 55 ${wy-5} 80 ${wy} Q 105 ${wy+5} 130 ${wy} Q 155 ${wy-5} 180 ${wy} L 180 200 L 30 200 Z`;
@@ -185,15 +216,25 @@ class KamerplanterTankCard extends HTMLElement {
       let startY = Math.max(wy + 12, 55);
       if (startY + totalH > 195) startY = 195 - totalH;
       let curY = startY;
-      for (const l of labels) { curY += l.size; insideLabels += `<text x="105" y="${curY}" text-anchor="middle" font-size="${l.size}" font-weight="${l.weight}" fill="${l.color}">${l.text}</text>`; curY += 4; }
+      for (const l of labels) { curY += l.size; insideLabels += `<text x="105" y="${curY}" text-anchor="middle" font-size="${l.size}" font-weight="${l.weight}" fill="${l.color}">${escapeHtml(l.text)}</text>`; curY += 4; }
     }
+    // Unknown fill without any metric labels: show a muted "?" so the tank is
+    // never silently rendered as empty-looking.
+    if (!known && !labels.length) {
+      insideLabels = `<text x="105" y="125" text-anchor="middle" font-size="44" font-weight="700" fill="var(--disabled-text-color, #9e9e9e)" opacity="0.55">?</text>`;
+    }
+    const tankStroke = "var(--divider-color, #bdbdbd)";
+    const outline = `<rect x="30" y="20" width="150" height="180" rx="12" ry="12" fill="none" stroke="${tankStroke}" stroke-width="3"${known ? "" : ' stroke-dasharray="6 5"'}/>`;
+    const waterPath = known
+      ? `<path d="${wave1}" fill="${waterColor}" fill-opacity="0.2" stroke="${waterColor}" stroke-opacity="0.4" stroke-width="1" clip-path="url(#tc)">
+        <animate attributeName="d" dur="3s" repeatCount="indefinite" values="${wave1};${wave2};${wave1}"/>
+      </path>`
+      : "";
     return `<svg viewBox="0 0 210 210" xmlns="http://www.w3.org/2000/svg" width="160" height="160">
       <defs><clipPath id="tc"><rect x="32" y="22" width="146" height="176" rx="10" ry="10"/></clipPath></defs>
-      <rect x="30" y="20" width="150" height="180" rx="12" ry="12" fill="none" stroke="#bdbdbd" stroke-width="3"/>
-      <path d="${wave1}" fill="${waterFill}" stroke="${waterLine}" stroke-width="1" clip-path="url(#tc)">
-        <animate attributeName="d" dur="3s" repeatCount="indefinite" values="${wave1};${wave2};${wave1}"/>
-      </path>
-      <rect x="60" y="12" width="90" height="12" rx="4" ry="4" fill="#e0e0e0" stroke="#bdbdbd" stroke-width="2"/>
+      ${outline}
+      ${waterPath}
+      <rect x="60" y="12" width="90" height="12" rx="4" ry="4" fill="var(--secondary-background-color, #e0e0e0)" stroke="${tankStroke}" stroke-width="2"/>
       ${insideLabels}
     </svg>`;
   }
@@ -221,24 +262,24 @@ class KamerplanterTankCard extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>
       :host { display: block; overflow: hidden; box-sizing: border-box; } ha-card { padding: 0; overflow: hidden; }
       .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
-      .title { font-size: 1.1em; font-weight: 500; }
-      .volume-badge { font-size: 0.8em; padding: 2px 10px; border-radius: 10px; background: #03a9f4; color: #fff; font-weight: 600; }
+      .title { font-size: 1.1em; font-weight: 500; color: var(--primary-text-color); }
+      .volume-badge { font-size: 0.8em; padding: 2px 10px; border-radius: 10px; background: var(--info-color, #03a9f4); color: var(--text-primary-color, #fff); font-weight: 600; }
       .card-content { padding: 8px 16px 16px; }
       .tank-container { display: flex; justify-content: center; padding: 4px 0 8px; }
       .badges { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
-      .badge { flex: 1; max-width: 110px; text-align: center; padding: 8px 6px; border-radius: 8px; background: #f5f5f5; border: 2px solid #e0e0e0; }
-      .badge-label { display: block; font-size: 0.7em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #757575; margin-bottom: 2px; }
+      .badge { flex: 1; max-width: 110px; text-align: center; padding: 8px 6px; border-radius: 8px; background: var(--secondary-background-color, #f5f5f5); border: 2px solid var(--divider-color, #e0e0e0); }
+      .badge-label { display: block; font-size: 0.7em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--secondary-text-color, #757575); margin-bottom: 2px; }
       .badge-value { font-size: 1.2em; font-weight: 700; }
-      .badge-value small { font-size: 0.65em; font-weight: 500; color: #757575; }
-      .fill-section { padding-top: 10px; border-top: 1px solid #e0e0e0; }
+      .badge-value small { font-size: 0.65em; font-weight: 500; color: var(--secondary-text-color, #757575); }
+      .fill-section { padding-top: 10px; border-top: 1px solid var(--divider-color, #e0e0e0); }
       .fill-row { display: flex; align-items: center; gap: 8px; }
       .fill-icon { flex-shrink: 0; }
       .fill-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-      .fill-text strong { font-size: 0.85em; font-weight: 600; }
-      .fill-date { font-size: 0.78em; color: #757575; }
-      .fill-age-badge { font-size: 0.75em; padding: 2px 8px; border-radius: 10px; background: #f5f5f5; color: #757575; white-space: nowrap; flex-shrink: 0; }
+      .fill-text strong { font-size: 0.85em; font-weight: 600; color: var(--primary-text-color); }
+      .fill-date { font-size: 0.78em; color: var(--secondary-text-color, #757575); }
+      .fill-age-badge { font-size: 0.75em; padding: 2px 8px; border-radius: 10px; background: var(--secondary-background-color, #f5f5f5); color: var(--secondary-text-color, #757575); white-space: nowrap; flex-shrink: 0; }
       .fill-details-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-left: 24px; }
-      .fill-detail { font-size: 0.75em; padding: 2px 8px; border-radius: 4px; background: #f5f5f5; }
+      .fill-detail { font-size: 0.75em; padding: 2px 8px; border-radius: 4px; background: var(--secondary-background-color, #f5f5f5); color: var(--primary-text-color); }
     </style>
     <ha-card>
       <div class="card-header"><span class="title">N\u00e4hrstoff-Tank</span><span class="volume-badge">50 L</span></div>
@@ -246,7 +287,7 @@ class KamerplanterTankCard extends HTMLElement {
         <div class="tank-container">${tankSvg}</div>
         ${badgesHtml}
         <div class="fill-section"><div class="fill-row">
-          <svg class="fill-icon" width="16" height="16" viewBox="0 0 24 24" fill="#03a9f4"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2C20 10.48 17.33 6.55 12 2z"/></svg>
+          <svg class="fill-icon" width="16" height="16" viewBox="0 0 24 24" fill="var(--info-color, #03a9f4)"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2C20 10.48 17.33 6.55 12 2z"/></svg>
           <span class="fill-text"><strong>Komplettwechsel</strong><span class="fill-date">02.04.2026 14:30</span></span>
           <span class="fill-age-badge">vor 3 Tagen</span>
         </div><div class="fill-details-row"><span class="fill-detail">50 L</span><span class="fill-detail">pH 5.8</span><span class="fill-detail">EC 1.40</span><span class="fill-detail">3 D\u00fcnger</span></div></div>
@@ -263,14 +304,18 @@ class KamerplanterTankCard extends HTMLElement {
       return;
     }
     if (!this._config || !this._config.tank_entity) {
-      this.shadowRoot.innerHTML = `<ha-card><div style="padding:16px;color:#f44336">Kein Tank konfiguriert</div></ha-card>`;
+      // Not-yet-configured is a hint, not an error: use the HA warning banner.
+      this.shadowRoot.innerHTML = `<ha-card><hui-warning>Kein Tank konfiguriert</hui-warning></ha-card>`;
       return;
     }
     if (!this._hass) return;
     const cfg = this._config;
     const tankState = this._hass.states[cfg.tank_entity];
     if (!tankState) {
-      this.shadowRoot.innerHTML = `<ha-card><div style="padding:16px;color:#f44336">Entity ${cfg.tank_entity} nicht gefunden</div></ha-card>`; return;
+      // WP-06: surface a missing entity via the HA-conform hui-warning banner
+      // (createEntityNotFoundWarning analogue) instead of raw red text.
+      this.shadowRoot.innerHTML = `<ha-card><hui-warning>${escapeHtml(`Entity ${cfg.tank_entity} nicht gefunden`)}</hui-warning></ha-card>`;
+      return;
     }
     const attrs = tankState.attributes;
     const title = cfg.title || attrs.friendly_name || "Tank";
@@ -285,21 +330,29 @@ class KamerplanterTankCard extends HTMLElement {
     const ph = this._sensorVal(cfg.ph_entity || attrs.ha_ph_entity_id || "");
     const ec = this._sensorVal(cfg.ec_entity || attrs.ha_ec_entity_id || "");
     const temp = this._sensorVal(cfg.temp_entity || attrs.ha_temp_entity_id || "");
-    let fillPct = 70;
-    if (volume && lastFillVolume) fillPct = Math.min(100, Math.round((lastFillVolume / volume) * 100));
+    // WP-06: only compute a real fill percentage; leave it unknown (null) when
+    // the tank volume or last-fill volume is missing \u2014 no fantasy 70 % fallback.
+    let fillPct = null;
+    if (volume && lastFillVolume) {
+      fillPct = Math.min(100, Math.round((Number(lastFillVolume) / Number(volume)) * 100));
+    }
     const fillTypeLabels = { full_change: "Komplettwechsel", top_up: "Nachf\u00fcllen", adjustment: "Korrektur" };
     const tankSvg = this._buildTankSvg(ph, ec, temp, fillPct, cfg);
     const badgesHtml = this._buildBadges(ph, ec, temp, cfg);
     let fillHtml = "";
     if (lastFillAt) {
-      const ageLabel = daysSince === 0 ? "heute" : daysSince === 1 ? "gestern" : `vor ${daysSince} Tagen`;
+      // daysSince is coerced to a number so a malicious attribute cannot inject
+      // markup through the age label.
+      const ageLabel = daysSince === 0 ? "heute" : daysSince === 1 ? "gestern" : `vor ${Number(daysSince)} Tagen`;
       let details = "";
-      if (lastFillVolume) details += `<span class="fill-detail">${lastFillVolume} L</span>`;
-      if (lastFillPh != null) details += `<span class="fill-detail">pH ${lastFillPh}</span>`;
-      if (lastFillEc != null) details += `<span class="fill-detail">EC ${lastFillEc}</span>`;
-      if (fertCount) details += `<span class="fill-detail">${fertCount} D\u00fcnger</span>`;
+      // last_fill_* values are backend-provided; force them to numbers before
+      // interpolation (WP-01). fillTypeLabels only ever yields a fixed literal.
+      if (lastFillVolume) details += `<span class="fill-detail">${Number(lastFillVolume)} L</span>`;
+      if (lastFillPh != null) details += `<span class="fill-detail">pH ${Number(lastFillPh)}</span>`;
+      if (lastFillEc != null) details += `<span class="fill-detail">EC ${Number(lastFillEc)}</span>`;
+      if (fertCount) details += `<span class="fill-detail">${Number(fertCount)} D\u00fcnger</span>`;
       fillHtml = `<div class="fill-section"><div class="fill-row">
-        <svg class="fill-icon" width="16" height="16" viewBox="0 0 24 24" fill="#03a9f4"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2C20 10.48 17.33 6.55 12 2z"/></svg>
+        <svg class="fill-icon" width="16" height="16" viewBox="0 0 24 24" fill="var(--info-color, #03a9f4)"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2C20 10.48 17.33 6.55 12 2z"/></svg>
         <span class="fill-text"><strong>${fillTypeLabels[lastFillType] || "Bef\u00fcllung"}</strong><span class="fill-date">${this._formatDate(lastFillAt)}</span></span>
         <span class="fill-age-badge">${ageLabel}</span>
       </div>${details ? `<div class="fill-details-row">${details}</div>` : ""}</div>`;
@@ -307,28 +360,28 @@ class KamerplanterTankCard extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>
       :host { display: block; overflow: hidden; box-sizing: border-box; } ha-card { padding: 0; overflow: hidden; }
       .card-header { padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
-      .title { font-size: 1.1em; font-weight: 500; }
-      .volume-badge { font-size: 0.8em; padding: 2px 10px; border-radius: 10px; background: #03a9f4; color: #fff; font-weight: 600; }
+      .title { font-size: 1.1em; font-weight: 500; color: var(--primary-text-color); }
+      .volume-badge { font-size: 0.8em; padding: 2px 10px; border-radius: 10px; background: var(--info-color, #03a9f4); color: var(--text-primary-color, #fff); font-weight: 600; }
       .card-content { padding: 8px 16px 16px; }
       .tank-container { display: flex; justify-content: center; padding: 4px 0 8px; }
       .badges { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
-      .badge { flex: 1; max-width: 110px; text-align: center; padding: 8px 6px; border-radius: 8px; background: #f5f5f5; border: 2px solid #e0e0e0; }
-      .badge-label { display: block; font-size: 0.7em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #757575; margin-bottom: 2px; }
+      .badge { flex: 1; max-width: 110px; text-align: center; padding: 8px 6px; border-radius: 8px; background: var(--secondary-background-color, #f5f5f5); border: 2px solid var(--divider-color, #e0e0e0); }
+      .badge-label { display: block; font-size: 0.7em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--secondary-text-color, #757575); margin-bottom: 2px; }
       .badge-value { font-size: 1.2em; font-weight: 700; }
-      .badge-value small { font-size: 0.65em; font-weight: 500; color: #757575; }
-      .fill-section { padding-top: 10px; border-top: 1px solid #e0e0e0; }
+      .badge-value small { font-size: 0.65em; font-weight: 500; color: var(--secondary-text-color, #757575); }
+      .fill-section { padding-top: 10px; border-top: 1px solid var(--divider-color, #e0e0e0); }
       .fill-row { display: flex; align-items: center; gap: 8px; }
       .fill-icon { flex-shrink: 0; }
       .fill-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-      .fill-text strong { font-size: 0.85em; font-weight: 600; }
-      .fill-date { font-size: 0.78em; color: #757575; }
-      .fill-age-badge { font-size: 0.75em; padding: 2px 8px; border-radius: 10px; background: #f5f5f5; color: #757575; white-space: nowrap; flex-shrink: 0; }
+      .fill-text strong { font-size: 0.85em; font-weight: 600; color: var(--primary-text-color); }
+      .fill-date { font-size: 0.78em; color: var(--secondary-text-color, #757575); }
+      .fill-age-badge { font-size: 0.75em; padding: 2px 8px; border-radius: 10px; background: var(--secondary-background-color, #f5f5f5); color: var(--secondary-text-color, #757575); white-space: nowrap; flex-shrink: 0; }
       .fill-details-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-left: 24px; }
-      .fill-detail { font-size: 0.75em; padding: 2px 8px; border-radius: 4px; background: #f5f5f5; }
-      .no-data { font-size: 0.85em; color: #757575; font-style: italic; text-align: center; padding: 8px 0; }
+      .fill-detail { font-size: 0.75em; padding: 2px 8px; border-radius: 4px; background: var(--secondary-background-color, #f5f5f5); color: var(--primary-text-color); }
+      .no-data { font-size: 0.85em; color: var(--secondary-text-color, #757575); font-style: italic; text-align: center; padding: 8px 0; }
     </style>
     <ha-card>
-      <div class="card-header"><span class="title">${title}</span>${volume ? `<span class="volume-badge">${volume} L</span>` : ""}</div>
+      <div class="card-header"><span class="title">${escapeHtml(title)}</span>${volume ? `<span class="volume-badge">${Number(volume)} L</span>` : ""}</div>
       <div class="card-content"><div class="tank-container">${tankSvg}</div>${badgesHtml}${fillHtml}</div>
     </ha-card>`;
   }
