@@ -271,6 +271,13 @@ const CARD_STYLES = `
     overflow: hidden;
     box-sizing: border-box;
   }
+  /* Collapse the trailing margin of the last *visible* section so the card does
+     not reserve empty space below it (issue #64). Sections are toggled via the
+     [hidden] attribute, so target the last child that has no following visible
+     sibling rather than the last DOM child (which may itself be hidden). */
+  .kp-content > *:not([hidden]):not(:has(~ *:not([hidden]))) {
+    margin-bottom: 0;
+  }
 
   /* ---- Clickable (more-info) ---- */
   .kp-clickable {
