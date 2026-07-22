@@ -19,6 +19,7 @@ async def test_diagnostics_redaction(hass) -> None:
         "runs": MagicMock(data=[], update_interval=MagicMock(total_seconds=MagicMock(return_value=300))),
         "alerts": MagicMock(data=[], update_interval=MagicMock(total_seconds=MagicMock(return_value=60))),
         "tasks": MagicMock(data=[], update_interval=MagicMock(total_seconds=MagicMock(return_value=300))),
+        "weather": MagicMock(data=[], update_interval=MagicMock(total_seconds=MagicMock(return_value=1800))),
     }
 
     mock_runtime = MagicMock()
@@ -42,3 +43,4 @@ async def test_diagnostics_redaction(hass) -> None:
     # Counts must be present
     assert result["plant_count"] == 0
     assert result["location_count"] == 0
+    assert result["site_weather_count"] == 0

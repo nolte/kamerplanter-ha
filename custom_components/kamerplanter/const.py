@@ -29,6 +29,8 @@ DEFAULT_POLL_LOCATIONS: Final = 300
 DEFAULT_POLL_ALERTS: Final = 60
 DEFAULT_POLL_TASKS: Final = 300
 DEFAULT_POLL_IPM: Final = 120
+# Weather changes slowly; one forecast read per site every 30 min is ample.
+DEFAULT_POLL_WEATHER: Final = 1800
 
 # Minimum polling intervals (seconds)
 MIN_POLL_ALERTS: Final = 30
@@ -36,6 +38,7 @@ MIN_POLL_PLANTS: Final = 120
 MIN_POLL_LOCATIONS: Final = 120
 MIN_POLL_TASKS: Final = 120
 MIN_POLL_IPM: Final = 60
+MIN_POLL_WEATHER: Final = 600
 
 # Options keys
 CONF_POLL_PLANTS: Final = "poll_interval_plants"
@@ -43,6 +46,7 @@ CONF_POLL_LOCATIONS: Final = "poll_interval_locations"
 CONF_POLL_ALERTS: Final = "poll_interval_alerts"
 CONF_POLL_TASKS: Final = "poll_interval_tasks"
 CONF_POLL_IPM: Final = "poll_interval_ipm"
+CONF_POLL_WEATHER: Final = "poll_interval_weather"
 
 # Platforms
 PLATFORMS: Final = [

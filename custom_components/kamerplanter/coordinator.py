@@ -16,18 +16,25 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .api import KamerplanterApi, KamerplanterAuthError, KamerplanterConnectionError
+from .api import (
+    KamerplanterApi,
+    KamerplanterApiError,
+    KamerplanterAuthError,
+    KamerplanterConnectionError,
+)
 from .const import (
     CONF_POLL_ALERTS,
     CONF_POLL_IPM,
     CONF_POLL_LOCATIONS,
     CONF_POLL_PLANTS,
     CONF_POLL_TASKS,
+    CONF_POLL_WEATHER,
     DEFAULT_POLL_ALERTS,
     DEFAULT_POLL_IPM,
     DEFAULT_POLL_LOCATIONS,
     DEFAULT_POLL_PLANTS,
     DEFAULT_POLL_TASKS,
+    DEFAULT_POLL_WEATHER,
     DOMAIN,
     EVENT_IPM_ALERT,
     TANK_HOLDER_MARKER,
@@ -815,3 +822,75 @@ class KamerplanterIpmCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
                     },
                 )
         self._prev_pressure = current
+
+
+class KamerplanterWeatherCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
+    """Coordinator for the per-site weather forecast + proactive frost warning.
+
+    Reads ``GET /sites/{site_key}/weather-forecast`` once per site (issue #53).
+    The per-location frost endpoint no longer carries the proactive forecast
+    fields, so a site with N locations no longer triggers N identical forecast
+    reads — reading per site is the efficiency win that backend change enabled.
+
+    Weather changes slowly, hence a much longer default poll interval than the
+    other coordinators. One record per site, keyed by ``key`` so the frost
+    sensors reuse ``find_by_key``. Sites are not subject to the HA-publish
+    opt-in gate (there is no ``site`` published-key type), so every site with a
+    reachable forecast surfaces a frost sensor.
+    """
+
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, api: KamerplanterApi
+    ) -> None:
+        interval = entry.options.get(CONF_POLL_WEATHER, DEFAULT_POLL_WEATHER)
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_weather",
+            config_entry=entry,
+            update_interval=timedelta(seconds=interval),
+            always_update=False,
+        )
+        self.api = api
+
+    async def _async_update_data(self) -> list[dict[str, Any]]:
+        try:
+            async with asyncio.timeout(30):
+                sites = await self.api.async_get_sites()
+                records = await asyncio.gather(
+                    *(self._build_site_record(site) for site in sites),
+                    return_exceptions=True,
+                )
+                return [r for r in records if isinstance(r, dict)]
+        except TimeoutError as err:
+            raise UpdateFailed("API request timed out") from err
+        except KamerplanterAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        except KamerplanterConnectionError as err:
+            raise UpdateFailed(str(err)) from err
+
+    async def _build_site_record(self, site: dict[str, Any]) -> dict[str, Any]:
+        """Read one site's forecast into a flat frost-summary record.
+
+        A per-site forecast error is non-fatal: the site still yields a record
+        with ``None`` frost fields (sensor state ``unknown``) so a transient
+        error does not make the entity disappear.
+        """
+        site_key = site.get("key") or site.get("_key", "")
+        if not site_key:
+            # Isolated by the caller's gather; only this malformed site is skipped.
+            raise UpdateFailed("Site is missing its key")
+        try:
+            forecast = await self.api.async_get_site_weather_forecast(site_key)
+        except KamerplanterApiError:
+            forecast = None
+        forecast = forecast or {}
+        return {
+            "key": site_key,
+            "name": site.get("name", site_key),
+            "type": site.get("type"),
+            "frost_warning": forecast.get("forecast_frost_warning"),
+            "min_temperature": forecast.get("forecast_min_temperature"),
+            "expected_date": forecast.get("forecast_expected_date"),
+            "source": forecast.get("forecast_source"),
+        }
