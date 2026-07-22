@@ -168,6 +168,10 @@ class KamerplanterCareCard extends HTMLElement {
       entity_overdue: config.entity_overdue || "sensor.kamerplanter_tasks_overdue",
     };
     this._rendered = false;
+    // State-basierter Doppelklick-/Race-Schutz: haelt die task_keys, deren
+    // start/complete/skip-Service gerade laeuft. Ueberlebt ein Re-Render (der
+    // DOM-`disabled`-Flags verwirft), weil _buildActionButtons ihn abfragt.
+    this._pendingActions = this._pendingActions || new Set();
   }
 
   getCardSize() {
@@ -264,19 +268,23 @@ class KamerplanterCareCard extends HTMLElement {
   _buildActionButtons(task) {
     const taskKey = this._escapeAttr(task.task_key || "");
     if (!taskKey) return "";
+    // Laeuft fuer diese Aufgabe bereits ein Service-Call, werden die Buttons
+    // auch nach einem Re-Render deaktiviert gerendert (State-basierter Schutz).
+    const pending = this._pendingActions && this._pendingActions.has(task.task_key);
+    const disabledAttr = pending ? "disabled" : "";
     const started = this._isTaskStarted(task);
     const startBtn = started
       ? ""
-      : `<button class="action-btn start-btn" data-action="start" data-task-key="${taskKey}" title="Starten">
+      : `<button class="action-btn start-btn" data-action="start" data-task-key="${taskKey}" title="Starten" ${disabledAttr}>
            <ha-icon icon="mdi:play" class="btn-icon"></ha-icon>
          </button>`;
     return `
       <div class="task-actions">
         ${startBtn}
-        <button class="action-btn complete-btn" data-action="complete" data-task-key="${taskKey}" title="Erledigt">
+        <button class="action-btn complete-btn" data-action="complete" data-task-key="${taskKey}" title="Erledigt" ${disabledAttr}>
           <ha-icon icon="mdi:check" class="btn-icon"></ha-icon>
         </button>
-        <button class="action-btn skip-btn" data-action="skip" data-task-key="${taskKey}" title="Überspringen">
+        <button class="action-btn skip-btn" data-action="skip" data-task-key="${taskKey}" title="Überspringen" ${disabledAttr}>
           <ha-icon icon="mdi:skip-next" class="btn-icon"></ha-icon>
         </button>
       </div>
@@ -291,6 +299,19 @@ class KamerplanterCareCard extends HTMLElement {
 
   _escapeAttr(str) {
     return String(str).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  /**
+   * Ein Sensor gilt als gestoert, wenn sein State-Objekt fehlt oder HA ihn als
+   * `unavailable`/`unknown` meldet. Solche Zustaende duerfen NICHT als
+   * "Alles erledigt!" interpretiert werden (False-Positive-Erfolg).
+   */
+  _isUnavailable(stateObj) {
+    return (
+      !stateObj ||
+      stateObj.state === "unavailable" ||
+      stateObj.state === "unknown"
+    );
   }
 
   _renderPreview() {
@@ -319,7 +340,8 @@ class KamerplanterCareCard extends HTMLElement {
         .action-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; min-width: 34px; border-radius: 50%; border: none; cursor: pointer; color: #fff; }
         .start-btn { background-color: var(--primary-color, #03a9f4); }
         .complete-btn { background-color: var(--success-color, #4caf50); }
-        .skip-btn { background-color: var(--secondary-text-color, #9e9e9e); }
+        .skip-btn { background-color: var(--secondary-background-color, #e0e0e0); }
+        .skip-btn .btn-icon { color: var(--secondary-text-color); }
         .btn-icon { --mdc-icon-size: 18px; color: #fff; }
       </style>
       <ha-card>
@@ -384,6 +406,12 @@ class KamerplanterCareCard extends HTMLElement {
 
     const overdueState = this._hass.states[this._config.entity_overdue];
     const dueTodayState = this._hass.states[this._config.entity_due];
+
+    // Stoerung (fehlender/unavailable/unknown Sensor) explizit von "wirklich
+    // leer" unterscheiden: liefert mindestens ein Aggregat-Sensor keine
+    // belastbaren Daten, darf der Erfolgs-Empty-State nicht erscheinen.
+    const dataUnavailable =
+      this._isUnavailable(overdueState) || this._isUnavailable(dueTodayState);
 
     const overdueTasks =
       overdueState && overdueState.attributes
@@ -454,6 +482,9 @@ class KamerplanterCareCard extends HTMLElement {
         }
         .badge-ok {
           background-color: var(--success-color, #4caf50);
+        }
+        .badge-warn {
+          background-color: var(--warning-color, #ff9800);
         }
         .section-label {
           font-size: 0.75rem;
@@ -548,10 +579,20 @@ class KamerplanterCareCard extends HTMLElement {
           background-color: var(--success-color, #4caf50);
         }
         .skip-btn {
-          background-color: var(--secondary-text-color, #9e9e9e);
+          /* Theme-taugliche Flaeche: --secondary-background-color kontrastiert
+             in Light- UND Dark-Mode zuverlaessig mit --secondary-text-color
+             (Icon-Farbe unten), anders als die frueher genutzte Textfarbe mit
+             weissem Icon. */
+          background-color: var(--secondary-background-color, #e0e0e0);
+        }
+        .skip-btn .btn-icon {
+          color: var(--secondary-text-color);
         }
         .skip-btn.confirm {
           background-color: var(--warning-color, #ff9800);
+        }
+        .skip-btn.confirm .btn-icon {
+          color: #fff;
         }
         .btn-icon {
           --mdc-icon-size: 18px;
@@ -578,21 +619,53 @@ class KamerplanterCareCard extends HTMLElement {
         .empty-state .subtitle {
           font-size: 0.85rem;
         }
+        .warning-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 24px 16px;
+          color: var(--secondary-text-color);
+          text-align: center;
+        }
+        .warning-state ha-icon {
+          --mdc-icon-size: 48px;
+          color: var(--warning-color, #ff9800);
+          margin-bottom: 12px;
+        }
+        .warning-state .title {
+          font-size: 1rem;
+          font-weight: 500;
+          margin-bottom: 4px;
+          color: var(--primary-text-color);
+        }
+        .warning-state .subtitle {
+          font-size: 0.85rem;
+        }
       </style>
       <ha-card>
         <div class="header">
           <span class="header-title">${this._escapeHtml(this._config.title)}</span>
           ${
-            overdueCount > 0
-              ? `<span class="badge badge-overdue">${overdueCount}</span>`
-              : dueCount > 0
-                ? `<span class="badge badge-due">${dueCount}</span>`
-                : `<span class="badge badge-ok">0</span>`
+            dataUnavailable && !hasData
+              ? `<span class="badge badge-warn">!</span>`
+              : overdueCount > 0
+                ? `<span class="badge badge-overdue">${overdueCount}</span>`
+                : dueCount > 0
+                  ? `<span class="badge badge-due">${dueCount}</span>`
+                  : `<span class="badge badge-ok">0</span>`
           }
         </div>
         ${
           !hasData
-            ? `
+            ? dataUnavailable
+              ? `
+          <div class="warning-state">
+            <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
+            <div class="title">Pflegedaten nicht verfügbar</div>
+            <div class="subtitle">Die Aufgaben-Sensoren sind derzeit nicht erreichbar.</div>
+          </div>
+        `
+              : `
           <div class="empty-state">
             <ha-icon icon="mdi:check-circle-outline"></ha-icon>
             <div class="title">Alles erledigt!</div>
@@ -650,6 +723,10 @@ class KamerplanterCareCard extends HTMLElement {
     const taskKey = btn.dataset.taskKey;
     if (!action || !taskKey || !this._hass) return;
 
+    // State-basierter Race-Schutz: laeuft fuer diese Aufgabe bereits ein
+    // Service-Call, wird jeder weitere Tap (auch das Skip-Armen) ignoriert.
+    if (this._pendingActions && this._pendingActions.has(taskKey)) return;
+
     // Skip is destructive on a touch dashboard, so require a two-tap confirm:
     // the first tap arms the button (icon + colour change), a second tap within
     // the timeout actually skips. start/complete execute on the first tap.
@@ -683,6 +760,18 @@ class KamerplanterCareCard extends HTMLElement {
   }
 
   _executeAction(btn, action, taskKey) {
+    this._pendingActions = this._pendingActions || new Set();
+    // State-basierter Doppelklick-Schutz: eine bereits laufende Aufgabe wird
+    // nicht erneut ausgeloest (ueberlebt auch ein zwischenzeitliches Re-Render).
+    if (this._pendingActions.has(taskKey)) return;
+    this._pendingActions.add(taskKey);
+
+    // Ein evtl. armiertes Skip-Confirm zuruecksetzen, damit die Zeile einen
+    // sauberen Spinner zeigt und kein Timer spaeter das Icon ueberschreibt.
+    if (this._skipTimers) clearTimeout(this._skipTimers.get(btn));
+    btn.classList.remove("confirm");
+    btn.dataset.confirm = "";
+
     // Optimistic UI: disable every button in the row so the task cannot be
     // double-actioned while the coordinator refresh is in flight. The card
     // re-renders from live sensor data once the status changes.
@@ -695,7 +784,59 @@ class KamerplanterCareCard extends HTMLElement {
     btn.innerHTML = '<ha-icon icon="mdi:check-all" class="btn-icon"></ha-icon>';
 
     const service = `${action}_task`;
-    this._hass.callService("kamerplanter", service, { task_key: taskKey });
+    // Den Promise auswerten: bei Erfolg raeumt der Live-State-Refresh die Zeile
+    // auf; bei Fehler werden Buttons re-aktiviert, das Original-Icon wieder-
+    // hergestellt und der Nutzer per Notification informiert (kein stiller Erfolg).
+    this._hass
+      .callService("kamerplanter", service, { task_key: taskKey })
+      .then(() => {
+        this._pendingActions.delete(taskKey);
+      })
+      .catch((err) => {
+        this._pendingActions.delete(taskKey);
+        this._handleActionError(btn, action, row, err);
+      });
+  }
+
+  /** Standard-Icon (ungestoerter Zustand) je Aktionstyp. */
+  _actionIcon(action) {
+    const map = { start: "mdi:play", complete: "mdi:check", skip: "mdi:skip-next" };
+    return map[action] || "mdi:check";
+  }
+
+  /** Menschenlesbarer Aktionsname fuer Titel und Fehlermeldung. */
+  _actionTitle(action) {
+    const map = { start: "Starten", complete: "Erledigt", skip: "Überspringen" };
+    return map[action] || action;
+  }
+
+  /**
+   * Schlaegt ein Service-Call fehl: die ganze Zeile wieder aktivieren, das
+   * geklickte Button-Icon auf seinen Ausgangszustand zuruecksetzen und den
+   * Fehler ueber ein `hass-notification`-Event sichtbar machen.
+   */
+  _handleActionError(btn, action, row, err) {
+    if (row) {
+      row.querySelectorAll(".action-btn").forEach((b) => {
+        b.disabled = false;
+      });
+    }
+    if (btn && btn.isConnected) {
+      btn.disabled = false;
+      btn.classList.remove("confirm");
+      btn.dataset.confirm = "";
+      btn.title = this._actionTitle(action);
+      btn.innerHTML = `<ha-icon icon="${this._actionIcon(action)}" class="btn-icon"></ha-icon>`;
+    }
+    const message = err && err.message ? err.message : String(err || "Unbekannter Fehler");
+    this._showError(`Aktion "${this._actionTitle(action)}" fehlgeschlagen: ${message}`);
+  }
+
+  /** Fehler-Feedback an den Nutzer via HA-Notification-Toast. */
+  _showError(message) {
+    const event = new Event("hass-notification", { bubbles: true, composed: true });
+    event.detail = { message };
+    this.dispatchEvent(event);
   }
 }
 
