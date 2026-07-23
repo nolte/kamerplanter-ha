@@ -4,7 +4,7 @@ audience:
   - maintainers
 content_mode: explanation
 track: developer-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Architecture
 
@@ -20,6 +20,7 @@ flowchart TB
         API --> C4["Alert Coordinator"]
         API --> C5["Task Coordinator"]
         API --> C6["IPM Coordinator"]
+        API --> C7["Weather Coordinator"]
         C1 --> S["Sensors\nsensor.py"]
         C1 --> BS["Binary Sensors\nbinary_sensor.py"]
         C2 --> S
@@ -27,6 +28,7 @@ flowchart TB
         C4 --> BS
         C6 --> S
         C6 --> BS
+        C7 --> BS
         C5 --> CAL["Calendar\ncalendar.py"]
         C5 --> TODO["Todo\ntodo.py"]
         S --> CARDS["Lovelace Cards\nwww/*.js"]
@@ -53,7 +55,7 @@ Data flows in one direction. The chain has four stages:
 
 ### Coordinators (`coordinator.py`)
 
-Six `DataUpdateCoordinator` ([HA's built-in polling manager](https://developers.home-assistant.io/docs/integration_fetching_data/)) instances with independent polling intervals:
+Seven `DataUpdateCoordinator` ([HA's built-in polling manager](https://developers.home-assistant.io/docs/integration_fetching_data/)) instances with independent polling intervals:
 
 | Coordinator | Data | Default Interval |
 |-------------|------|-----------------|
@@ -62,9 +64,10 @@ Six `DataUpdateCoordinator` ([HA's built-in polling manager](https://developers.
 | **Run** | Planting runs, run status, plant counts | 300s |
 | **Alert** | Overdue tasks, sensor status | 60s |
 | **Task** | Pending tasks | 300s |
-| **IPM** | Pest pressure, waiting period, harvest safety | 120s |
+| **IPM** (Integrated Pest Management) | Pest pressure, waiting period, harvest safety | 120s |
+| **Weather** | Per-site frost forecast | 1800s |
 
-!!! info "Why 6 coordinators?"
+!!! info "Why 7 coordinators?"
     Separating concerns lets the integration poll time-critical alerts (60s) more frequently than master data (300s). Each coordinator has its own error counter and recovery mechanism.
 
 ### Entity Platforms
@@ -72,7 +75,7 @@ Six `DataUpdateCoordinator` ([HA's built-in polling manager](https://developers.
 | File | Platform | Entities | Coordinators |
 |------|----------|----------|----------------|
 | `sensor.py` | `sensor` | Plants, runs, locations, tanks, server | Plant, Location, Run, IPM |
-| `binary_sensor.py` | `binary_sensor` | Attention, care, sensor status | Alert, IPM |
+| `binary_sensor.py` | `binary_sensor` | Attention, care, sensor status, frost | Alert, IPM, Weather |
 | `calendar.py` | `calendar` | Phases, tasks | Plant, Task |
 | `todo.py` | `todo` | Task list | Task |
 | `button.py` | `button` | Refresh all | — |

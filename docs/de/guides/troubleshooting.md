@@ -5,7 +5,7 @@ audience:
   - ha-end-users
 content_mode: troubleshooting
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Fehlerbehebung
 
@@ -14,7 +14,7 @@ last_updated: 2026-06-24
 | Fehler | Ursache | Lösung |
 |--------|---------|---------|
 | "Kamerplanter nicht erreichbar" | Backend offline oder URL falsch | URL prüfen, Backend starten |
-| "API-Key ungültig" | Key revoked oder falsch | Neuen API-Key in Kamerplanter generieren, dann [erneut authentifizieren](setup.md#erneute-authentifizierung-neukonfiguration) |
+| "API-Key ungültig" | Key widerrufen oder falsch | Neuen API-Key in Kamerplanter generieren, dann [erneut authentifizieren](setup.md#erneute-authentifizierung-neukonfiguration) |
 | Entity zeigt "unavailable" | Coordinator-Update fehlgeschlagen | Logs prüfen, Polling-Intervall erhöhen |
 | Integration lädt nicht | Verzeichnisstruktur falsch | Pfad prüfen: `custom_components/kamerplanter/manifest.json` |
 | Entities fehlen nach Update | Cache veraltet | Service [`kamerplanter.clear_cache`](services.md#kamerplanterclear_cache) aufrufen |

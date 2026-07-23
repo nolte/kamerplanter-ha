@@ -74,3 +74,13 @@ Key backend paths for reference (read-only):
 
 Source code MUST be in **English** (variable names, class names, function names, strings.json keys).
 Documentation and comments may be in German.
+
+## Documentation Conventions
+
+- **Anrede (DE docs):** The German documentation under `docs/de/` deliberately uses the
+  informal **"du"** address throughout — including on `reference` pages — to match the
+  Home-Assistant hobbyist audience. This is an intentional house-style override of the
+  generic lektorat "Sie"/impersonal rule; lektorat findings that flag "du" on how-to or
+  reference pages are expected and should not be "fixed".
+- **Coordinator plural (DE):** use the loanword form **"Coordinators"** (not "Coordinatoren")
+  consistently across the docs.

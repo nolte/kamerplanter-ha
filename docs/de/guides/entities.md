@@ -5,11 +5,11 @@ audience:
   - self-hosting-admin
 content_mode: reference
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Entities
 
-Die Integration legt Entities für dich an. Du bekommst je einen Satz pro gewählter Pflanze, pro Standort und pro Tank. Jede Entity gehört zu einem der [6 Coordinators](../development/architecture.md#coordinators-coordinatorpy). Sie wird in dessen Polling-Intervall aktualisiert.
+Die Integration legt Entities für dich an. Du bekommst je einen Satz pro gewählter Pflanze, pro Standort und pro Tank. Jede Entity gehört zu einem der [7 Coordinators](../development/architecture.md#coordinators-coordinatorpy). Sie wird in dessen Polling-Intervall aktualisiert.
 
 ---
 
@@ -133,8 +133,12 @@ Die Integration legt Entities für dich an. Du bekommst je einen Satz pro gewäh
 | `binary_sensor.kp_loc_{key}_needs_attention` | Standort hat überfällige Aufgaben | Alert |
 | `binary_sensor.kp_sensor_offline` | Mindestens ein Sensor offline | Alert |
 | `binary_sensor.kp_care_overdue` | Pflege-Aufgaben überfällig | Alert |
-| `binary_sensor.kp_{key}_harvest_safe` | Ernte unbedenklich (Karenzzeit abgelaufen) | IPM |
+| `binary_sensor.kp_{key}_harvest_safe` | Ernte unbedenklich (Karenzzeit — Wartezeit vor der Ernte — abgelaufen) | IPM |
 | `binary_sensor.kp_{key}_pest_alert` | Schädlingsbefall erkannt | IPM |
+| `binary_sensor.kp_site_{key}_frost_forecast` | Frostwarnung pro Standort aus der Wettervorhersage | Weather |
+
+!!! info "Frostvorhersage-Zustände und Attribute"
+    Der Frost-Sensor ist `on`, wenn innerhalb des Vorhersagehorizonts Frost erwartet wird. Er bleibt `unknown`, wenn das Backend für den Standort keine Vorhersagequelle hat (keine Koordinaten oder Wetter deaktiviert) — statt fälschlich „kein Frost" zu melden. Attribute: `min_temperature`, `expected_date`, `source`.
 
 !!! example "Einsatz in Automationen"
     ```yaml
@@ -158,7 +162,7 @@ Die Integration legt Entities für dich an. Du bekommst je einen Satz pro gewäh
 | `calendar.kp_phases` | Wachstumsphasen als Mehrtages-Events | Plant |
 | `calendar.kp_tasks` | Anstehende Aufgaben mit Fälligkeitsdatum | Task |
 | `todo.kp_tasks` | Aufgabenliste — Abhaken markiert Aufgabe im Backend als erledigt | Task |
-| `button.kp_refresh_all` | Manueller Refresh aller Coordinatoren | — |
+| `button.kp_refresh_all` | Manueller Refresh aller Coordinators | — |
 
 !!! tip "Todo-Sync"
     Wenn du eine Aufgabe in der HA-Todo-Liste abhakst, wird sie automatisch im Kamerplanter-Backend als erledigt markiert. Das löst zusätzlich ein `kamerplanter_task_completed`-Event aus.

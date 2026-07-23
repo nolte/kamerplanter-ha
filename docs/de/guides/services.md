@@ -5,7 +5,7 @@ audience:
   - self-hosting-admin
 content_mode: reference
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Services
 
@@ -91,9 +91,53 @@ data:
 
 ---
 
+## `kamerplanter.start_task`
+
+Markiert eine Kamerplanter-Aufgabe als gestartet (holt sie aus dem Zustand „nicht begonnen"). Nutzbar aus der Care-Card und aus Automationen. Die Aufgabe wird über ihren `task_key` oder über eine Entity mit `task_key`-Attribut adressiert.
+
+```yaml
+service: kamerplanter.start_task
+data:
+  task_key: "task_20260321_abc123"
+```
+
+| Parameter | Pflicht | Beschreibung |
+|-----------|---------|-------------|
+| `task_key` | Ja* | Direkter Key der Aufgabe |
+| `entity_id` | Ja* | Entity mit `task_key`-Attribut |
+| `entry_id` | Nein | Bestimmte Instanz gezielt ansprechen (nur bei mehreren Instanzen nötig) |
+
+*Entweder `task_key` oder `entity_id` angeben.
+
+---
+
+## `kamerplanter.complete_task`
+
+Markiert eine Kamerplanter-Aufgabe als abgeschlossen. Gleiche Parameter wie [`start_task`](#kamerplanterstart_task).
+
+```yaml
+service: kamerplanter.complete_task
+data:
+  entity_id: todo.kp_tasks
+```
+
+---
+
+## `kamerplanter.skip_task`
+
+Markiert eine Kamerplanter-Aufgabe als übersprungen. Gleiche Parameter wie [`start_task`](#kamerplanterstart_task).
+
+```yaml
+service: kamerplanter.skip_task
+data:
+  task_key: "task_20260321_abc123"
+```
+
+---
+
 ## `kamerplanter.refresh_data`
 
-Erzwingt erneutes Polling aller 6 Coordinatoren. Nutze ihn nach manuellen Änderungen im Kamerplanter-Backend.
+Erzwingt erneutes Polling aller 7 Coordinators. Nutze ihn nach manuellen Änderungen im Kamerplanter-Backend.
 
 ```yaml
 service: kamerplanter.refresh_data
