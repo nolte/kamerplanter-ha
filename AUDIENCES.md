@@ -73,7 +73,7 @@ documentation `track`, open questions, `confirmed` or `assumed`, criticality.
 - **HACS & Home Assistant Core quality gates** — _id_: `quality-gates` · _category_: governing-party ·
   _surface_: `manifest.json`, hassfest, HACS Action, brands repo, CI workflows ·
   _expects_: the integration meets HACS listing and HA quality requirements
-  (manifest validity, brand assets, translations, semver releases) ·
+  (manifest validity, brand assets, translations, SemVer releases) ·
   _track_: `developer-docs` · _status_: `assumed` · _criticality_: secondary
   - Open questions: none
 

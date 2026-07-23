@@ -4,7 +4,7 @@ audience:
   - ha-end-users
 content_mode: how-to
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Automations
 
@@ -40,7 +40,7 @@ action:
 
 ---
 
-## Pest monitoring (IPM)
+## Pest Monitoring (IPM)
 
 The IPM module (Integrated Pest Management) rates pest pressure per plant. When the alert fires, Home Assistant sends a notification:
 
@@ -66,7 +66,7 @@ action:
 
 ---
 
-## Refill tank
+## Refill Tank
 
 ```yaml
 alias: "KP: Refill tank"

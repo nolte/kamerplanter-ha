@@ -28,8 +28,9 @@ Integration and card maintainers are a secondary audience; their development set
 - **Location overview** — active runs and plant counts per tent, room, or bed
 - **Task tracking** — todo list entity, overdue counts, calendar events for phases and tasks
 - **Care reminders** — binary sensors for overdue care, events for actionable notifications
+- **Frost warning** — proactive per-site frost forecast as a binary sensor
 - **5 custom Lovelace cards** — plant card, mix card, tank card, care card, houseplant card (auto-registered)
-- **Services** — fill tank, water channel, confirm care, refresh data, clear cache
+- **Services** — fill tank, water channel, confirm care, start/complete/skip task, refresh data, clear cache
 
 ## Installation
 
@@ -65,6 +66,7 @@ Configurable under **Settings > Devices & Services > Kamerplanter > Configure**:
 | Alerts | 60s | 30s | Overdue tasks, sensor offline |
 | Tasks | 300s | 120s | Pending tasks |
 | IPM (Integrated Pest Management) | 120s | 60s | Pest pressure, harvest waiting period, inspection |
+| Weather | 1800s | 600s | Per-site frost forecast |
 
 ## Entities
 
@@ -95,6 +97,7 @@ Configurable under **Settings > Devices & Services > Kamerplanter > Configure**:
 | `binary_sensor.kp_care_overdue` | Care tasks overdue (attribute: `overdue_count`) |
 | `binary_sensor.kp_{key}_harvest_safe` | Harvest waiting period elapsed — safe to harvest |
 | `binary_sensor.kp_{key}_pest_alert` | Pest/disease pressure detected |
+| `binary_sensor.kp_site_{key}_frost_forecast` | Per-site frost warning from the weather forecast |
 
 ### Calendar, Todo, Button
 
@@ -141,6 +144,10 @@ data:
   notification_key: "notif_20260321_abc123"
   action: confirmed
 ```
+
+### `kamerplanter.start_task` / `kamerplanter.complete_task` / `kamerplanter.skip_task`
+
+Mark a task as started, completed, or skipped. Target it by `task_key` or by an entity carrying a `task_key` attribute. These back the interactive care card.
 
 ### `kamerplanter.refresh_data` / `kamerplanter.clear_cache`
 

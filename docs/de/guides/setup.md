@@ -5,7 +5,7 @@ audience:
   - ha-end-users
 content_mode: how-to
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Einrichtung
 
@@ -100,7 +100,8 @@ Konfigurierbar unter **Einstellungen** > **Integrationen** > **Kamerplanter** > 
 | **Location** | 300s | 120s | Standorte, Tanks, Füllstände |
 | **Alert** | 60s | 30s | Überfällige Aufgaben, Sensor offline |
 | **Task** | 300s | 120s | Anstehende Aufgaben |
-| **IPM** | 120s | 60s | Schädlingsdruck, Karenz, Erntesicherheit |
+| **IPM** (Integrierter Pflanzenschutz) | 120s | 60s | Schädlingsdruck, Karenz (Wartezeit vor der Ernte), Erntesicherheit |
+| **Weather** | 1800s | 600s | Frostvorhersage pro Standort |
 
 !!! tip "Warnungen häufiger abrufen"
     Der Alert-Coordinator hat bewusst ein kürzeres Standard-Intervall (60s), damit zeitkritische Benachrichtigungen schneller ankommen.

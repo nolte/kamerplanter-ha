@@ -4,7 +4,7 @@ audience:
   - ha-end-users
 content_mode: how-to
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Automationen
 
@@ -62,7 +62,7 @@ action:
 ```
 
 !!! tip "Erntesicherheit prüfen"
-    `binary_sensor.kp_{key}_harvest_safe` zeigt an, ob die Karenzzeit abgelaufen ist. `sensor.kp_{key}_karenz_remaining` nennt die verbleibenden Tage.
+    `binary_sensor.kp_{key}_harvest_safe` zeigt an, ob die Karenzzeit (Wartezeit vor der Ernte) abgelaufen ist. `sensor.kp_{key}_karenz_remaining` nennt die verbleibenden Tage.
 
 ---
 

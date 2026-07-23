@@ -5,7 +5,7 @@ audience:
   - self-hosting-admin
 content_mode: meta
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Kamerplanter Home Assistant Integration
 
@@ -31,15 +31,16 @@ flowchart LR
 
 - :seedling: **Plant monitoring** — growth phases, days in phase, next phase, nutrient plan
 - :test_tube: **Nutrient dosages** — per-channel mixing ratios (ml/L) as sensor attributes, dashboard-ready
-- :potable_water: **Tank management** — volume, solution age, EC/pH via HA services
+- :potable_water: **Tank management** — volume, solution age, EC (electrical conductivity)/pH via HA services
 - :house: **Location overview** — active runs and plant counts per tent, room, or bed
 - :ballot_box_with_check: **Task tracking** — todo list entity, overdue counts, calendar events
 - :bell: **Care reminders** — binary sensors for overdue care, events for actionable notifications
+- :snowflake: **Frost warning** — proactive per-site frost forecast as a binary sensor
 - :art: **5 custom Lovelace cards** — plant, mix, tank, care, houseplant card (auto-registered)
-- :gear: **5 services** — fill tank, water channel, confirm care, refresh data, clear cache
+- :gear: **8 services** — fill tank, water channel, confirm care, start/complete/skip task, refresh data, clear cache
 
-!!! info "6 independent coordinators"
-    The integration uses **6 separate coordinators** (Plant, Location, Run, Alert, Task, IPM) with independent polling intervals. Time-critical alerts arrive faster than master data.
+!!! info "7 independent coordinators"
+    The integration uses **7 separate coordinators** (Plant, Location, Run, Alert, Task, IPM (Integrated Pest Management), Weather) with independent polling intervals. Time-critical alerts arrive faster than master data.
 
 ## Next Steps
 

@@ -4,7 +4,7 @@ audience:
   - maintainers
 content_mode: explanation
 track: developer-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Architektur
 
@@ -20,6 +20,7 @@ flowchart TB
         API --> C4["Alert Coordinator"]
         API --> C5["Task Coordinator"]
         API --> C6["IPM Coordinator"]
+        API --> C7["Weather Coordinator"]
         C1 --> S["Sensors\nsensor.py"]
         C1 --> BS["Binary Sensors\nbinary_sensor.py"]
         C2 --> S
@@ -27,6 +28,7 @@ flowchart TB
         C4 --> BS
         C6 --> S
         C6 --> BS
+        C7 --> BS
         C5 --> CAL["Calendar\ncalendar.py"]
         C5 --> TODO["Todo\ntodo.py"]
         S --> CARDS["Lovelace Cards\nwww/*.js"]
@@ -53,7 +55,7 @@ Die Daten fließen in eine Richtung. Die Kette hat vier Stufen:
 
 ### Coordinators (`coordinator.py`)
 
-Sechs `DataUpdateCoordinator`-Instanzen, jede mit eigenem Intervall. Der Coordinator ist [HAs eingebauter Polling-Manager](https://developers.home-assistant.io/docs/integration_fetching_data/):
+Sieben `DataUpdateCoordinator`-Instanzen, jede mit eigenem Intervall. Der Coordinator ist [HAs eingebauter Polling-Manager](https://developers.home-assistant.io/docs/integration_fetching_data/):
 
 | Coordinator | Daten | Standard-Intervall |
 |-------------|-------|-------------------|
@@ -62,9 +64,10 @@ Sechs `DataUpdateCoordinator`-Instanzen, jede mit eigenem Intervall. Der Coordin
 | **Run** | Pflanzdurchläufe, Run-Status, Pflanzenanzahl | 300s |
 | **Alert** | Überfällige Aufgaben, Sensor-Status | 60s |
 | **Task** | Anstehende Aufgaben | 300s |
-| **IPM** | Schädlingsdruck, Karenz, Erntesicherheit | 120s |
+| **IPM** (Integrierter Pflanzenschutz) | Schädlingsdruck, Karenz (Wartezeit vor der Ernte), Erntesicherheit | 120s |
+| **Weather** | Frostvorhersage pro Standort | 1800s |
 
-!!! info "Warum 6 Coordinators?"
+!!! info "Warum 7 Coordinators?"
     Die Coordinators sind getrennt. So fragt die Integration zeitkritische Alerts (60s) häufiger ab als Stammdaten (300s). Jeder Coordinator hat einen eigenen Fehler-Counter und eine eigene Recovery.
 
 ### Entity-Plattformen
@@ -72,7 +75,7 @@ Sechs `DataUpdateCoordinator`-Instanzen, jede mit eigenem Intervall. Der Coordin
 | Datei | Plattform | Entities | Coordinators |
 |-------|-----------|----------|----------------|
 | `sensor.py` | `sensor` | Pflanzen, Runs, Standorte, Tanks, Server | Plant, Location, Run, IPM |
-| `binary_sensor.py` | `binary_sensor` | Attention, Care, Sensor-Status | Alert, IPM |
+| `binary_sensor.py` | `binary_sensor` | Attention, Care, Sensor-Status, Frost | Alert, IPM, Weather |
 | `calendar.py` | `calendar` | Phasen, Aufgaben | Plant, Task |
 | `todo.py` | `todo` | Aufgabenliste | Task |
 | `button.py` | `button` | Refresh All | — |

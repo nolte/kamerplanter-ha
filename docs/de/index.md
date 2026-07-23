@@ -5,7 +5,7 @@ audience:
   - self-hosting-admin
 content_mode: meta
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Kamerplanter Home Assistant Integration
 
@@ -31,15 +31,16 @@ flowchart LR
 
 - :seedling: **Pflanzen-Monitoring** — Wachstumsphasen, Tage in Phase, nächste Phase, Nährplanprofil
 - :test_tube: **Nährstoff-Dosierungen** — pro Kanal als Sensor-Attribute (ml/L), direkt für Dashboards nutzbar
-- :potable_water: **Tank-Management** — Volumen, Lösungsalter, EC/pH via HA-Services
+- :potable_water: **Tank-Management** — Volumen, Lösungsalter, EC (elektrische Leitfähigkeit)/pH via HA-Services
 - :house: **Standort-Übersicht** — aktive Runs und Pflanzenanzahl pro Zelt/Raum/Beet
 - :ballot_box_with_check: **Aufgaben-Tracking** — Todo-Entity, überfällige Aufgaben, Kalender-Events
 - :bell: **Pflege-Erinnerungen** — Binary Sensors für überfällige Pflege, Events für Benachrichtigungen
+- :snowflake: **Frostwarnung** — proaktive Frostvorhersage pro Standort als Binary Sensor
 - :art: **5 Custom Lovelace Cards** — Plant, Mix, Tank, Care, Houseplant Card (auto-registriert)
-- :gear: **5 Services** — Tank füllen, Kanal gießen, Pflege bestätigen, Daten aktualisieren, Cache leeren
+- :gear: **8 Services** — Tank füllen, Kanal gießen, Pflege bestätigen, Aufgaben starten/abschließen/überspringen, Daten aktualisieren, Cache leeren
 
-!!! info "6 unabhängige Coordinators"
-    Die Integration nutzt **6 separate Coordinators** (Plant, Location, Run, Alert, Task, IPM) mit unabhängigen Polling-Intervallen. Zeitkritische Alerts kommen so schneller an als Stammdaten.
+!!! info "7 unabhängige Coordinators"
+    Die Integration nutzt **7 separate Coordinators** (Plant, Location, Run, Alert, Task, IPM (Integrierter Pflanzenschutz), Weather) mit unabhängigen Polling-Intervallen. Zeitkritische Alerts kommen so schneller an als Stammdaten.
 
 ## Weiter
 

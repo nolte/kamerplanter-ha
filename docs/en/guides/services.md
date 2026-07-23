@@ -5,7 +5,7 @@ audience:
   - self-hosting-admin
 content_mode: reference
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Services
 
@@ -91,9 +91,53 @@ data:
 
 ---
 
+## `kamerplanter.start_task`
+
+Marks a Kamerplanter task as started (moves it out of the "not started" state). Usable from the care card and from automations. Target the task by its `task_key` or by an entity that exposes a `task_key` attribute.
+
+```yaml
+service: kamerplanter.start_task
+data:
+  task_key: "task_20260321_abc123"
+```
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `task_key` | Yes* | Direct key of the task |
+| `entity_id` | Yes* | An entity that carries a `task_key` attribute |
+| `entry_id` | No | Target a specific instance (only needed with multiple instances) |
+
+*Provide either `task_key` or `entity_id`.
+
+---
+
+## `kamerplanter.complete_task`
+
+Marks a Kamerplanter task as completed. Same parameters as [`start_task`](#kamerplanterstart_task).
+
+```yaml
+service: kamerplanter.complete_task
+data:
+  entity_id: todo.kp_tasks
+```
+
+---
+
+## `kamerplanter.skip_task`
+
+Marks a Kamerplanter task as skipped. Same parameters as [`start_task`](#kamerplanterstart_task).
+
+```yaml
+service: kamerplanter.skip_task
+data:
+  task_key: "task_20260321_abc123"
+```
+
+---
+
 ## `kamerplanter.refresh_data`
 
-Forces a re-poll of all six coordinators. Use it after manual changes in the Kamerplanter backend.
+Forces a re-poll of all seven coordinators. Use it after manual changes in the Kamerplanter backend.
 
 ```yaml
 service: kamerplanter.refresh_data

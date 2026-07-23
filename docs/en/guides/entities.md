@@ -5,11 +5,11 @@ audience:
   - self-hosting-admin
 content_mode: reference
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Entities
 
-The integration creates entities for you. You get one set per selected plant, location, and tank. Each entity belongs to one of the [6 coordinators](../development/architecture.md#coordinators-coordinatorpy). It refreshes on that coordinator's polling schedule.
+The integration creates entities for you. You get one set per selected plant, location, and tank. Each entity belongs to one of the [7 coordinators](../development/architecture.md#coordinators-coordinatorpy). It refreshes on that coordinator's polling schedule.
 
 ---
 
@@ -135,6 +135,10 @@ The integration creates entities for you. You get one set per selected plant, lo
 | `binary_sensor.kp_care_overdue` | Care tasks overdue | Alert |
 | `binary_sensor.kp_{key}_harvest_safe` | Harvest safe (waiting period elapsed) | IPM |
 | `binary_sensor.kp_{key}_pest_alert` | Pest infestation detected | IPM |
+| `binary_sensor.kp_site_{key}_frost_forecast` | Per-site frost warning from the weather forecast | Weather |
+
+!!! info "Frost forecast states and attributes"
+    The frost sensor is `on` when frost is expected within the forecast horizon. It stays `unknown` when the backend has no forecast source for the site (no coordinates, or weather disabled) — instead of misreporting "no frost". Attributes: `min_temperature`, `expected_date`, `source`.
 
 !!! example "Use in automations"
     ```yaml

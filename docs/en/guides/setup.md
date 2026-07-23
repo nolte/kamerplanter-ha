@@ -5,7 +5,7 @@ audience:
   - ha-end-users
 content_mode: how-to
 track: user-docs
-last_updated: 2026-06-24
+last_updated: 2026-07-23
 ---
 # Setup
 
@@ -100,7 +100,8 @@ Configurable under **Settings** > **Integrations** > **Kamerplanter** > **Config
 | **Location** | 300s | 120s | Locations, tanks, fill levels |
 | **Alert** | 60s | 30s | Overdue tasks, sensor offline |
 | **Task** | 300s | 120s | Pending tasks |
-| **IPM** | 120s | 60s | Pest pressure, waiting period, harvest safety |
+| **IPM** (Integrated Pest Management) | 120s | 60s | Pest pressure, waiting period, harvest safety |
+| **Weather** | 1800s | 600s | Per-site frost forecast |
 
 !!! tip "Faster alert polling"
     The Alert coordinator intentionally has a shorter default interval (60s) so time-critical notifications arrive faster.
