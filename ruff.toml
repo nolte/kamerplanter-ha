@@ -1,0 +1,12 @@
+# Ruff configuration.
+#
+# The lint workflow installs ruff unpinned; ruff 0.16.0 (2026-07) broadened the
+# default rule selection, so pre-existing component code suddenly fails CI
+# (linter-version drift, same class as the markdownlint MD060 incident).
+# Pin the historical default selection explicitly so CI stays deterministic
+# across ruff upgrades; widening the set again is a deliberate follow-up
+# (candidates seen in 0.16: DTZ011, PLR1730, RUF100/012/022, I001, FURB188,
+# PERF402 - adopt with code fixes, not silently).
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
