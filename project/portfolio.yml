@@ -20,3 +20,41 @@ capabilities:
       and HACS conventions independently.
     peers:
       - kamerplanter:plant-lifecycle-management-system
+
+# tech_stack: repo-specific deltas vs the inherited portfolio baseline
+# (portfolio/tech-stack.yml). Schema: spec/portfolio/tech-stack/ §Per-repository block.
+tech_stack:
+  additions:
+    - name: python
+      kind: language
+      group: build-tooling
+      role: Implementation language for the Home Assistant custom component.
+      status: active
+      lifecycle: runtime
+      source_of_truth: custom_components/kamerplanter/manifest.json
+      rationale: >-
+        acknowledged-missing-signal: python is the component's runtime language; the closed
+        group enum has no application-runtime bucket, so it is grouped under build-tooling as
+        the closest fit (operator may regroup).
+    - name: home-assistant
+      kind: framework
+      group: build-tooling
+      role: Home Assistant integration platform the custom component plugs into (config_flow hub integration).
+      status: active
+      lifecycle: runtime
+      source_of_truth: custom_components/kamerplanter/manifest.json
+    - name: pytest
+      kind: test
+      group: quality
+      role: Test runner for the component's test suite.
+      status: active
+      lifecycle: development
+      source_of_truth: pytest.ini
+    - name: hacs
+      kind: deploy-target
+      group: automation
+      role: HACS distribution channel through which the custom component is installed into Home Assistant.
+      status: active
+      lifecycle: runtime
+      source_of_truth: hacs.json
+      rationale: "kind deploy-target is operator-curated per tech-stack-discovery; signal is hacs.json."
