@@ -1,0 +1,13 @@
+# Ruff configuration.
+#
+# The lint workflow installs ruff unpinned; ruff 0.16.0 (2026-07) enabled new
+# default-on rules that flag pre-existing code (linter-version drift, same class
+# as the markdownlint MD060 incident). The three rules below are excluded
+# config-side to keep CI deterministic without semantic code changes:
+#   DTZ011  - date.today() without tz: needs a deliberate dt_util migration
+#   PLR1730 - if-to-max() rewrite: cosmetic, auto-fixable in a dedicated pass
+#   RUF100  - unused-noqa: BLE001 no longer fires on these excepts in 0.16
+# Follow-up: fix DTZ011 properly with dt_util and drop these exclusions.
+
+[lint]
+ignore = ["DTZ011", "PLR1730", "RUF100"]
