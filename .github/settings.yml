@@ -10,3 +10,11 @@ repository:
   # topics, and a list throws after the repository PATCH, which silently skips the
   # branches block (nolte/gh-plumbing#416).
   topics: home-assistant, hacs, custom-integration, kamerplanter, plant-management
+
+# Labels this repository uses that the commons don't declare. probot/settings
+# deletes every live label missing from the merged list (lib/plugins/diffable.js):
+# `documentations` is on #2 and #5.
+labels:
+  - name: documentations
+    color: "caa7e8"
+    description: "Update documentation"
