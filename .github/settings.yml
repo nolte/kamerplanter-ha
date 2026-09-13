@@ -6,9 +6,7 @@ repository:
   name: kamerplanter-ha
   description: Kamerplanter Custom Integration for Home Assistant
   homepage: https://nolte.github.io/kamerplanter-ha
-  topics:
-    - home-assistant
-    - hacs
-    - custom-integration
-    - kamerplanter
-    - plant-management
+  # A comma-separated string, never a YAML list: probot/settings calls .split() on
+  # topics, and a list throws after the repository PATCH, which silently skips the
+  # branches block (nolte/gh-plumbing#416).
+  topics: home-assistant, hacs, custom-integration, kamerplanter, plant-management
